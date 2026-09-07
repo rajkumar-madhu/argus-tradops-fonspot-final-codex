@@ -24,6 +24,11 @@ from app.event_bus import redis_status
 from app.market_cache import load_snapshot
 from app.metrics import API_LATENCY, API_REQUESTS
 from app.repository import get_rca as get_persisted_rca, list_incidents, list_rca
+from app.elastic.normalizer import (
+    OMS_STATUS_MAPPING_CONFIRMED,
+    exch_confirm_label,
+    oms_status_label,
+)
 from app.elastic.noren_service import (
     active_sessions,
     live_orders,
@@ -176,6 +181,115 @@ DEMO_REPORTS = {
     ],
     "source": "demo",
 }
+
+# Shaped exactly like a row of L_ORDERLATENCY<TS>.csv. Latencies are MICROSECONDS.
+# OMS_EXCH_CONFIRMATION is derived from whole-second timestamps upstream, so real
+# values cluster near second boundaries (~0 / ~2e6 / ~4e6 us) — see the note the
+# endpoint returns. A blank EXCH_STATUS means the exchange never confirmed, and
+# those rows carry OMS_EXCH_CONFIRMATION = 0 which must be excluded from averages.
+DEMO_ORDER_LATENCY = [
+    {"NOREN_ORD_NUM":"20260608001782","EXCH_SEG":"NSE","EXT_RMKS":"L043321890","OMS_STATUS":65,"OMS_LATENCY":2490.86,"EXCH_STATUS":48,"OMS_EXCH_CONFIRMATION":5255.34,"OMSUPDATETIME":1780889462,"EXCHUPDATETIME":1780889462},
+    {"NOREN_ORD_NUM":"20260608001783","EXCH_SEG":"MCX","EXT_RMKS":"L637940252f51","OMS_STATUS":65,"OMS_LATENCY":3056.40,"EXCH_STATUS":48,"OMS_EXCH_CONFIRMATION":2005354.07,"OMSUPDATETIME":1780889518,"EXCHUPDATETIME":1780889520},
+    {"NOREN_ORD_NUM":"20260608001784","EXCH_SEG":"MCX","EXT_RMKS":"L161849531acfd","OMS_STATUS":65,"OMS_LATENCY":1574.10,"EXCH_STATUS":48,"OMS_EXCH_CONFIRMATION":2002657.95,"OMSUPDATETIME":1780889505,"EXCHUPDATETIME":1780889507},
+    {"NOREN_ORD_NUM":"20260608001785","EXCH_SEG":"NFO","EXT_RMKS":"L19283274eb35","OMS_STATUS":56,"OMS_LATENCY":1925.54,"EXCH_STATUS":"","OMS_EXCH_CONFIRMATION":0,"OMSUPDATETIME":1780889484,"EXCHUPDATETIME":0},
+    {"NOREN_ORD_NUM":"20260608001786","EXCH_SEG":"NFO","EXT_RMKS":"L7741220ab","OMS_STATUS":48,"OMS_LATENCY":3349.80,"EXCH_STATUS":48,"OMS_EXCH_CONFIRMATION":4005114.22,"OMSUPDATETIME":1780889470,"EXCHUPDATETIME":1780889474},
+    {"NOREN_ORD_NUM":"20260608001787","EXCH_SEG":"BFO","EXT_RMKS":"L2210943cc","OMS_STATUS":45,"OMS_LATENCY":1355.00,"EXCH_STATUS":"","OMS_EXCH_CONFIRMATION":0,"OMSUPDATETIME":1780889491,"EXCHUPDATETIME":0},
+    {"NOREN_ORD_NUM":"20260608001788","EXCH_SEG":"NSE","EXT_RMKS":"L5590318de4","OMS_STATUS":56,"OMS_LATENCY":2371.90,"EXCH_STATUS":48,"OMS_EXCH_CONFIRMATION":2003991.60,"OMSUPDATETIME":1780889447,"EXCHUPDATETIME":1780889449},
+    {"NOREN_ORD_NUM":"20260608001789","EXCH_SEG":"BSE","EXT_RMKS":"L8830127fa","OMS_STATUS":65,"OMS_LATENCY":2884.15,"EXCH_STATUS":48,"OMS_EXCH_CONFIRMATION":6120.48,"OMSUPDATETIME":1780889433,"EXCHUPDATETIME":1780889433},
+]
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    """Nearest-rank percentile. Returns 0.0 for an empty series."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = max(0, min(len(ordered) - 1, int(round((pct / 100.0) * len(ordered) + 0.5)) - 1))
+    return round(ordered[idx], 2)
+
+
+def _latency_payload(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
+    """Aggregate raw latency rows into KPI + per-segment + table shapes.
+
+    Unconfirmed rows (blank EXCH_STATUS) carry OMS_EXCH_CONFIRMATION = 0. Those
+    zeros are excluded from every confirmation statistic — including them would
+    drag the averages toward zero and understate real exchange round-trips.
+    """
+    oms = [float(r.get("OMS_LATENCY") or 0) for r in rows]
+    confirmed = [float(r.get("OMS_EXCH_CONFIRMATION") or 0) for r in rows if float(r.get("OMS_EXCH_CONFIRMATION") or 0) > 0]
+    unconfirmed = [r for r in rows if not str(r.get("EXCH_STATUS", "")).strip()]
+
+    segments: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        seg = r.get("EXCH_SEG") or "—"
+        bucket = segments.setdefault(seg, {"segment": seg, "orders": 0, "oms": [], "conf": [], "unconfirmed": 0})
+        bucket["orders"] += 1
+        bucket["oms"].append(float(r.get("OMS_LATENCY") or 0))
+        conf = float(r.get("OMS_EXCH_CONFIRMATION") or 0)
+        if conf > 0:
+            bucket["conf"].append(conf)
+        if not str(r.get("EXCH_STATUS", "")).strip():
+            bucket["unconfirmed"] += 1
+
+    by_segment = sorted(
+        (
+            {
+                "segment": b["segment"],
+                "orders": b["orders"],
+                "oms_p50_us": _percentile(b["oms"], 50),
+                "oms_p95_us": _percentile(b["oms"], 95),
+                "confirm_p50_us": _percentile(b["conf"], 50),
+                "unconfirmed": b["unconfirmed"],
+            }
+            for b in segments.values()
+        ),
+        key=lambda x: x["orders"],
+        reverse=True,
+    )
+
+    return {
+        "items": [
+            {
+                "order_id": r.get("NOREN_ORD_NUM"),
+                "segment": r.get("EXCH_SEG"),
+                "ext_remarks": r.get("EXT_RMKS"),
+                "oms_status": r.get("OMS_STATUS"),
+                "oms_status_label": oms_status_label(r.get("OMS_STATUS")),
+                "oms_latency_us": float(r.get("OMS_LATENCY") or 0),
+                "exch_status": r.get("EXCH_STATUS"),
+                "exch_status_label": exch_confirm_label(r.get("EXCH_STATUS")),
+                "confirm_latency_us": float(r.get("OMS_EXCH_CONFIRMATION") or 0),
+                "oms_update_time": r.get("OMSUPDATETIME"),
+                "exch_update_time": r.get("EXCHUPDATETIME"),
+                "confirmed": bool(str(r.get("EXCH_STATUS", "")).strip()),
+            }
+            for r in rows
+        ],
+        "count": len(rows),
+        "summary": {
+            "orders": len(rows),
+            "oms_p50_us": _percentile(oms, 50),
+            "oms_p95_us": _percentile(oms, 95),
+            "oms_p99_us": _percentile(oms, 99),
+            "oms_max_us": round(max(oms), 2) if oms else 0.0,
+            "confirm_p50_us": _percentile(confirmed, 50),
+            "confirm_p95_us": _percentile(confirmed, 95),
+            "confirmed_orders": len(confirmed),
+            "unconfirmed_orders": len(unconfirmed),
+            "unconfirmed_pct": round((len(unconfirmed) / len(rows)) * 100, 1) if rows else 0.0,
+        },
+        "by_segment": by_segment,
+        # Surfaced so the UI can label the OMS status column as provisional
+        # rather than silently asserting a mapping nobody has confirmed.
+        "oms_status_mapping_confirmed": OMS_STATUS_MAPPING_CONFIRMED,
+        "notes": [
+            "Latencies are microseconds.",
+            "OMS_EXCH_CONFIRMATION derives from whole-second timestamps upstream, so values "
+            "quantise near second boundaries and should not be read as sub-second precision.",
+            "Unconfirmed orders report 0 and are excluded from confirmation statistics.",
+        ],
+        "source": source,
+    }
 
 
 def _demo_rejections() -> dict[str, Any]:
@@ -426,6 +540,18 @@ def holdings(user=Depends(require("holdings:read"))):
     if DEMO_MODE:
         return {"items": DEMO_HOLDINGS, "count": len(DEMO_HOLDINGS), "source": "demo"}
     return {"items": [], "count": 0, "source": "elasticsearch", "note": "Holdings require back-office integration"}
+
+
+@app.get("/api/order-latency")
+def order_latency(user=Depends(require("latency:read"))):
+    if DEMO_MODE:
+        return _latency_payload(DEMO_ORDER_LATENCY, "demo")
+    # The latency feed arrives as periodic L_ORDERLATENCY<TS>.csv drops rather than
+    # through the Noren journal, so there is no Elasticsearch index to query yet.
+    # Same shape as the demo branch so the UI needs no special case.
+    empty = _latency_payload([], "elasticsearch")
+    empty["note"] = "Order latency requires the L_ORDERLATENCY feed to be ingested"
+    return empty
 
 
 @app.get("/api/infra")

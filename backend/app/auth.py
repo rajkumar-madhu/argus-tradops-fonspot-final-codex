@@ -17,10 +17,10 @@ TOKEN_QUERY_PARAM = "access_token"
 
 ROLE_PERMISSIONS = {
     "super_admin": {"*"},
-    "trading_ops": {"dashboard:read","orders:read","trades:read","positions:read","holdings:read","rejections:read","rca:read","market:read","exchange:read","sessions:read","logs:read"},
+    "trading_ops": {"dashboard:read","orders:read","trades:read","positions:read","holdings:read","rejections:read","rca:read","market:read","exchange:read","sessions:read","logs:read","latency:read"},
     "risk": {"dashboard:read","positions:read","holdings:read","rejections:read","rca:read","risk:read","market:read"},
-    "infra_sre": {"dashboard:read","exchange:read","infra:read","logs:read","incidents:read","rca:read","sessions:read"},
-    "auditor": {"dashboard:read","orders:read","trades:read","positions:read","holdings:read","rejections:read","rca:read","market:read","exchange:read","sessions:read","risk:read","infra:read","logs:read","incidents:read","reports:read"},
+    "infra_sre": {"dashboard:read","exchange:read","infra:read","logs:read","incidents:read","rca:read","sessions:read","latency:read"},
+    "auditor": {"dashboard:read","orders:read","trades:read","positions:read","holdings:read","rejections:read","rca:read","market:read","exchange:read","sessions:read","risk:read","infra:read","logs:read","incidents:read","reports:read","latency:read"},
 }
 
 @lru_cache

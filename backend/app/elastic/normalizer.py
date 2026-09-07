@@ -227,3 +227,57 @@ def normalize_log(doc: dict[str, Any]) -> dict[str, Any]:
 
 # Backward compatibility
 normalize_session = normalize_session_event
+
+
+# ---------------------------------------------------------------------------
+# Order latency feed (L_ORDERLATENCY*.csv)
+#
+# !! UNRESOLVED — DO NOT ROUTE THROUGH order_status() !!
+#
+# The latency feed's OMS_STATUS codes CONTRADICT the Noren OrdStatus codes this
+# module maps in order_status() above:
+#
+#     code | latency feed generator | order_status() (Noren OrdStatus)
+#     -----+------------------------+---------------------------------
+#       65 | COMPLETE               | REJECTED
+#       56 | OPEN                   | REJECTED
+#       48 | AFTER_MARKET_ORDER     | OPEN / PARTIAL
+#       45 | REJECTED               | (unmapped)
+#       50 | (unmapped)             | COMPLETE
+#
+# The labels below follow the FEED's own mapping and are treated as a separate
+# namespace ("OMS status"), never as Noren order status. This is provisional:
+# the owner of the latency feed has not yet confirmed which mapping is
+# authoritative. If it turns out the feed should use Noren semantics, change
+# ONLY this dict — nothing else reads these codes.
+# ---------------------------------------------------------------------------
+
+OMS_STATUS_LABELS: dict[int, str] = {
+    65: "COMPLETE",
+    56: "OPEN",
+    45: "REJECTED",
+    48: "AFTER_MARKET_ORDER",
+}
+
+#: True while the mapping above is unconfirmed; the API surfaces this so the UI
+#: can label the column as provisional rather than silently asserting it.
+OMS_STATUS_MAPPING_CONFIRMED = False
+
+
+def oms_status_label(code: Any) -> str:
+    """Label an OMS_STATUS code from the latency feed. Unknown codes render as-is."""
+    try:
+        return OMS_STATUS_LABELS.get(int(code), f"CODE_{int(code)}")
+    except (TypeError, ValueError):
+        return "UNKNOWN"
+
+
+def exch_confirm_label(code: Any) -> str:
+    """EXCH_STATUS: 48 = confirmed by the exchange, blank/0 = never confirmed."""
+    raw = str(code).strip()
+    if raw == "":
+        return "NOT_CONFIRMED"
+    try:
+        return "CONFIRMED" if int(float(raw)) == 48 else f"CODE_{raw}"
+    except (TypeError, ValueError):
+        return "UNKNOWN"

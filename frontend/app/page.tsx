@@ -109,7 +109,6 @@ const SUPPORT: [React.ComponentType<any>, string, string[]][] = [
 export default function Landing() {
   return (
     <main className="landing">
-      <MarketTicker variant="strip" />
       <nav className="landing-nav">
         <Link href="/" className="brand">
           <div className="brand-bars"><i /><i /><i /></div>
@@ -125,12 +124,16 @@ export default function Landing() {
         </div>
         <div className="nav-actions">
           <span className="nav-search" aria-label="Search"><Search size={16} /></span>
+          <a className="nav-phone" href="#support"><Phone size={14} />Support desk</a>
           <Link className="secondary sm" href="/signin">Sign In</Link>
           <Link className="primary sm" href="/signup">Get Started</Link>
         </div>
       </nav>
 
-      <section className="hero">
+      {/* Ticker sits directly under the nav, matching the reference layout */}
+      <MarketTicker variant="strip" />
+
+      <section className="hero centered">
         <div className="hero-copy">
           <div className="eyebrow">OBSERVE · ANALYZE · RESOLVE · STAY AHEAD</div>
           <h1>Complete Observability<br />for <span>Trading Operations</span></h1>
@@ -429,6 +432,11 @@ export default function Landing() {
           <div className="footer-brand">
             <div className="brand"><div className="brand-bars"><i /><i /><i /></div><span><b>TradeOps</b><small>Trading Observability Platform</small></span></div>
             <p>Read-only observability for Noren trading journals. TradeOps never places, cancels or modifies orders.</p>
+            <form className="footer-signup" action="#footer">
+              <input type="email" name="email" placeholder="Work email" aria-label="Work email" />
+              <button type="submit">Subscribe</button>
+            </form>
+            <span className="footer-note">Release notes and incident post-mortems. No marketing.</span>
             <div className="socials">
               <a href="#footer" aria-label="LinkedIn"><Linkedin size={15} /></a>
               <a href="#footer" aria-label="Twitter"><Twitter size={15} /></a>

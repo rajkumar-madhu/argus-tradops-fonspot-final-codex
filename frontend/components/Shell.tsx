@@ -10,7 +10,7 @@ import MarketTicker from "@/components/MarketTicker";
 import {
   Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, ChevronDown, Boxes, CircleDollarSign,
   ClipboardList, Gauge, Layers3, LineChart, Network, Search, Server,
-  Settings, ShieldCheck, Users, WalletCards
+  Settings, ShieldCheck, Timer, Users, WalletCards
 } from "lucide-react";
 
 const nav = [
@@ -22,6 +22,7 @@ const nav = [
   ["/holdings", "Holdings", WalletCards],
   ["/rejections", "Rejections", Activity],
   ["/rca", "RCA & Analysis", ShieldCheck],
+  ["/order-latency", "Order Latency", Timer],
   ["/market-data", "Market Data", Gauge],
   ["/exchange", "Exchange Health", Network],
   ["/sessions", "Users & Sessions", Users],

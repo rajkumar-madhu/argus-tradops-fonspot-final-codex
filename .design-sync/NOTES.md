@@ -46,10 +46,21 @@ intentional, not drift. Same for any future all-caps component export.
   not a triaged warn; it means no preview has been machine-verified. Re-run validate in a real
   terminal to clear it.
 - `[FONT_MISSING] "Inter"` — `globals.css:36` sets `font-family: Inter, ui-sans-serif, system-ui, …`
-  but the repo ships no `@font-face` and no woff2. The **app behaves the same way**: Inter is used
-  only if the viewer already has it, otherwise system-ui. So this is faithful, not a regression.
-  Unresolved pending a decision: ship Inter woff2 via `cfg.extraFonts`, or accept the system
-  fallback. Not yet signed off by the user.
+  and `globals.css` itself carries no `@font-face`. **This is a bundling gap, not an app bug.** The
+  app loads Inter correctly via `next/font/google` in `app/layout.tsx` (`inter.className` on
+  `<body>`), which self-hosts the woff2 under `.next/static/media/`. Because design-sync ships only
+  `globals.css`, that `@font-face` layer never reaches the bundle, so designs built from this DS
+  fall back to system-ui while the real app does not.
+  Fix options, in order of preference:
+  1. Commit Inter woff2 files under `frontend/fonts/` with a hand-written `@font-face` css and
+     point `cfg.extraFonts` at it — ships the font, matches the app exactly.
+  2. A Google-Fonts `@import` in a design-sync-only stylesheet (downgrades the warn to the
+     informational `[FONT_REMOTE]`). Do **not** add this to `globals.css` — the app self-hosts
+     deliberately, and an `@import` would add a runtime third-party request it does not have today.
+  3. `cfg.runtimeFontPrefixes: ["Inter"]` merely silences the warn; the font still would not render
+     in designs. Least honest option.
+  Do not reuse the hashed woff2 in `.next/static/media/` — those names change every build and
+  `.next` is gitignored.
 
 ## Re-sync risks
 

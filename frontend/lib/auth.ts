@@ -1,10 +1,10 @@
 export type TradeOpsRole = "super_admin" | "trading_ops" | "risk" | "infra_sre" | "auditor";
 export const ROLE_ROUTES: Record<TradeOpsRole, string[]> = {
   super_admin: ["*"],
-  trading_ops: ["/dashboard","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/logs"],
+  trading_ops: ["/dashboard","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/logs","/order-latency"],
   risk: ["/dashboard","/positions","/holdings","/rejections","/rca","/market-data","/risk"],
-  infra_sre: ["/dashboard","/exchange","/sessions","/infra","/logs","/incidents","/rca"],
-  auditor: ["/dashboard","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/risk","/infra","/logs","/incidents","/reports"],
+  infra_sre: ["/dashboard","/exchange","/sessions","/infra","/logs","/incidents","/rca","/order-latency"],
+  auditor: ["/dashboard","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/risk","/infra","/logs","/incidents","/reports","/order-latency"],
 };
 export function canSee(path: string, roles: string[]) {
   return roles.some(r => ROLE_ROUTES[r as TradeOpsRole]?.includes("*") || ROLE_ROUTES[r as TradeOpsRole]?.includes(path));

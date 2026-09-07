@@ -157,6 +157,184 @@ const staticRoutes = {
     count: 6,
     source: "demo",
   },
+  "/api/order-latency": {
+    "items": [
+      {
+        "order_id": "20260608001782",
+        "segment": "NSE",
+        "ext_remarks": "L043321890",
+        "oms_status": 65,
+        "oms_status_label": "COMPLETE",
+        "oms_latency_us": 2490.86,
+        "exch_status": 48,
+        "exch_status_label": "CONFIRMED",
+        "confirm_latency_us": 5255.34,
+        "oms_update_time": 1780889462,
+        "exch_update_time": 1780889462,
+        "confirmed": true
+      },
+      {
+        "order_id": "20260608001783",
+        "segment": "MCX",
+        "ext_remarks": "L637940252f51",
+        "oms_status": 65,
+        "oms_status_label": "COMPLETE",
+        "oms_latency_us": 3056.4,
+        "exch_status": 48,
+        "exch_status_label": "CONFIRMED",
+        "confirm_latency_us": 2005354.07,
+        "oms_update_time": 1780889518,
+        "exch_update_time": 1780889520,
+        "confirmed": true
+      },
+      {
+        "order_id": "20260608001784",
+        "segment": "MCX",
+        "ext_remarks": "L161849531acfd",
+        "oms_status": 65,
+        "oms_status_label": "COMPLETE",
+        "oms_latency_us": 1574.1,
+        "exch_status": 48,
+        "exch_status_label": "CONFIRMED",
+        "confirm_latency_us": 2002657.95,
+        "oms_update_time": 1780889505,
+        "exch_update_time": 1780889507,
+        "confirmed": true
+      },
+      {
+        "order_id": "20260608001785",
+        "segment": "NFO",
+        "ext_remarks": "L19283274eb35",
+        "oms_status": 56,
+        "oms_status_label": "OPEN",
+        "oms_latency_us": 1925.54,
+        "exch_status": "",
+        "exch_status_label": "NOT_CONFIRMED",
+        "confirm_latency_us": 0.0,
+        "oms_update_time": 1780889484,
+        "exch_update_time": 0,
+        "confirmed": false
+      },
+      {
+        "order_id": "20260608001786",
+        "segment": "NFO",
+        "ext_remarks": "L7741220ab",
+        "oms_status": 48,
+        "oms_status_label": "AFTER_MARKET_ORDER",
+        "oms_latency_us": 3349.8,
+        "exch_status": 48,
+        "exch_status_label": "CONFIRMED",
+        "confirm_latency_us": 4005114.22,
+        "oms_update_time": 1780889470,
+        "exch_update_time": 1780889474,
+        "confirmed": true
+      },
+      {
+        "order_id": "20260608001787",
+        "segment": "BFO",
+        "ext_remarks": "L2210943cc",
+        "oms_status": 45,
+        "oms_status_label": "REJECTED",
+        "oms_latency_us": 1355.0,
+        "exch_status": "",
+        "exch_status_label": "NOT_CONFIRMED",
+        "confirm_latency_us": 0.0,
+        "oms_update_time": 1780889491,
+        "exch_update_time": 0,
+        "confirmed": false
+      },
+      {
+        "order_id": "20260608001788",
+        "segment": "NSE",
+        "ext_remarks": "L5590318de4",
+        "oms_status": 56,
+        "oms_status_label": "OPEN",
+        "oms_latency_us": 2371.9,
+        "exch_status": 48,
+        "exch_status_label": "CONFIRMED",
+        "confirm_latency_us": 2003991.6,
+        "oms_update_time": 1780889447,
+        "exch_update_time": 1780889449,
+        "confirmed": true
+      },
+      {
+        "order_id": "20260608001789",
+        "segment": "BSE",
+        "ext_remarks": "L8830127fa",
+        "oms_status": 65,
+        "oms_status_label": "COMPLETE",
+        "oms_latency_us": 2884.15,
+        "exch_status": 48,
+        "exch_status_label": "CONFIRMED",
+        "confirm_latency_us": 6120.48,
+        "oms_update_time": 1780889433,
+        "exch_update_time": 1780889433,
+        "confirmed": true
+      }
+    ],
+    "count": 8,
+    "summary": {
+      "orders": 8,
+      "oms_p50_us": 2371.9,
+      "oms_p95_us": 3349.8,
+      "oms_p99_us": 3349.8,
+      "oms_max_us": 3349.8,
+      "confirm_p50_us": 2003991.6,
+      "confirm_p95_us": 4005114.22,
+      "confirmed_orders": 6,
+      "unconfirmed_orders": 2,
+      "unconfirmed_pct": 25.0
+    },
+    "by_segment": [
+      {
+        "segment": "NSE",
+        "orders": 2,
+        "oms_p50_us": 2490.86,
+        "oms_p95_us": 2490.86,
+        "confirm_p50_us": 2003991.6,
+        "unconfirmed": 0
+      },
+      {
+        "segment": "MCX",
+        "orders": 2,
+        "oms_p50_us": 3056.4,
+        "oms_p95_us": 3056.4,
+        "confirm_p50_us": 2005354.07,
+        "unconfirmed": 0
+      },
+      {
+        "segment": "NFO",
+        "orders": 2,
+        "oms_p50_us": 3349.8,
+        "oms_p95_us": 3349.8,
+        "confirm_p50_us": 4005114.22,
+        "unconfirmed": 1
+      },
+      {
+        "segment": "BFO",
+        "orders": 1,
+        "oms_p50_us": 1355.0,
+        "oms_p95_us": 1355.0,
+        "confirm_p50_us": 0.0,
+        "unconfirmed": 1
+      },
+      {
+        "segment": "BSE",
+        "orders": 1,
+        "oms_p50_us": 2884.15,
+        "oms_p95_us": 2884.15,
+        "confirm_p50_us": 6120.48,
+        "unconfirmed": 0
+      }
+    ],
+    "oms_status_mapping_confirmed": false,
+    "notes": [
+      "Latencies are microseconds.",
+      "OMS_EXCH_CONFIRMATION derives from whole-second timestamps upstream, so values quantise near second boundaries and should not be read as sub-second precision.",
+      "Unconfirmed orders report 0 and are excluded from confirmation statistics."
+    ],
+    "source": "demo"
+  },
   "/api/holdings": {
     items: [
       { symbol: "ALPHA-EQ", exchange: "NSE", qty: 500, avg_price: 118.2, ltp: 126.2, value: 63100.0, pnl_pct: 6.8, broker: "DMO", account: "AC***-DMO", source: "demo" },

@@ -1745,3 +1745,106 @@ td.ellipsis { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white
   .collector h2, .section-head h2 { font-size: 24px; }
   .footer-grid.six { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Landing v4: align to reference layout mechanics ── */
+/* Hero is full-bleed, single column, centre-aligned, with the product preview
+   below the CTAs rather than beside them. */
+.hero.centered {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  gap: 34px;
+  padding: 72px 4% 56px;
+}
+.hero.centered .hero-copy { max-width: 860px; }
+.hero.centered .hero-copy > p { margin-left: auto; margin-right: auto; }
+.hero.centered .hero-actions { justify-content: center; }
+.hero.centered .hero-tiles { max-width: 900px; margin-left: auto; margin-right: auto; }
+.hero.centered .hero-tiles > div { align-items: center; text-align: center; }
+.hero.centered .hero-visual { perspective: none; width: 100%; max-width: 1020px; }
+.hero.centered .preview { transform: none; box-shadow: 0 24px 60px rgba(11, 50, 101, 0.20), 0 2px 6px rgba(11, 50, 101, 0.08); }
+
+/* Personas: 2 rows x 3 columns, not a single row of six. */
+.segment-row { grid-template-columns: repeat(3, 1fr); row-gap: 26px; }
+
+/* Testimonials scroll as a snapping row rather than a static 3-up grid. */
+.voice-grid {
+  grid-template-columns: none;
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.voice-grid blockquote { scroll-snap-align: start; flex: 0 0 min(380px, 82vw); }
+
+/* Nav helpline sits with the auth actions. */
+.nav-phone { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.nav-phone:hover { color: var(--blue-ui); }
+
+/* Footer newsletter signup. */
+.footer-signup { display: flex; gap: 8px; margin-top: 6px; }
+.footer-signup input {
+  flex: 1; min-width: 0; border-radius: 7px; padding: 9px 12px; font-size: 13px;
+  border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #fff;
+}
+.footer-signup input::placeholder { color: rgba(255,255,255,0.45); }
+.footer-signup button {
+  border: 0; border-radius: 7px; padding: 9px 16px; font-size: 13px; font-weight: 700;
+  background: var(--blue-ui); color: #fff; cursor: pointer;
+}
+.footer-signup button:hover { background: #0b6bd3; }
+.footer-note { font-size: 11.5px; color: rgba(255,255,255,0.45); margin-top: 8px; }
+
+@media (max-width: 900px) {
+  .hero.centered { padding: 48px 4% 40px; }
+  .segment-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Landing v5: warm accent, scoped to the marketing page only ──
+   Declared on .landing so the product UI (dashboard, KPI tiles, chart series,
+   status chips) keeps its blue identity. Two accents on purpose: --accent is a
+   fill colour behind white text, --accent-strong is the darker one used for text
+   and links on white, where the brighter orange would not carry enough contrast.
+   The embedded product preview deliberately stays blue — it depicts the real app. */
+.landing {
+  --accent: #ef6820;
+  --accent-hover: #d4550f;
+  --accent-strong: #b5450c;
+  --accent-tint: #fff2ea;
+  --accent-border: #ffd9c2;
+}
+
+.landing .primary { background: var(--accent); border-color: var(--accent); box-shadow: 0 6px 18px rgba(239, 104, 32, 0.26); }
+.landing .primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.landing .secondary { color: var(--accent-strong); border-color: var(--accent-border); }
+.landing .secondary:hover { background: var(--accent-tint); }
+.landing .primary.light { background: #fff; color: var(--accent-strong); border-color: #fff; }
+.landing .secondary.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,0.6); }
+
+.landing .eyebrow,
+.landing .hero h1 span,
+.landing .text-link,
+.landing .why-metrics b,
+.landing .stats b,
+.landing .resource-tag,
+.landing .suite-tag { color: var(--accent-strong); }
+
+.landing .navlinks a:hover,
+.landing .nav-phone:hover,
+.landing .support a:hover { color: var(--accent-strong); }
+
+.landing .feature-icon,
+.landing .segment-row span,
+.landing .avatar { background: var(--accent-tint); color: var(--accent-strong); }
+.landing .suite-tag { background: var(--accent-tint); }
+.landing .resource-thumb { background: linear-gradient(135deg, var(--accent-tint), #fff8f3); color: var(--accent-strong); }
+
+.landing .hero { background: radial-gradient(120% 90% at 100% 0%, #ffefe4 0%, #fff8f4 40%, #fff 75%); }
+.landing .cta-band { background: linear-gradient(90deg, #ef6820, #f2914a); }
+.landing .faq-item[open] summary svg { color: var(--accent-strong); }
+.landing .pipe-node.accent { border-color: var(--accent-border); background: var(--accent-tint); }
+.landing .pipe-node.accent svg { color: var(--accent-strong); }
+.landing .footer-signup button { background: var(--accent); }
+.landing .footer-signup button:hover { background: var(--accent-hover); }
