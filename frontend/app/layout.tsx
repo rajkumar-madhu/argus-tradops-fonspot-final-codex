@@ -37,6 +37,9 @@ const mono = localFont({
   display: "swap",
 });
 
+// Runtime config must also remain request-time on otherwise static public pages.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "TradeOps Command Center",
   description: "Trading observability, rejection intelligence and RCA"
@@ -47,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // the browser would fall back to the API URL baked in at `next build` time.
   const config = serverRuntimeConfig();
   return (
-    <html lang="en">
+    <html lang="en" className={`${body.variable} ${display.variable} ${mono.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -55,7 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${body.variable} ${display.variable} ${mono.variable}`}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

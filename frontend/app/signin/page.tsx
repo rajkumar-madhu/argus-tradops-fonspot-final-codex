@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { KeyRound, LockKeyhole } from "lucide-react";
 import AuthShell from "@/components/AuthShell";
 import { fetchAuthConfig, login } from "@/lib/oidc";
@@ -11,11 +11,29 @@ export default function SignIn() {
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchAuthConfig()
-      .then((cfg) => setAuthDisabled(cfg.auth_disabled))
-      .catch((err) => setError(err instanceof Error ? err.message : "Cannot reach the API"));
+  const [checking, setChecking] = useState(true);
+
+  const checkConfig = useCallback(async () => {
+    setChecking(true);
+    setError(null);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const cfg = await Promise.race([
+        fetchAuthConfig(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error("The API did not respond. Please retry.")), 10000);
+        }),
+      ]);
+      setAuthDisabled(cfg.auth_disabled);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot reach the API");
+    } finally {
+      clearTimeout(timeout);
+      setChecking(false);
+    }
   }, []);
+
+  useEffect(() => { void checkConfig(); }, [checkConfig]);
 
   async function start() {
     setBusy(true);
@@ -40,15 +58,15 @@ export default function SignIn() {
             ? "Authentication is disabled on this environment. Continue straight to the dashboard."
             : "Continue with your organisation's single sign-on."}
         </p>
-        {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
         {authDisabled === true ? (
           <button className="primary" onClick={() => (window.location.href = "/dashboard")}>
             Continue to dashboard →
           </button>
         ) : (
-          <button className="primary" disabled={busy || authDisabled === null} onClick={start}>
+          <button className="primary" disabled={busy || checking} onClick={authDisabled === null ? checkConfig : start}>
             <KeyRound size={16} />
-            {busy ? "Redirecting…" : authDisabled === null ? "Checking…" : "Sign in with Keycloak (SSO)"}
+            {busy ? "Redirecting…" : checking ? "Checking…" : authDisabled === null ? "Retry connection" : "Sign in with Keycloak (SSO)"}
           </button>
         )}
         <div className="auth-or"><span>secure access</span></div>

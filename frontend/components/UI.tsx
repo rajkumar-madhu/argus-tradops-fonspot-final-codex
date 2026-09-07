@@ -1,3 +1,4 @@
+import FilterableTable from "@/components/FilterableTable";
 import { fmt } from "@/lib/format";
 
 export function Card({ title, children, action }: { title?: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -97,28 +98,16 @@ export function DataTable({
   onRowClick?: (row: any) => void;
   className?: string;
 }) {
-  return (
-    <div className="table-scroll">
-      <table className={className}>
-        <thead>
-          <tr>
-            {columns.map((c) => (
-              <th key={c.key}>{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={rowKey(row, i)} onClick={onRowClick ? () => onRowClick(row) : undefined} style={onRowClick ? { cursor: "pointer" } : undefined}>
-              {columns.map((c) => (
-                <td key={c.key}>{c.render ? c.render(row) : row[c.key] ?? "—"}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <FilterableTable
+    className={className}
+    columns={columns.map(({key, label}) => ({key, label}))}
+    rows={rows.map((row, index) => ({
+      id: rowKey(row, index),
+      values: row,
+      cells: columns.map(c => c.render ? c.render(row) : row[c.key] == null ? "—" : typeof row[c.key] === "object" ? JSON.stringify(row[c.key]) : String(row[c.key])),
+    }))}
+    onSelect={onRowClick}
+  />;
 }
 
 export function OrderDetailPanel({ order }: { order: any }) {
