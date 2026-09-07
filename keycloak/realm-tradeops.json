@@ -1,0 +1,10 @@
+{
+  "realm": "tradeops", "enabled": true, "registrationAllowed": false, "resetPasswordAllowed": true,
+  "roles": {"realm": [
+    {"name":"super_admin"},{"name":"trading_ops"},{"name":"risk"},{"name":"infra_sre"},{"name":"auditor"}
+  ]},
+  "clients": [{
+    "clientId":"tradeops-web", "enabled":true, "publicClient":true, "standardFlowEnabled":true,
+    "directAccessGrantsEnabled":false, "redirectUris":["http://localhost:3000/*"], "webOrigins":["http://localhost:3000"]
+  }]
+}

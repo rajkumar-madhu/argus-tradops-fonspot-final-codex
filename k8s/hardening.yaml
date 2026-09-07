@@ -1,0 +1,32 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tradeops-api
+  namespace: tradeops
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: tradeops-api}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tradeops-correlation
+  namespace: tradeops
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: tradeops-correlation}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tradeops-api
+  namespace: tradeops
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: tradeops-api}
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 65}

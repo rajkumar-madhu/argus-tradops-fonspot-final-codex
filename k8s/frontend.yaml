@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradeops-web
+  namespace: tradeops
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: tradeops-web}
+  template:
+    metadata:
+      labels: {app: tradeops-web}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: web
+          image: your-registry/tradeops-frontend:latest
+          env:
+            # Read at request time by app/layout.tsx and serialised into the page as
+            # window.__TRADEOPS_CONFIG__. Do NOT use NEXT_PUBLIC_API_URL here: Next.js
+            # inlines NEXT_PUBLIC_* at build time, so setting it as a pod env has no
+            # effect and the browser would keep calling the build-time host.
+            # This must be the URL the *browser* can reach, not the in-cluster Service.
+            - {name: API_URL, value: "https://tradeops-api.example.com"}
+          ports: [{containerPort: 3000}]
+          readinessProbe:
+            httpGet: {path: /signin, port: 3000}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /signin, port: 3000}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            # Next.js writes its build/image cache under .next/cache at runtime.
+            - {name: next-cache, mountPath: /app/.next/cache}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradeops-web
+  namespace: tradeops
+spec:
+  selector: {app: tradeops-web}
+  ports: [{port: 3000, targetPort: 3000}]

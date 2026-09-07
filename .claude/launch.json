@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "API_URL=http://localhost:8101 NEXT_PUBLIC_API_URL=http://localhost:8101 npm --prefix frontend run dev -- -p 3100"],
+      "port": 3100,
+      "autoPort": false
+    },
+    {
+      "name": "mock-api",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "PORT=8101 node frontend/mock-api.local.mjs"],
+      "port": 8101,
+      "autoPort": false
+    }
+  ]
+}

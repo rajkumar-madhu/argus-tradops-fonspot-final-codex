@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tradeops-db-migrate
+  namespace: tradeops
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels: {app: tradeops-db-migrate}
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: migrate
+          image: your-registry/tradeops-backend:latest
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef: {name: tradeops-config}
+            - secretRef: {name: tradeops-secrets}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        # readOnlyRootFilesystem is on, so anything that writes a temp file needs
+        # an explicit writable mount.
+        - name: tmp
+          emptyDir: {}

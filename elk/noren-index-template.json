@@ -1,0 +1,92 @@
+{
+  "index_patterns": ["noren-*-intraday", "noren-*-history"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "refresh_interval": "2s"
+    },
+    "mappings": {
+      "dynamic": true,
+      "dynamic_templates": [
+        {
+          "strings": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        }
+      ],
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "NorenTimeStamp_N": {"type": "date"},
+        "NorenTimeStamp": {"type": "long"},
+        "NorenNsecs": {"type": "long"},
+        "NorenOrgTimeStamp": {"type": "long"},
+        "NorenOrgNsecs": {"type": "long"},
+        "ExchTimeStamp": {"type": "long"},
+        "ExchNsecs": {"type": "long"},
+        "NorenOrdNum": {"type": "long"},
+        "ExchOrdNum": {"type": "keyword"},
+        "Eref": {"type": "long"},
+        "OrdStatus": {"type": "integer"},
+        "ReportType": {"type": "integer"},
+        "Seqno": {"type": "long"},
+        "msg_seq": {"type": "long"},
+        "msg_type": {"type": "keyword"},
+        "UserId": {"type": "keyword"},
+        "AcctId": {"type": "keyword"},
+        "BrokerId": {"type": "keyword"},
+        "Region": {"type": "keyword"},
+        "ExchSeg": {"type": "keyword"},
+        "TradingSymbol": {"type": "keyword"},
+        "Token": {"type": "keyword"},
+        "TransType": {"type": "keyword"},
+        "PriceType": {"type": "keyword"},
+        "Product": {"type": "keyword"},
+        "OrdDuration": {"type": "keyword"},
+        "OrdSrc": {"type": "keyword"},
+        "ReqStatus": {"type": "keyword"},
+        "AccessType": {"type": "keyword"},
+        "UserSessId": {"type": "keyword"},
+        "RejReason": {"type": "keyword", "ignore_above": 4096},
+        "RejBy": {"type": "keyword"},
+        "QtyToFill": {"type": "long"},
+        "FillQty": {"type": "long"},
+        "TotalFillQty": {"type": "long"},
+        "CancelledQty": {"type": "long"},
+        "PriceToFill": {"type": "long"},
+        "FillPrice": {"type": "long"},
+        "FillAvgPrice": {"type": "long"},
+        "Userdetails": {
+          "type": "object",
+          "properties": {
+            "UserId": {"type": "keyword"},
+            "BrokerId": {"type": "keyword"},
+            "Region": {"type": "keyword"},
+            "UserAccessGrp": {"type": "keyword"},
+            "NorenAppVersion": {"type": "keyword"},
+            "Products": {"type": "keyword"},
+            "UserOrdTypes": {"type": "keyword"},
+            "UserSessId": {"type": "keyword"},
+            "UserExchDetails": {
+              "type": "nested",
+              "properties": {
+                "ExchSeg": {"type": "keyword"},
+                "Enable": {"type": "boolean"},
+                "RedCheck": {"type": "boolean"},
+                "ExchUserId": {"type": "keyword"}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "TradeOps mappings for Noren Journal events. Apply before creating new noren-* indices.",
+    "version": 1
+  }
+}

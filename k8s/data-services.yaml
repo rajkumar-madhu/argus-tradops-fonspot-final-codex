@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradeops-redis
+  namespace: tradeops
+spec:
+  selector: {app: tradeops-redis}
+  ports: [{port: 6379, targetPort: 6379}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tradeops-redis
+  namespace: tradeops
+spec:
+  serviceName: tradeops-redis
+  replicas: 1
+  selector:
+    matchLabels: {app: tradeops-redis}
+  template:
+    metadata:
+      labels: {app: tradeops-redis}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["redis-server", "--appendonly", "yes"]
+          ports: [{containerPort: 6379}]
+          volumeMounts: [{name: data, mountPath: /data}]
+          readinessProbe:
+            exec: {command: ["redis-cli", "ping"]}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: {requests: {storage: 5Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradeops-postgres
+  namespace: tradeops
+spec:
+  selector: {app: tradeops-postgres}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tradeops-postgres
+  namespace: tradeops
+spec:
+  serviceName: tradeops-postgres
+  replicas: 1
+  selector:
+    matchLabels: {app: tradeops-postgres}
+  template:
+    metadata:
+      labels: {app: tradeops-postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - {name: POSTGRES_DB, value: tradeops}
+            - {name: POSTGRES_USER, value: tradeops}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: tradeops-secrets, key: POSTGRES_PASSWORD}}
+          ports: [{containerPort: 5432}]
+          volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+          readinessProbe:
+            exec: {command: ["sh", "-c", "pg_isready -U tradeops -d tradeops"]}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: {requests: {storage: 20Gi}}

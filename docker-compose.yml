@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tradeops
+      POSTGRES_USER: tradeops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tradeops}
+    volumes: [tradeops-postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradeops -d tradeops"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [tradeops-redis:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
+      CORS_ORIGINS: http://localhost:3000
+      AUTO_CREATE_SCHEMA: "false"
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    ports: ["8001:8000"]
+  collector:
+    build: ./backend
+    command: ["python", "-m", "app.workers.collector"]
+    env_file: ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
+      WORKER_METRICS_PORT: "9108"
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    ports: ["9108:9108"]
+    restart: unless-stopped
+  correlation-worker:
+    build: ./backend
+    command: ["python", "-m", "app.workers.correlation_worker"]
+    env_file: ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
+      WORKER_METRICS_PORT: "9109"
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    ports: ["9109:9109"]
+    restart: unless-stopped
+  market-data-worker:
+    build: ./backend
+    command: ["python", "-m", "app.workers.market_data_worker"]
+    env_file: ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      WORKER_METRICS_PORT: "9110"
+      TRUEDATA_ENABLED: "false"
+    depends_on:
+      redis: {condition: service_healthy}
+    ports: ["9110:9110"]
+    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    environment:
+      # Read at request time and injected into the page; must be the URL the
+      # browser can reach, not the compose service name.
+      API_URL: http://localhost:8001
+      # Server components run inside Compose and need the service-network URL.
+      INTERNAL_API_URL: http://backend:8000
+    depends_on: [backend]
+    ports: ["3000:3000"]
+volumes:
+  tradeops-postgres:
+  tradeops-redis:

@@ -1,0 +1,19 @@
+# Requires CloudNativePG operator. Replace placeholders before applying.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tradeops-postgres
+  namespace: tradeops
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  storage:
+    size: 50Gi
+  bootstrap:
+    initdb:
+      database: tradeops
+      owner: tradeops
+      secret:
+        name: tradeops-postgres-app
+  monitoring:
+    enablePodMonitor: true

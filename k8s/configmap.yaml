@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tradeops-config
+  namespace: tradeops
+
+data:
+  TRADEOPS_DEMO_MODE: "false"
+  AUTH_DISABLED: "false"
+  CORS_ORIGINS: "https://tradeops.example.com"
+  REDIS_URL: "redis://tradeops-redis:6379/0"
+  REDIS_PUBLIC_LABEL: "tradeops-redis"
+  NOREN_ORDER_INDEX: "noren-ordupd-intraday"
+  NOREN_LOGIN_INDEX: "noren-login-intraday"
+  NOREN_LOGOUT_INDEX: "noren-logout-intraday"
+  NOREN_YEL_INDEX: "noren-yel_connected-intraday"
+  NOREN_ALL_INDEX: "noren-*-intraday"
+  NOREN_TIMESTAMP_FIELD: "NorenTimeStamp_N"
+  COLLECTOR_INTERVAL_SECONDS: "2"
+  COLLECTOR_LOOKBACK: "2h"
+  RCA_LOOKBACK: "30d"
+  TRUEDATA_ENABLED: "false"
+  TRUEDATA_SYMBOLS: "RELIANCE-EQ,NIFTY-I,BANKNIFTY-I"
+  MARKET_FLUSH_INTERVAL_SECONDS: "1"

@@ -1,0 +1,153 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradeops-collector
+  namespace: tradeops
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: tradeops-collector}}
+  template:
+    metadata:
+      labels: {app: tradeops-collector}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: collector
+          image: your-registry/tradeops-backend:latest
+          command: ["python", "-m", "app.workers.collector"]
+          envFrom:
+            - configMapRef: {name: tradeops-config}
+            - secretRef: {name: tradeops-secrets}
+          env: [{name: WORKER_METRICS_PORT, value: "9108"}]
+          ports: [{name: metrics, containerPort: 9108}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        # readOnlyRootFilesystem is on, so anything that writes a temp file needs
+        # an explicit writable mount.
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradeops-collector-metrics
+  namespace: tradeops
+  labels: {app: tradeops-collector}
+spec:
+  selector: {app: tradeops-collector}
+  ports: [{name: metrics, port: 9108, targetPort: metrics}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradeops-correlation
+  namespace: tradeops
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: tradeops-correlation}}
+  template:
+    metadata:
+      labels: {app: tradeops-correlation}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: worker
+          image: your-registry/tradeops-backend:latest
+          command: ["python", "-m", "app.workers.correlation_worker"]
+          envFrom:
+            - configMapRef: {name: tradeops-config}
+            - secretRef: {name: tradeops-secrets}
+          env: [{name: WORKER_METRICS_PORT, value: "9109"}]
+          ports: [{name: metrics, containerPort: 9109}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: 750m, memory: 768Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        # readOnlyRootFilesystem is on, so anything that writes a temp file needs
+        # an explicit writable mount.
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradeops-correlation-metrics
+  namespace: tradeops
+  labels: {app: tradeops-correlation}
+spec:
+  selector: {app: tradeops-correlation}
+  ports: [{name: metrics, port: 9109, targetPort: metrics}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradeops-market
+  namespace: tradeops
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: tradeops-market}}
+  template:
+    metadata:
+      labels: {app: tradeops-market}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: market
+          image: your-registry/tradeops-backend:latest
+          command: ["python", "-m", "app.workers.market_data_worker"]
+          envFrom:
+            - configMapRef: {name: tradeops-config}
+            - secretRef: {name: tradeops-secrets}
+          env: [{name: WORKER_METRICS_PORT, value: "9110"}]
+          ports: [{name: metrics, containerPort: 9110}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradeops-market-metrics
+  namespace: tradeops
+  labels: {app: tradeops-market}
+spec:
+  selector: {app: tradeops-market}
+  ports: [{name: metrics, port: 9110, targetPort: metrics}]

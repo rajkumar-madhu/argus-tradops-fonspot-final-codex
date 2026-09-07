@@ -1,0 +1,15 @@
+# Requires Prometheus Operator / kube-prometheus-stack.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tradeops-workers
+  namespace: tradeops
+spec:
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [tradeops-collector, tradeops-correlation]
+  endpoints:
+    - port: metrics
+      interval: 15s

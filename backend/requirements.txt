@@ -1,0 +1,14 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+elasticsearch==8.17.2
+prometheus-api-client==0.6.0
+prometheus-client==0.22.1
+python-dotenv==1.1.1
+PyJWT[crypto]==2.10.1
+redis==5.2.1
+SQLAlchemy==2.0.43
+psycopg[binary]==3.2.9
+alembic==1.16.5
+# Optional market-data feed (market_data_worker). Pulls pandas + websocket-client.
+truedata==7.0.1

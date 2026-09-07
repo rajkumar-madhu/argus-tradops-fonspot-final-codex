@@ -1,0 +1,32 @@
+# Node / Next
+node_modules/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+backend/.env
+
+# Local env overrides
+frontend/.env.local
+
+# Customer-supplied ELK reference material — this is its own git repo
+# (own history, commit 014eee3), so it cannot be nested inside this one.
+mirae-finspot-management-console-elk/
+
+# Large binary reference assets — kept on disk, deliberately out of history.
+# ~45MB of design mockups plus a 10MB journal export; they bloat every clone
+# and never diff usefully.
+images ref/
+Journal_Converted.xlsx
+
+# OS
+.DS_Store
+
+# design-sync (staged scripts, build output, machine state)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

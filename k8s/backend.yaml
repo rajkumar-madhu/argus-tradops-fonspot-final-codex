@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tradeops-api
+  namespace: tradeops
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradeops-api
+  namespace: tradeops
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: tradeops-api}}
+  template:
+    metadata:
+      labels: {app: tradeops-api}
+    spec:
+      serviceAccountName: tradeops-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: api
+          image: your-registry/tradeops-backend:latest
+          envFrom:
+            - configMapRef: {name: tradeops-config}
+            - secretRef: {name: tradeops-secrets}
+          ports: [{name: http, containerPort: 8000}]
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 200m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        # readOnlyRootFilesystem is on, so anything that writes a temp file needs
+        # an explicit writable mount.
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradeops-api
+  namespace: tradeops
+spec:
+  selector: {app: tradeops-api}
+  ports: [{name: http, port: 8000, targetPort: http}]
