@@ -1346,6 +1346,7 @@ td.ellipsis { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white
   position: sticky;
   top: 0;
   background: rgba(255, 255, 255, 0.96);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 20;
 }
@@ -1548,7 +1549,7 @@ td.ellipsis { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white
 .auth-copy ul { list-style: none; padding: 0; margin: 26px 0 0; }
 .auth-copy li { display: flex; gap: 10px; align-items: center; margin: 13px 0; font-size: 14px; }
 .auth-copy svg { width: 18px; color: #42db96; flex-shrink: 0; }
-.auth-preview { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 14px; backdrop-filter: blur(4px); }
+.auth-preview { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 14px; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
 .auth-preview-head { display: flex; justify-content: space-between; font-size: 11px; color: #c5d5e9; }
 .auth-preview-head b { color: #3bd28f; }
 .auth-preview-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
@@ -1692,7 +1693,10 @@ td.ellipsis { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white
 .voice-grid footer { display: flex; align-items: center; gap: 11px; }
 .voice-grid footer b { display: block; font-size: 13px; }
 .voice-grid footer small { color: var(--text-muted); font-size: 12px; }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: #e8f1ff; color: var(--blue-ui); display: grid; place-items: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+/* Scoped to .landing: a bare `.avatar` here would override the app's top-bar
+   avatar (Shell.tsx), which is defined earlier in this file and must keep its
+   blue gradient, white initial and margins. */
+.landing .avatar { width: 34px; height: 34px; border-radius: 50%; background: #e8f1ff; color: var(--blue-ui); display: grid; place-items: center; font-weight: 800; font-size: 14px; flex-shrink: 0; margin: 0; }
 
 /* Guides / resources */
 .resources { padding: 60px 4%; }
@@ -1775,7 +1779,6 @@ td.ellipsis { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   padding-bottom: 8px;
-  -webkit-overflow-scrolling: touch;
 }
 .voice-grid blockquote { scroll-snap-align: start; flex: 0 0 min(380px, 82vw); }
 
