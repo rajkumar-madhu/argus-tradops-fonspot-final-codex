@@ -1,31 +1,65 @@
-/* TradeOps — trading desk design tokens */
+/* TradeOps — design tokens, ported from the Argus Tradeops design system.
+ *
+ * The Argus names (--ground/--rail/--accent/--signal/--up/--down/--line…) are
+ * the source of truth. The legacy TradeOps names below are kept and repointed
+ * at Argus values, so the ~1800 lines of existing CSS pick up the new palette
+ * without being rewritten rule by rule.
+ *
+ * No dark-mode block yet, deliberately: 244 hardcoded hex colours (94 unique)
+ * and 47 rgba() literals still sit outside these tokens, and every one of them
+ * would stay light while the tokens flipped. Dark mode needs those converted
+ * first — see NOTES. */
 :root {
-  --ink: #0e1116;
-  --ink-soft: #151b24;
-  --ink-muted: #1c2430;
-  --surface: #ffffff;
-  --surface-2: #f6f8fb;
-  --surface-3: #eef2f7;
-  --border: #d8e2ef;
-  --border-soft: #e8eef6;
-  --text: #0f1d33;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
-  --text-soft: #68809f;
-  --blue: #2b4cff;
-  --blue-bright: #1683ff;
-  --blue-ui: #0c79ef;
-  --coral: #ff5b2e;
-  --green: #0f7a55;
-  --green-bright: #13b76a;
-  --red: #ef3f4f;
-  --amber: #f59e0b;
-  --radius-sm: 6px;
+  /* ── Argus core ── */
+  --ground: #EDEFF2;
+  --surface: #FFFFFF;
+  --surface-2: #F5F7F9;
+  --rail: #12191F;
+  --rail-ink: #D8DEE5;
+  --ink: #0E141C;
+  --ink-2: #33414F;
+  --muted: #5A6875;
+  --line: #D3D9E0;
+  --line-soft: #E3E7EC;
+  --accent: #9C6D22;
+  --accent-soft: #EFE3CE;
+  --signal: #1B6F80;
+  --signal-soft: #DCEBEE;
+  --up: #15704A;
+  --down: #A93529;
+  --shadow: 0 1px 2px rgba(14, 20, 28, 0.06), 0 8px 24px -16px rgba(14, 20, 28, 0.28);
+  --measure: 1160px;
+
+  /* Type families. The three next/font faces are bound in app/layout.tsx and
+     exposed as --font-display / --font-body / --font-mono-face. */
+  --f-display: var(--font-display), Georgia, "Times New Roman", serif;
+  --f-body: var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── Legacy TradeOps names, repointed onto Argus ── */
+  --ink-soft: #18212B;
+  --ink-muted: #22303D;
+  --surface-3: var(--ground);
+  --border: var(--line);
+  --border-soft: var(--line-soft);
+  --text: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-muted: var(--muted);
+  --text-soft: var(--muted);
+  --blue: var(--signal);
+  --blue-bright: #2A8C9E;
+  --blue-ui: var(--signal);
+  --coral: var(--accent);
+  --green: var(--up);
+  --green-bright: #3FB483;
+  --red: var(--down);
+  --amber: var(--accent);
+  --radius-sm: 4px;
   --radius: 8px;
   --radius-lg: 10px;
-  --shadow-sm: 0 1px 2px rgba(14, 17, 22, 0.04), 0 1px 3px rgba(14, 17, 22, 0.06);
-  --shadow-md: 0 4px 14px rgba(14, 17, 22, 0.07);
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --shadow-sm: 0 1px 2px rgba(14, 20, 28, 0.06);
+  --shadow-md: var(--shadow);
+  --font-mono: var(--f-mono);
 }
 
 * { box-sizing: border-box; }
@@ -33,9 +67,9 @@
 html, body {
   margin: 0;
   padding: 0;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--surface-2);
-  color: var(--text);
+  font-family: var(--f-body);
+  background: var(--ground);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1851,3 +1885,53 @@ td.ellipsis { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white
 .landing .pipe-node.accent svg { color: var(--accent-strong); }
 .landing .footer-signup button { background: var(--accent); }
 .landing .footer-signup button:hover { background: var(--accent-hover); }
+
+/* ── Argus type roles ──
+   Instrument Serif carries the big statements (hero, console title, CTA band);
+   IBM Plex Mono carries anything numeric or label-like, with tabular figures so
+   columns of numbers stay aligned as values change. */
+.hero h1,
+.cta-band h2,
+.dashboard-head h1,
+.overview-head h1,
+.auth-panel h2 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+.hero h1 span { font-style: italic; }
+
+.eyebrow,
+.kpi-card-label,
+.panel-head .sub,
+.resource-tag,
+.suite-tag,
+.stat-label {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.kpi-card-value,
+.kpi b,
+.why-metrics b,
+.stats b,
+.big-metrics b,
+td.num,
+.mono {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Tables read as a data grid: mono column headers, tabular figures. */
+table thead th {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.data-table td, .orders-table td, table.compact td { font-variant-numeric: tabular-nums; }
