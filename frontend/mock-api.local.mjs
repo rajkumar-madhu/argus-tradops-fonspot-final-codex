@@ -279,7 +279,7 @@ const staticRoutes = {
       "oms_p95_us": 3349.8,
       "oms_p99_us": 3349.8,
       "oms_max_us": 3349.8,
-      "confirm_p50_us": 2003991.6,
+      "confirm_p50_us": 2002657.95,
       "confirm_p95_us": 4005114.22,
       "confirmed_orders": 6,
       "unconfirmed_orders": 2,
@@ -289,23 +289,23 @@ const staticRoutes = {
       {
         "segment": "NSE",
         "orders": 2,
-        "oms_p50_us": 2490.86,
+        "oms_p50_us": 2371.9,
         "oms_p95_us": 2490.86,
-        "confirm_p50_us": 2003991.6,
+        "confirm_p50_us": 5255.34,
         "unconfirmed": 0
       },
       {
         "segment": "MCX",
         "orders": 2,
-        "oms_p50_us": 3056.4,
+        "oms_p50_us": 1574.1,
         "oms_p95_us": 3056.4,
-        "confirm_p50_us": 2005354.07,
+        "confirm_p50_us": 2002657.95,
         "unconfirmed": 0
       },
       {
         "segment": "NFO",
         "orders": 2,
-        "oms_p50_us": 3349.8,
+        "oms_p50_us": 1925.54,
         "oms_p95_us": 3349.8,
         "confirm_p50_us": 4005114.22,
         "unconfirmed": 1

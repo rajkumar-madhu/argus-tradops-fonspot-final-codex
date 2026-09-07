@@ -1,3 +1,4 @@
+import math
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -200,11 +201,17 @@ DEMO_ORDER_LATENCY = [
 
 
 def _percentile(values: list[float], pct: float) -> float:
-    """Nearest-rank percentile. Returns 0.0 for an empty series."""
+    """Nearest-rank percentile: rank = ceil(pct/100 * n), 1-indexed.
+
+    Must be ceil, not round. `round(x + 0.5)` looks equivalent but is
+    round-half-to-even, which lands a whole rank too high on exact boundaries
+    (p50 of 1..10 gave 6 instead of 5) and inflates every reported latency.
+    """
     if not values:
         return 0.0
     ordered = sorted(values)
-    idx = max(0, min(len(ordered) - 1, int(round((pct / 100.0) * len(ordered) + 0.5)) - 1))
+    rank = math.ceil((pct / 100.0) * len(ordered))
+    idx = max(0, min(len(ordered) - 1, rank - 1))
     return round(ordered[idx], 2)
 
 
