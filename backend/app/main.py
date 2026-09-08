@@ -508,16 +508,20 @@ def _journal_snapshot():
 def journal_orders(size: int = Query(500, ge=1, le=10000), user=Depends(require("orders:read"))):
     from app.journal_snapshot import journal_orders as journal_orders_data
 
-    _journal_snapshot()
-    return journal_orders_data(settings.journal_path, size=size)
+    path = _journal_path()
+    if not path:
+        raise HTTPException(503, "Journal snapshot is not configured")
+    return journal_orders_data(path, size=size)
 
 
 @app.get("/api/journal/orders/{order_id}/lifecycle")
 def journal_order_history(order_id: str, user=Depends(require("orders:read"))):
     from app.journal_snapshot import journal_order_lifecycle
 
-    _journal_snapshot()
-    return journal_order_lifecycle(settings.journal_path, order_id)
+    path = _journal_path()
+    if not path:
+        raise HTTPException(503, "Journal snapshot is not configured")
+    return journal_order_lifecycle(path, order_id)
 
 
 @app.get("/api/orders")
@@ -528,7 +532,7 @@ def orders(
     user_id: str | None = None,
     symbol: str | None = None,
     q: str | None = None,
-    size: int = Query(100, ge=1, le=500),
+    size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
     user=Depends(require("orders:read")),
 ):
@@ -639,7 +643,7 @@ def exchanges(user=Depends(require("exchange:read"))):
 
 @app.get("/api/order-book")
 def order_book(
-    size: int = Query(100, ge=1, le=500),
+    size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
     user=Depends(require("orders:read")),
 ):
@@ -658,7 +662,7 @@ def order_book(
 
 @app.get("/api/trades")
 def trades(
-    size: int = Query(100, ge=1, le=500),
+    size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
     user=Depends(require("trades:read")),
 ):

@@ -1,18 +1,18 @@
-import Shell from "@/components/Shell";
-import ExchangeView from "@/components/ExchangeView";
-import { getJSON } from "@/lib/api";
+import Shell from '@/components/Shell';
+import ExchangeView from '@/components/ExchangeView';
+import { getJSON } from '@/lib/api';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function Page() {
-  const exchanges: any = await getJSON("/api/exchanges");
-  const isJournal = exchanges?.source === "journal snapshot";
+  const exchanges: any = await getJSON('/api/exchanges');
+  const isJournal = exchanges?.source === 'journal snapshot';
 
   const [yel, infra, orders, rejections] = await Promise.all([
-    getJSON("/api/exchanges/yel"),
-    getJSON("/api/infra"),
-    getJSON(isJournal ? "/api/journal/orders?size=10000" : "/api/orders?size=5000&lookback=24h"),
-    getJSON("/api/rejections"),
+    getJSON('/api/exchanges/yel'),
+    getJSON('/api/infra'),
+    getJSON(isJournal ? '/api/journal/orders?size=10000' : '/api/orders?size=500&lookback=24h'),
+    getJSON('/api/rejections'),
   ]);
 
   return (

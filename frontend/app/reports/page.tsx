@@ -1,25 +1,48 @@
-import { CheckCircle2, FileText, Send } from "lucide-react";
-import Shell from "@/components/Shell";
-import { Card, DataTable, EmptyState, KpiCard, PageHead } from "@/components/UI";
-import { apiError, getJSON } from "@/lib/api";
-import { fmt } from "@/lib/format";
+import { CheckCircle2, FileText, Send } from 'lucide-react';
+import Shell from '@/components/Shell';
+import { Card, DataTable, EmptyState, KpiCard, PageHead } from '@/components/UI';
+import { apiError, getJSON } from '@/lib/api';
+import { fmt } from '@/lib/format';
 
 export default async function Page() {
-  const d: any = await getJSON("/api/reports");
+  const d: any = await getJSON('/api/reports');
   const err = apiError(d);
   const rows = d.items || [];
-  const configured = rows.length > 0;
+  const deliveryConfigured = Boolean(d.delivery_configured);
 
   return (
     <Shell>
-      <PageHead title="Reports" subtitle="Scheduled operational, rejection and session audit reports" badge={`Source: ${d.source || "—"}`} />
+      <PageHead
+        title="Reports"
+        subtitle="Scheduled operational, rejection and session audit reports"
+        badge={`Source: ${d.source || '—'}`}
+      />
       {err && <EmptyState title="Unable to load reports" body={err} />}
       {!err && (
         <>
           <section className="kpi-grid three">
-            <KpiCard label="Scheduled Reports" value={fmt(rows.length)} sub="Available templates" tone="blue" icon={<FileText size={18} />} />
-            <KpiCard label="Ready" value={fmt(rows.filter((r: any) => r.status === "Ready").length)} sub="Can be generated" deltaTone="up" tone="green" icon={<CheckCircle2 size={18} />} />
-            <KpiCard label="Delivery" value={configured ? "Configured" : "Not configured"} sub={configured ? "See report catalog" : "No delivery backend"} tone="teal" icon={<Send size={18} />} />
+            <KpiCard
+              label="Scheduled Reports"
+              value={fmt(rows.length)}
+              sub="Available templates"
+              tone="blue"
+              icon={<FileText size={18} />}
+            />
+            <KpiCard
+              label="Ready"
+              value={fmt(rows.filter((r: any) => r.status === 'Ready').length)}
+              sub="Can be generated"
+              deltaTone="up"
+              tone="green"
+              icon={<CheckCircle2 size={18} />}
+            />
+            <KpiCard
+              label="Delivery"
+              value={deliveryConfigured ? 'Configured' : 'Not configured'}
+              sub={deliveryConfigured ? 'See report catalog' : d.note || 'No delivery backend'}
+              tone="teal"
+              icon={<Send size={18} />}
+            />
           </section>
           <Card title="Report catalog">
             {rows.length ? (
@@ -28,14 +51,17 @@ export default async function Page() {
                 rows={rows}
                 rowKey={(r) => r.id}
                 columns={[
-                  { key: "id", label: "Report ID", render: (r) => <b>{r.id}</b> },
-                  { key: "title", label: "Title" },
-                  { key: "schedule", label: "Schedule" },
-                  { key: "status", label: "Status" },
+                  { key: 'id', label: 'Report ID', render: (r) => <b>{r.id}</b> },
+                  { key: 'title', label: 'Title' },
+                  { key: 'schedule', label: 'Schedule' },
+                  { key: 'status', label: 'Status' },
                 ]}
               />
             ) : (
-              <EmptyState title="Reports unavailable" body={d.note || "No scheduled report integration is configured."} />
+              <EmptyState
+                title="Reports unavailable"
+                body={d.note || 'No scheduled report integration is configured.'}
+              />
             )}
           </Card>
         </>
