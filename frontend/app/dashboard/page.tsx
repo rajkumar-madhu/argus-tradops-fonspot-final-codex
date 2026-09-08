@@ -1,3 +1,5 @@
+import QueryWindow, { queryWindow } from "@/components/QueryWindow";
+import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { CheckCircle2, ClipboardList, Clock3, Plus, RefreshCw, Users, XCircle, Building2 } from "lucide-react";
 import Shell from "@/components/Shell";
@@ -37,11 +39,12 @@ function trend(orders: any[]) {
   };
 }
 
-export default async function Overview() {
+export default async function Overview({searchParams}: {searchParams: Promise<{lookback?: string}>}) {
+  const lookback = queryWindow((await searchParams).lookback);
   const [ov, od, rj, ex, ss, inf]: any[] = await Promise.all([
     getJSON("/api/overview"),
-    getJSON("/api/orders?size=200"),
-    getJSON("/api/rejections"),
+    getJSON(`/api/orders?size=200&lookback=${lookback}`),
+    getJSON(`/api/rejections?lookback=${lookback}`),
     getJSON("/api/exchanges"),
     getJSON("/api/sessions"),
     getJSON("/api/infra"),
@@ -80,10 +83,7 @@ export default async function Overview() {
           <h1>Trading Operations Dashboard</h1>
           <p>Real-time monitoring for Noren Trader / OMS / RMS / Exchange / Infrastructure</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">1H</button><button>4H</button><button>1D</button><button>1W</button><button>1M</button><button>Custom</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
-          <button className="primary"><Plus size={14} /> New Dashboard</button>
+        <div className="time-controls"><RefreshButton/>
         </div>
       </section>
 
@@ -148,7 +148,7 @@ export default async function Overview() {
       {apiError(od) ? (
         <EmptyState title="Unable to load orders" body={String(apiError(od))} />
       ) : (
-        <OverviewOrders rows={orders} today={today} />
+        <><QueryWindow value={lookback} source={od.source} label="Order table window"/><OverviewOrders rows={orders} today={today} /></>
       )}
 
       <section className="bottom-grid overview-bottom">

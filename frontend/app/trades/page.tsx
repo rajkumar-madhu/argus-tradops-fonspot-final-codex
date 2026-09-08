@@ -1,3 +1,5 @@
+import QueryWindow, { queryWindow } from "@/components/QueryWindow";
+import RefreshButton from "@/components/RefreshButton";
 import { ArrowDownRight, ArrowUpRight, RefreshCw, TrendingUp, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
 import { AreaChart } from "@/components/Charts";
@@ -8,8 +10,9 @@ import { fmt, money, timeShort } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  const d: any = await getJSON("/api/trades?size=200");
+export default async function Page({searchParams}: {searchParams: Promise<{lookback?: string}>}) {
+  const lookback = queryWindow((await searchParams).lookback);
+  const d: any = await getJSON(`/api/trades?size=200&lookback=${lookback}`);
   const err = apiError(d);
   const rows = d.items || [];
   const totalValue = rows.reduce((s: number, r: any) => s + Number(r.value || 0), 0);
@@ -23,10 +26,7 @@ export default async function Page() {
           <h1>Trades</h1>
           <p>Executed fills and trade economics from Noren order updates</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Today</button>
-          <button>1H</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+        <div className="time-controls"><QueryWindow value={lookback} source={d.source}/>
           <span className="source-tag">{d.count || rows.length} trades · {d.source || "—"}</span>
         </div>
       </section>

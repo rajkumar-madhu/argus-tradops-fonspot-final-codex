@@ -1,3 +1,4 @@
+import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, LineChart, PieChart, RefreshCw, TrendingUp, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
@@ -37,11 +38,7 @@ export default async function Page() {
           <h1>Holdings</h1>
           <p>Delivery holdings, average cost, portfolio valuation and sector exposure</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Today</button>
-          <button>1W</button>
-          <button>1M</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+        <div className="time-controls"><RefreshButton/>
           <span className="source-tag">{rows.length} holdings · {d.source || "—"}</span>
         </div>
       </section>
@@ -65,7 +62,7 @@ export default async function Page() {
                 <b>Portfolio Value Trend</b>
                 <span className="legend"><i className="lg s-total" /> Investment <i className="lg s-executed" /> Current Value</span>
               </div>
-              <AreaChart series={trend.series} labels={trend.labels} height={160} />
+              <p className="source-tag">Illustrative history — historical measurements are not supplied by this source.</p><AreaChart series={trend.series} labels={trend.labels} height={160} />
             </div>
             <div className="panel">
               <div className="panel-head"><b>Holdings Allocation</b></div>

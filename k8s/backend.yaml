@@ -31,7 +31,8 @@ spec:
             - secretRef: {name: tradeops-secrets}
           ports: [{name: http, containerPort: 8000}]
           readinessProbe:
-            httpGet: {path: /health, port: http}
+            httpGet: {path: /health/ready, port: http}
+            timeoutSeconds: 10
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:

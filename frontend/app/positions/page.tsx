@@ -1,3 +1,4 @@
+import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, LineChart, RefreshCw, Scale, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
@@ -39,10 +40,7 @@ export default async function Page() {
           <h1>Positions</h1>
           <p>Intraday net positions by symbol, product and exchange segment</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Intraday</button>
-          <button>EOD</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+        <div className="time-controls"><RefreshButton/>
           <span className="source-tag">{d.count || rows.length} positions · {d.source || "—"}</span>
         </div>
       </section>
@@ -61,7 +59,7 @@ export default async function Page() {
           <section className="viz-row-3">
             <div className="panel">
               <div className="panel-head"><b>Intraday MTM Trend</b><span className="legend"><i className="lg s-executed" /> Mark-to-market</span></div>
-              <AreaChart series={mtmTrend.series} labels={mtmTrend.labels} height={150} />
+              <p className="source-tag">Illustrative history — historical measurements are not supplied by this source.</p><AreaChart series={mtmTrend.series} labels={mtmTrend.labels} height={150} />
             </div>
             <div className="panel">
               <div className="panel-head"><b>MTM by Symbol</b></div>

@@ -1,4 +1,5 @@
 "use client";
+import RefreshButton from "@/components/RefreshButton";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -51,13 +52,17 @@ function mergeRejection(prev: any, incoming: any) {
 export default function RejectionsView({ data }: { data: any }) {
   const [live, setLive] = useState<any>(data || {});
   const [connected, setConnected] = useState(false);
+  useEffect(() => setLive(data || {}), [data]);
   const groups = live.groups || [];
   const orders = live.orders || [];
   const categories = live.categories || [];
   const max = Math.max(...groups.map((x: any) => Number(x.count || 0)), 1);
-  const [selected, setSelected] = useState<any>(orders[0] || {});
+  const [selectedId, setSelectedId] = useState(orders[0]?.order_id || '');
+  const selected = orders.find((row:any)=>row.order_id===selectedId) || orders[0] || {};
+  const setSelected = (row:any) => setSelectedId(row.order_id);
 
   useEffect(() => {
+    if (data?.source === "demo") return;
     const es = openAuthenticatedEventSource("rejections", { interval: 3 });
     es.addEventListener("rejections", (e: MessageEvent) => {
       setConnected(true);
@@ -72,7 +77,7 @@ export default function RejectionsView({ data }: { data: any }) {
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
     return () => es.close();
-  }, []);
+  }, [data?.source]);
 
   useEffect(() => {
     if (!selected?.order_id && orders[0]) setSelected(orders[0]);
@@ -104,12 +109,9 @@ export default function RejectionsView({ data }: { data: any }) {
           <p>Rejected Noren order events grouped by code, reason and operational category</p>
         </div>
         <div className="time-controls">
-          <button className="selected">Live</button>
-          <button>1H</button>
-          <button>1D</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+          <RefreshButton/>
           <span className={`pill ${connected ? "ok" : "warn"}`}>
-            {connected ? "● LIVE SSE" : "○ reconnecting"} · {live.rejected_unique_orders || 0} rejected · {live.reject_rate ?? "—"}%
+            {data?.source === "demo" ? "Demo snapshot" : connected ? "Stream connected" : "Stream disconnected"} · {live.rejected_unique_orders || 0} rejected · {live.reject_rate ?? "—"}%
           </span>
         </div>
       </section>
@@ -124,7 +126,7 @@ export default function RejectionsView({ data }: { data: any }) {
       <section className="viz-row-3">
         <div className="panel">
           <div className="panel-head">
-            <b>Rejection Trend (Today)</b>
+            <b>Illustrative Rejection Trend</b>
             <span className="legend"><i className="lg s-rejected" /> Count <i className="lg s-total" /> Rate</span>
           </div>
           <AreaChart series={rejTrend.series} labels={rejTrend.labels} height={150} />

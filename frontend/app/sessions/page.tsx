@@ -1,3 +1,4 @@
+import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { Building2, LogIn, MonitorSmartphone, RefreshCw, Users } from "lucide-react";
 import Shell from "@/components/Shell";
@@ -30,11 +31,7 @@ export default async function Page() {
           <h1>Users & Sessions</h1>
           <p>Active state correlated from noren-login-intraday and noren-logout-intraday</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Live</button>
-          <button>1H</button>
-          <button>1D</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+        <div className="time-controls"><RefreshButton/>
           <span className="source-tag">{s.active_sessions || 0} active · {s.source || "—"}</span>
         </div>
       </section>

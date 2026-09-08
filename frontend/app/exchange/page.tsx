@@ -1,3 +1,4 @@
+import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { Activity, AlertTriangle, CheckCircle2, Gauge, RefreshCw, Server } from "lucide-react";
 import Shell from "@/components/Shell";
@@ -34,11 +35,7 @@ export default async function Page() {
           <h1>Exchange Health</h1>
           <p>Session quality, heartbeat age, latency and rejection-rate visibility per segment</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Live</button>
-          <button>1H</button>
-          <button>1D</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+        <div className="time-controls"><RefreshButton/>
           <span className="source-tag">{rows.length} exchanges · {d.source || "—"}</span>
         </div>
       </section>
@@ -66,7 +63,7 @@ export default async function Page() {
                   ))}
                 </span>
               </div>
-              <AreaChart series={latencyTrend.series} labels={latencyTrend.labels} height={160} />
+              <p className="source-tag">Illustrative history — historical measurements are not supplied by this source.</p><AreaChart series={latencyTrend.series} labels={latencyTrend.labels} height={160} />
             </div>
             <div className="panel">
               <div className="panel-head"><b>Exchange Uptime (30d)</b></div>
@@ -82,7 +79,7 @@ export default async function Page() {
             </div>
             <div className="panel">
               <div className="panel-head"><b>Order Flow Health (30 min)</b><span className="source-tag">orders / sec</span></div>
-              <VBarChart bars={orderFlow.bars} />
+              <p className="source-tag">Illustrative order flow</p><VBarChart bars={orderFlow.bars} />
             </div>
           </section>
 

@@ -90,12 +90,14 @@ export function DataTable({
   rows,
   rowKey,
   onRowClick,
+  selectedId,
   className = "orders-table",
 }: {
   columns: { key: string; label: string; render?: (row: any) => React.ReactNode }[];
   rows: any[];
   rowKey: (row: any, index: number) => string;
   onRowClick?: (row: any) => void;
+  selectedId?: string;
   className?: string;
 }) {
   return <FilterableTable
@@ -106,6 +108,7 @@ export function DataTable({
       values: row,
       cells: columns.map(c => c.render ? c.render(row) : row[c.key] == null ? "—" : typeof row[c.key] === "object" ? JSON.stringify(row[c.key]) : String(row[c.key])),
     }))}
+    selectedId={selectedId}
     onSelect={onRowClick}
   />;
 }

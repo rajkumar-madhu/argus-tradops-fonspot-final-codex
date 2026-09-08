@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { canSee } from "@/lib/auth";
 import { decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
 import { logout } from "@/lib/oidc";
@@ -10,7 +10,7 @@ import MarketTicker from "@/components/MarketTicker";
 import {
   Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, ChevronDown, Boxes, CircleDollarSign,
   ClipboardList, Gauge, Layers3, LineChart, Network, Search, Server,
-  Settings, ShieldCheck, Timer, Users, WalletCards
+  Settings, ShieldCheck, Timer, Users, WalletCards, Menu
 } from "lucide-react";
 
 const nav = [
@@ -54,6 +54,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [session, setSession] = useState<SessionUser | null>(null);
   const [checked, setChecked] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault(); searchRef.current?.focus();
+      }
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, []);
+  useEffect(() => setMenuOpen(false), [path]);
 
   useEffect(() => {
     const current = decodeSession(getToken());
@@ -70,30 +83,30 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const expired = checked && !!session && isExpired(session);
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell${menuOpen ? " menu-open" : ""}`}>
+      <aside className="sidebar" id="app-navigation">
         <div className="brand">
-          <div className="brand-bars"><i/><i/><i/></div>
+          <Activity size={28} aria-hidden="true"/>
           <div><strong>TradeOps</strong><span>Trading Observability Platform</span></div>
         </div>
         <nav className="nav-list">
           {visible.map(([href, label, Icon]) => (
             <Link key={href} href={href} className={path === href ? "nav active" : "nav"}>
-              <Icon size={17}/><span>{label}</span>{label === "Alerts & Incidents" && <b className="nav-badge">3</b>}
+              <Icon size={17}/><span>{label}</span>
             </Link>
           ))}
         </nav>
-        <div className="sidebar-foot"><span className="live-dot"/> Connected<div>v1.0.0</div></div>
+        <div className="sidebar-foot">Read-only observability<div>Source status is shown in each view</div></div>
       </aside>
       <main className="main">
         <header className="marketbar">
-          <div className="env-pill"><span className="live-dot"/> Production <ChevronDown size={13}/></div>
+          <button type="button" className="nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="app-navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20}/></button><div className="env-pill">Read only</div>
           <MarketTicker variant="bar"/>
           <div className="market-right">
             <Clock/>
-            <label className="topsearch hide-sm"><Search size={14}/><input placeholder="Search orders, symbols, users, error codes, logs…" readOnly/><kbd>Ctrl+K</kbd></label>
-            <div className="bell"><Bell size={17} strokeWidth={2}/><b>3</b></div>
-            <div className="bell hide-sm"><Settings size={17} strokeWidth={2}/></div>
+            <form action="/logs" className="topsearch"><Search size={14}/><input ref={searchRef} name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><kbd>⌘/Ctrl K</kbd></form>
+            <Link href="/incidents" className="bell" aria-label="Alerts and incidents"><Bell size={17}/></Link>
+            <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>
             <div className="avatar">{(session?.username || "T").slice(0, 1).toUpperCase()}</div>
             <div className="profile">
               <b>{session?.username || "TradeOps"}</b>

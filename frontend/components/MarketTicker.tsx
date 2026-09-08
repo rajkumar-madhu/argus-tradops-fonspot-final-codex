@@ -15,7 +15,7 @@ export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "s
   const items = variant === "bar" ? INDICES.slice(0, 3) : INDICES;
   return (
     <div className={`ticker-${variant}`} aria-label="Market indices (demo feed)">
-      {variant === "strip" && <span className="ticker-tag">DEMO FEED</span>}
+      <span className="ticker-tag">DEMO INDICES</span>
       {items.map((i) => (
         <span className="tick" key={i.name}>
           <span className={`tick-dot ${i.up ? "up" : "down"}`} />

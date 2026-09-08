@@ -3,9 +3,9 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from prometheus_client import make_asgi_app
 import time
 
@@ -331,6 +331,13 @@ def health():
     return {"status":"ok","demo_mode":DEMO_MODE,"time":datetime.now(timezone.utc).isoformat(),"schema":"noren-v1"}
 
 
+@app.get("/health/ready")
+def ready():
+    from app.readiness import readiness
+    result = readiness()
+    return JSONResponse(result, status_code=200 if result["status"] == "ready" else 503)
+
+
 @app.get("/api/event-bus/status")
 def event_bus_status(user=Depends(require("dashboard:read"))):
     return redis_status()
@@ -415,6 +422,32 @@ def sessions_login_trend(interval: str = Query("30m"), user=Depends(require("ses
     if DEMO_MODE:
         return {"buckets":[],"source":"demo"}
     return login_trend(interval)
+
+
+def _journal_snapshot():
+    from app.journal_snapshot import load_journal
+    path = settings.journal_path
+    if not path:
+        raise HTTPException(503, "Journal snapshot is not configured")
+    try:
+        return load_journal(path)
+    except (OSError, ValueError, TypeError):
+        raise HTTPException(503, "Journal snapshot could not be read")
+
+
+@app.get("/api/journal/orders")
+def journal_orders(size: int = Query(500, ge=1, le=10000), user=Depends(require("orders:read"))):
+    snapshot = _journal_snapshot()
+    return {key: value for key, value in snapshot.items() if key not in ("items", "events")} | {
+        "items": snapshot["items"][:size], "returned": min(size, snapshot["count"]),
+    }
+
+
+@app.get("/api/journal/orders/{order_id}/lifecycle")
+def journal_order_history(order_id: str, user=Depends(require("orders:read"))):
+    snapshot = _journal_snapshot()
+    events = [row for row in snapshot["events"] if row["order_id"] == order_id]
+    return {"events": events, "count": len(events), "source": snapshot["source"]}
 
 
 @app.get("/api/orders")
@@ -695,19 +728,19 @@ def search_logs(
 
 @app.get("/api/stream/orders")
 async def stream_orders(request: Request, interval: float = Query(2.0, ge=1.0, le=30.0), user=Depends(require("orders:read"))):
-    return StreamingResponse(event_stream("orders", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("orders", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/rejections")
 async def stream_rejections(request: Request, interval: float = Query(3.0, ge=1.0, le=30.0), user=Depends(require("rejections:read"))):
-    return StreamingResponse(event_stream("rejections", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("rejections", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/exchange")
 async def stream_exchange(request: Request, interval: float = Query(5.0, ge=1.0, le=60.0), user=Depends(require("exchange:read"))):
-    return StreamingResponse(event_stream("exchange", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("exchange", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/market")
 async def stream_market(request: Request, interval: float = Query(1.0, ge=0.5, le=30.0), user=Depends(require("market:read"))):
-    return StreamingResponse(event_stream("market", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("market", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 
 @app.get("/api/incidents/derived")

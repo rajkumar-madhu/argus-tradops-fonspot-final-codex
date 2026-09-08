@@ -1,9 +1,9 @@
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci || npm install
+RUN npm ci
 
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -11,9 +11,9 @@ COPY . .
 # API base is injected per request by app/layout.tsx from the runtime `API_URL`
 # env, so one image serves every environment. Set NEXT_PUBLIC_API_URL only if you
 # want a baked-in fallback for a static/offline deployment.
-RUN npm run build
+RUN npm test && npm run build
 
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 # Numeric uid so `runAsNonRoot: true` can verify the image user.

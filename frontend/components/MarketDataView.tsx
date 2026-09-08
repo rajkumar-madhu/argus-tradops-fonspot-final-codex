@@ -25,9 +25,13 @@ export default function MarketDataView({ data }: { data: any }) {
   const symbols = live.symbols || [];
   const feeds = live.feeds || [];
   const segments = live.segments || [];
-  const [selected, setSelected] = useState<any>(symbols[0] || {});
+  const [selectedKey, setSelectedKey] = useState(() => `${symbols[0]?.exchange || ''}:${symbols[0]?.symbol || ''}`);
+  const selected = symbols.find((row:any) => `${row.exchange}:${row.symbol}` === selectedKey) || symbols[0] || {};
+  const setSelected = (row:any) => setSelectedKey(`${row.exchange}:${row.symbol}`);
+  useEffect(() => setLive(data || {}), [data]);
 
   useEffect(() => {
+    if (data?.source === "demo") return;
     const es = openAuthenticatedEventSource("market", { interval: 1 });
     es.addEventListener("market", (e: MessageEvent) => {
       setConnected(true);
@@ -42,27 +46,17 @@ export default function MarketDataView({ data }: { data: any }) {
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
     return () => es.close();
-  }, []);
-
-  useEffect(() => {
-    if (!selected?.symbol && symbols[0]) setSelected(symbols[0]);
-  }, [symbols, selected]);
+  }, [data?.source]);
 
   const liveFeeds = feeds.filter((f: any) => f.status === "Live").length;
   const avgLag = Math.round(feeds.reduce((s: number, f: any) => s + Number(f.lag_ms || 0), 0) / Math.max(feeds.length, 1));
 
   const depth = useMemo(() => {
     if (!selected?.symbol) return [];
-    const mid = Number(selected.ltp || 0);
-    const tick = selected.segment === "FUT" ? 0.5 : 0.05;
     return [
-      { level: "Ask 3", price: mid + tick * 3, qty: Math.round((selected.ask_qty || 0) * 0.4), side: "ask" },
-      { level: "Ask 2", price: mid + tick * 2, qty: Math.round((selected.ask_qty || 0) * 0.35), side: "ask" },
-      { level: "Ask 1", price: selected.ask, qty: selected.ask_qty, side: "ask" },
+      { level: "Best ask", price: selected.ask, qty: selected.ask_qty, side: "ask" },
       { level: "LTP", price: selected.ltp, qty: "—", side: "ltp" },
-      { level: "Bid 1", price: selected.bid, qty: selected.bid_qty, side: "bid" },
-      { level: "Bid 2", price: mid - tick * 2, qty: Math.round((selected.bid_qty || 0) * 0.35), side: "bid" },
-      { level: "Bid 3", price: mid - tick * 3, qty: Math.round((selected.bid_qty || 0) * 0.4), side: "bid" },
+      { level: "Best bid", price: selected.bid, qty: selected.bid_qty, side: "bid" },
     ];
   }, [selected]);
 
@@ -108,7 +102,7 @@ export default function MarketDataView({ data }: { data: any }) {
 
       <section className="orders-layout market-layout">
         <div className="panel orders-main">
-          <div className="panel-head"><b>Quote watchlist</b><span className="source-tag">Select symbol for depth</span></div>
+          <div className="panel-head"><b>Quote watchlist</b><span className="source-tag">Best bid/ask only; deeper levels unavailable</span></div>
           <DataTable
             className="data-table"
             rows={symbols}

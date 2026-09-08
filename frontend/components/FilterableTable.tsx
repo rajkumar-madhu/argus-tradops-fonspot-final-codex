@@ -35,8 +35,8 @@ export default function FilterableTable({ rows, columns, className = 'orders-tab
     return values.length ? [{key, label, values}] : [];
   }), [rows]);
   const visible = useMemo(() => {
-    const values = rows.map((r, index) => ({...r.values, __gridIndex: index}));
-    return sortRows(filterRows(values, {...applied, timeKey}), sort.key, sort.direction).map(r => rows[r.__gridIndex]);
+    const rowByValues = new Map(rows.map(r => [r.values, r]));
+    return sortRows(filterRows(rows.map(r => r.values), {...applied, timeKey}), sort.key, sort.direction).map(values => rowByValues.get(values)!);
   }, [rows, applied, timeKey, sort]);
   const pages = Math.max(1, Math.ceil(visible.length / size));
   const current = Math.min(page, pages);
@@ -58,7 +58,7 @@ export default function FilterableTable({ rows, columns, className = 'orders-tab
         <button type="button" disabled={!visible.length} onClick={exportCSV}><Download size={14}/> Export CSV</button>
       </div>
     </div>
-    <form id={`${id}-filters`} className="grid-filters" hidden={!expanded} onSubmit={e => {e.preventDefault(); if (!invalidDate) {setApplied(draft);setPage(1);}} onReset={reset}>
+    <form id={`${id}-filters`} className="grid-filters" hidden={!expanded} onSubmit={e => {e.preventDefault(); if (!invalidDate) {setApplied(draft);setPage(1);}}} onReset={reset}>
       <label className="grid-search" htmlFor={`${id}-query`}>Search loaded rows<input id={`${id}-query`} type="search" value={draft.query || ''} placeholder="Order, symbol, user, message…" onChange={e => setDraft({...draft, query:e.target.value})}/></label>
       {facets.map(({key,label,values}) => <label key={key} htmlFor={`${id}-${key}`}>{label}<select id={`${id}-${key}`} value={draft.facets?.[key] || ''} onChange={e => setDraft({...draft, facets:{...draft.facets,[key]:e.target.value}})}><option value="">All</option>{values.map(v => <option key={v} value={v}>{v}</option>)}</select></label>)}
       {timeKey && <>

@@ -1,6 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  TRADEOPS_ENV: "production"
   name: tradeops-config
   namespace: tradeops
 

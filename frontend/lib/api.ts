@@ -18,6 +18,7 @@ export async function getJSON<T>(path: string): Promise<ApiResult<T>> {
     const token = (await cookies()).get(TOKEN_COOKIE)?.value;
     const res = await fetch(`${serverApiUrl}${path}`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(15000),
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     if (!res.ok) {

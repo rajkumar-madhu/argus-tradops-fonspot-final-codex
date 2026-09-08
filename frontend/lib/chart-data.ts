@@ -41,13 +41,6 @@ export function orderFlowTrend() {
 }
 
 export function loginTrendFromBuckets(buckets: { time?: string; count?: number }[]) {
-  if (!buckets.length) {
-    const labels = demoTimeLabels(10, 8, 0, 15);
-    return {
-      labels,
-      series: [{ name: "Logins", points: demoSeries(3, labels.length, 24, 12), cls: "s-total" }],
-    };
-  }
   const labels = buckets.map((b) => String(b.time || "").slice(0, 5));
   const points = buckets.map((b) => Number(b.count || 0));
   return { labels, series: [{ name: "Logins", points, cls: "s-total" }] };
@@ -121,8 +114,8 @@ export function tradeVolumeTrend(rows: { time: string; value: number }[]) {
     bins.set(key, (bins.get(key) || 0) + Number(r.value || 0));
   }
   const keys = Array.from(bins.keys()).sort();
-  const labels = keys.length >= 4 ? keys : demoTimeLabels(8, 9, 15, 15);
-  const values = keys.length >= 4 ? keys.map((k) => bins.get(k) || 0) : demoSeries(5, 8, 12000, 4000);
+  const labels = keys;
+  const values = keys.map((k) => bins.get(k) || 0);
   return {
     labels,
     series: [{ name: "Turnover", points: values, cls: "s-executed" }],

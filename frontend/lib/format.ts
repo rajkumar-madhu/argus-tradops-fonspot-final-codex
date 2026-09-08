@@ -20,10 +20,11 @@ export function timeFull(v: string): string {
   }
 }
 
-/** 24-hour clock, locale-independent, so server and client render the same text. */
+/** Explicit IST clock so server and browser time zones cannot cause hydration drift. */
 export function time24(v: string): string {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return v || "—";
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(d);
 }

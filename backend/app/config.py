@@ -22,6 +22,8 @@ def _float(name: str, default: float) -> float:
 
 @dataclass(frozen=True)
 class Settings:
+    environment: str = os.getenv("TRADEOPS_ENV", "development").strip().lower()
+    journal_path: str = os.getenv("TRADEOPS_JOURNAL_PATH", "")
     demo_mode: bool = _bool("TRADEOPS_DEMO_MODE", True)
     es_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     es_api_key: str | None = os.getenv("ELASTICSEARCH_API_KEY") or None
@@ -118,4 +120,27 @@ class Settings:
         return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
 
 
+def production_errors(config: Settings) -> list[str]:
+    """Fail closed for explicitly production deployments; never echo secrets."""
+    if config.environment != "production":
+        return []
+    errors = []
+    if config.demo_mode:
+        errors.append("Demo mode must be disabled in production")
+    if config.auth_disabled:
+        errors.append("AUTH_DISABLED must be false in production")
+    if not config.es_verify_certs:
+        errors.append("Elasticsearch TLS verification must remain enabled")
+    if not config.keycloak_url.startswith("https://"):
+        errors.append("Production Keycloak must use HTTPS")
+    from urllib.parse import urlsplit
+    password = urlsplit(config.database_url).password
+    if not password or password in {"tradeops", "postgres", "password", "changeme"}:
+        errors.append("Configure a non-default database credential")
+    return errors
+
+
 settings = Settings()
+_errors = production_errors(settings)
+if _errors:
+    raise RuntimeError("Invalid production configuration: " + "; ".join(_errors))
