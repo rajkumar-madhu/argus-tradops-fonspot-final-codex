@@ -56,7 +56,7 @@ export default async function Page({ searchParams }: {
           {!err && <section className="panel">
             <div className="panel-head"><b>Log stream</b><span>{rows.length} entries</span></div>
             {rows.length === 0 ? (
-              <EmptyState title="No log entries" body="Nothing matched in the current window." />
+              <EmptyState title="No log entries" body={d.note || "Nothing matched in the current window."} />
             ) : (
               <DataTable
                 className="logs-table"

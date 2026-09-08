@@ -2,7 +2,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from app.journal_snapshot import load_journal
+from app.journal_snapshot import (
+    MASKED_ORDER_JOURNAL_FIELDS,
+    ORDER_JOURNAL_FIELDS,
+    load_journal,
+)
 
 
 class JournalSnapshotTests(unittest.TestCase):
@@ -12,7 +16,9 @@ class JournalSnapshotTests(unittest.TestCase):
     def test_latest_state_and_masking(self):
         base = {"msg_type": "ordupd", "NorenOrdNum": "A", "NorenTimeStamp": 100,
                 "OrdStatus": 48, "AcctId": "private-account", "UserId": "private-user",
-                "PanNum": "sensitive", "RejReason": "contains private information", "PriceToFill": 12345}
+                "PanNum": "sensitive", "IpAddr": "10.20.30.40", "ExchUserId": "123456",
+                "SrcUserId": "source-user", "RejReason": "contains private information",
+                "PriceToFill": 12345}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "journal.log"
             path.write_text('\n'.join(json.dumps(row) for row in [
@@ -27,8 +33,18 @@ class JournalSnapshotTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["status"], "COMPLETE")
         self.assertEqual(result["items"][0]["price"], 123.45)
         self.assertEqual(len(result["events"]), 3)
+        fields = result["items"][0]["journal_fields"]
+        self.assertEqual(tuple(fields), ORDER_JOURNAL_FIELDS)
+        self.assertEqual(fields["Record No."], 1)
+        self.assertEqual(fields["OrdStatus"], 50)
+        self.assertEqual(fields["PriceToFill"], 123.45)
+        self.assertEqual(fields["AcctId"], "pr***-account")
+        self.assertEqual(fields["UserId"], "priv***")
+        self.assertEqual(fields["PanNum"], "sens***")
+        self.assertEqual(fields["IpAddr"], "10.20.x.xxx")
+        self.assertEqual(result["items"][0]["masked_fields"], list(MASKED_ORDER_JOURNAL_FIELDS))
         encoded = json.dumps(result)
-        for private in ["private-account", "private-user", "PanNum", "sensitive", "private information"]:
+        for private in ["private-account", "private-user", "sensitive", "10.20.30.40", "123456", "source-user", "private information"]:
             self.assertNotIn(private, encoded)
 
     def test_invalid_journal_fails_without_partial_results(self):

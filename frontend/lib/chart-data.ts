@@ -40,8 +40,16 @@ export function orderFlowTrend() {
   };
 }
 
-export function loginTrendFromBuckets(buckets: { time?: string; count?: number }[]) {
-  const labels = buckets.map((b) => String(b.time || "").slice(0, 5));
+export function loginTrendFromBuckets(buckets: { time?: string; key?: string; count?: number }[]) {
+  const labels = buckets.map((b) => {
+    const raw = String(b.time || b.key || "");
+    if (!raw) return "";
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) {
+      return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+    }
+    return raw.length >= 16 ? raw.slice(11, 16) : raw.slice(0, 5);
+  });
   const points = buckets.map((b) => Number(b.count || 0));
   return { labels, series: [{ name: "Logins", points, cls: "s-total" }] };
 }

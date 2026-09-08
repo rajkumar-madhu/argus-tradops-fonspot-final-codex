@@ -8,6 +8,7 @@ export default async function Page() {
   const d: any = await getJSON("/api/reports");
   const err = apiError(d);
   const rows = d.items || [];
+  const configured = rows.length > 0;
 
   return (
     <Shell>
@@ -18,20 +19,24 @@ export default async function Page() {
           <section className="kpi-grid three">
             <KpiCard label="Scheduled Reports" value={fmt(rows.length)} sub="Available templates" tone="blue" icon={<FileText size={18} />} />
             <KpiCard label="Ready" value={fmt(rows.filter((r: any) => r.status === "Ready").length)} sub="Can be generated" deltaTone="up" tone="green" icon={<CheckCircle2 size={18} />} />
-            <KpiCard label="Delivery" value="Email + S3" sub="Production integration" tone="teal" icon={<Send size={18} />} />
+            <KpiCard label="Delivery" value={configured ? "Configured" : "Not configured"} sub={configured ? "See report catalog" : "No delivery backend"} tone="teal" icon={<Send size={18} />} />
           </section>
           <Card title="Report catalog">
-            <DataTable
-              className="data-table"
-              rows={rows}
-              rowKey={(r) => r.id}
-              columns={[
-                { key: "id", label: "Report ID", render: (r) => <b>{r.id}</b> },
-                { key: "title", label: "Title" },
-                { key: "schedule", label: "Schedule" },
-                { key: "status", label: "Status" },
-              ]}
-            />
+            {rows.length ? (
+              <DataTable
+                className="data-table"
+                rows={rows}
+                rowKey={(r) => r.id}
+                columns={[
+                  { key: "id", label: "Report ID", render: (r) => <b>{r.id}</b> },
+                  { key: "title", label: "Title" },
+                  { key: "schedule", label: "Schedule" },
+                  { key: "status", label: "Status" },
+                ]}
+              />
+            ) : (
+              <EmptyState title="Reports unavailable" body={d.note || "No scheduled report integration is configured."} />
+            )}
           </Card>
         </>
       )}

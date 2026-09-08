@@ -1,0 +1,159 @@
+export type MatrixCell = {
+  client: string;
+  exchange: string;
+  orders: number;
+  rejected: number;
+  yelConnected: boolean;
+  status: "SUCCESS" | "FAILED" | "NONE";
+  lastSuccess?: string;
+  lastFailure?: string;
+};
+
+const DEFAULT_EXCHANGES = ["NSE", "NFO", "CDS", "BSE", "BFO", "MCX"];
+
+function parseYelKey(key: string): { exchange?: string; client?: string } {
+  const raw = String(key || "").trim();
+  if (!raw) return {};
+  const parts = raw.split(/[:|/\-]/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2) return { exchange: parts[0], client: parts[1] };
+  if (/^[A-Z]{2,5}$/.test(parts[0])) return { exchange: parts[0] };
+  return { client: parts[0] };
+}
+
+/** Build client × exchange adapter matrix from journal orders and YEL keys. */
+export function buildAdapterMatrix(orders: any[], yelKeys: string[] = []) {
+  const clientSet = new Set<string>();
+  const exchangeSet = new Set<string>(DEFAULT_EXCHANGES);
+  const counts = new Map<string, { orders: number; rejected: number; lastTime?: string }>();
+  const yelPairs = new Set<string>();
+
+  for (const key of yelKeys) {
+    const { exchange, client } = parseYelKey(key);
+    if (exchange) exchangeSet.add(exchange);
+    if (client) clientSet.add(client);
+    if (exchange && client) yelPairs.add(`${client}::${exchange}`);
+    if (exchange && !client) {
+      for (const c of clientSet) yelPairs.add(`${c}::${exchange}`);
+    }
+  }
+
+  for (const o of orders) {
+    const client = String(o.user || o.broker || "").trim();
+    const exchange = String(o.exchange || "").trim();
+    if (!client || !exchange) continue;
+    clientSet.add(client);
+    exchangeSet.add(exchange);
+    const k = `${client}::${exchange}`;
+    const row = counts.get(k) || { orders: 0, rejected: 0 };
+    row.orders += 1;
+    if (String(o.status).toUpperCase() === "REJECTED") row.rejected += 1;
+    row.lastTime = o.time || row.lastTime;
+    counts.set(k, row);
+  }
+
+  const clients = Array.from(clientSet).sort().slice(0, 12);
+  const exchanges = Array.from(exchangeSet).sort();
+
+  const cells: MatrixCell[] = [];
+  for (const client of clients) {
+    for (const exchange of exchanges) {
+      const k = `${client}::${exchange}`;
+      const row = counts.get(k);
+      const ordersN = row?.orders || 0;
+      const rejected = row?.rejected || 0;
+      const yelConnected = yelPairs.has(k) || (yelKeys.length > 0 && yelKeys.some((key) => key.includes(exchange)));
+      let status: MatrixCell["status"] = "NONE";
+      if (ordersN > 0) {
+        status = rejected > ordersN * 0.5 ? "FAILED" : "SUCCESS";
+      } else if (yelConnected) {
+        status = "SUCCESS";
+      }
+      cells.push({
+        client,
+        exchange,
+        orders: ordersN,
+        rejected,
+        yelConnected,
+        status,
+        lastSuccess: ordersN && rejected < ordersN ? row?.lastTime : undefined,
+        lastFailure: rejected ? row?.lastTime : undefined,
+      });
+    }
+  }
+
+  const successCells = cells.filter((c) => c.status === "SUCCESS").length;
+  const failedCells = cells.filter((c) => c.status === "FAILED").length;
+  const totalCells = cells.filter((c) => c.status !== "NONE").length;
+
+  return {
+    clients,
+    exchanges,
+    cells,
+    summary: {
+      totalAdapters: totalCells,
+      success: successCells,
+      failures: failedCells,
+      successPct: totalCells ? (successCells / totalCells) * 100 : 0,
+    },
+  };
+}
+
+export function infraAsProcesses(infra: Record<string, any>) {
+  const scripts = [
+    { name: "collector.py", key: "redis", host: "tradeops-worker" },
+    { name: "correlation_worker.py", key: "postgres", host: "tradeops-worker" },
+    { name: "api.main", key: "elasticsearch", host: "tradeops-api" },
+    { name: "journal_loader.py", key: "journal", host: "local" },
+  ];
+  return scripts.map((s) => {
+    const v = infra[s.key] || {};
+    const status = String(v.status || "Unknown");
+    const healthy = /healthy|connected|loaded|ok/i.test(status);
+    return {
+      name: s.name,
+      host: s.host,
+      pid: healthy ? "—" : "—",
+      status: healthy ? "RUNNING" : "STOPPED",
+      cpu_pct: v.cpu_pct ?? "—",
+      memory_pct: v.memory_pct ?? "—",
+      uptime: "—",
+      last_heartbeat: "—",
+      last_execution: "—",
+      response_ms: v.replication_lag_ms ?? "—",
+      exit_code: healthy ? 0 : 1,
+      remarks: healthy ? "OK" : status,
+    };
+  });
+}
+
+export function buildExecutionLogs(rejections: any[], infra: Record<string, any>) {
+  const lines: { time: string; level: string; process: string; message: string }[] = [];
+  for (const r of (rejections || []).slice(0, 6)) {
+    lines.push({
+      time: r.time ? String(r.time).slice(11, 19) : "—",
+      level: "ERROR",
+      process: "rms_validator",
+      message: `${r.order_id || "—"} · ${String(r.reason || "").replace(/^RED:/, "").slice(0, 100)}`,
+    });
+  }
+  for (const [k, v] of Object.entries(infra || {})) {
+    if (typeof v !== "object" || !v) continue;
+    const status = String((v as any).status || "");
+    if (/unavailable|disconnect/i.test(status)) {
+      lines.push({
+        time: new Date().toISOString().slice(11, 19),
+        level: "ERROR",
+        process: k,
+        message: `${k} status: ${status}`,
+      });
+    } else {
+      lines.push({
+        time: new Date().toISOString().slice(11, 19),
+        level: "INFO",
+        process: k,
+        message: `${k} status: ${status}`,
+      });
+    }
+  }
+  return lines.slice(0, 20);
+}

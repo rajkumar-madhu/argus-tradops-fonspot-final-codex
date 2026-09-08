@@ -52,12 +52,11 @@ export default async function Page() {
               </Card>
             ))}
           </div>
-          <Card title="WAN bandwidth">
-            <div className="wan-chart">
-              <div className="line l1" />
-              <div className="line l2" />
-              <div className="axis">08:30　08:45　09:00　09:15　09:30</div>
-            </div>
+          <Card title="Infrastructure telemetry coverage">
+            <EmptyState
+              title="Historical resource series unavailable"
+              body={d.note || "CPU, memory, storage, network, node, pod and topology charts require a metrics integration such as Prometheus. Status cards above contain only values returned by the current API."}
+            />
           </Card>
         </>
       )}

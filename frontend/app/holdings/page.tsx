@@ -2,9 +2,9 @@ import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, LineChart, PieChart, RefreshCw, TrendingUp, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
-import { AreaChart, Donut, HBarList, VBarChart } from "@/components/Charts";
+import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
-import { mtmDistribution, portfolioTrend, sectorAllocation } from "@/lib/chart-data";
+import { mtmDistribution } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
 import { fmt, money } from "@/lib/format";
 
@@ -19,17 +19,23 @@ export default async function Page() {
   const unrealized = portfolioValue - investment;
   const gainers = rows.filter((r: any) => Number(r.pnl_pct) >= 0);
   const losers = rows.filter((r: any) => Number(r.pnl_pct) < 0);
-  const trend = portfolioTrend(portfolioValue);
-  const sectors = sectorAllocation(rows);
   const mtm = mtmDistribution(rows);
-  const maxSector = Math.max(1, ...sectors.map((s) => s.value));
-
-  const capSlices = [
-    { label: "Large Cap", value: Math.round(rows.length * 0.45) || 1, cls: "seg-blue", pct: "45%" },
-    { label: "Mid Cap", value: Math.round(rows.length * 0.28) || 1, cls: "seg-green", pct: "28%" },
-    { label: "Small Cap", value: Math.round(rows.length * 0.16) || 1, cls: "seg-amber", pct: "16%" },
-    { label: "F&O / Other", value: Math.max(1, rows.length - Math.round(rows.length * 0.89)), cls: "seg-purple", pct: "11%" },
-  ];
+  const exchangeValueMap: Record<string, number> = rows.reduce(
+    (acc: Record<string, number>, row: any) => {
+        const exchange = String(row.exchange || "Unknown");
+        acc[exchange] = (acc[exchange] || 0) + Number(row.value || 0);
+        return acc;
+      },
+    {},
+  );
+  const exchangeValues = Object.entries(exchangeValueMap).sort((a, b) => b[1] - a[1]);
+  const allocationTotal = Math.max(1, exchangeValues.reduce((sum, [, value]) => sum + value, 0));
+  const exchangeSlices = exchangeValues.map(([label, value], index) => ({
+    label,
+    value,
+    cls: ["seg-blue", "seg-green", "seg-amber", "seg-purple"][index % 4],
+    pct: `${((value / allocationTotal) * 100).toFixed(1)}%`,
+  }));
 
   return (
     <Shell>
@@ -45,6 +51,11 @@ export default async function Page() {
 
       {err ? (
         <EmptyState title="Unable to load holdings" body={err} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="Holdings snapshot unavailable"
+          body={d.note || "No back-office holdings integration is configured. Journal order events do not establish authoritative inventory, cost basis or P&L."}
+        />
       ) : (
         <>
           <section className="kpi-grid six">
@@ -60,22 +71,21 @@ export default async function Page() {
             <div className="panel">
               <div className="panel-head">
                 <b>Portfolio Value Trend</b>
-                <span className="legend"><i className="lg s-total" /> Investment <i className="lg s-executed" /> Current Value</span>
               </div>
-              <p className="source-tag">Illustrative history — historical measurements are not supplied by this source.</p><AreaChart series={trend.series} labels={trend.labels} height={160} />
+              <EmptyState title="History unavailable" body="The current source supplies a point-in-time holdings snapshot, not a historical portfolio series." />
             </div>
             <div className="panel">
-              <div className="panel-head"><b>Holdings Allocation</b></div>
-              <Donut centerLabel="Current Value" centerValue={money(portfolioValue)} slices={capSlices} />
+              <div className="panel-head"><b>Allocation by Exchange</b></div>
+              <Donut centerLabel="Current Value" centerValue={money(portfolioValue)} slices={exchangeSlices} />
             </div>
             <div className="panel">
-              <div className="panel-head"><b>Top Sectors</b></div>
+              <div className="panel-head"><b>Exchange Values</b></div>
               <HBarList
-                rows={sectors.map((s) => ({
-                  label: s.label,
-                  value: money(s.value),
-                  pct: s.barPct,
-                  cls: s.cls,
+                rows={exchangeValues.map(([label, value], index) => ({
+                  label,
+                  value: money(value),
+                  pct: (value / allocationTotal) * 100,
+                  cls: ["bar-blue", "bar-purple", "bar-teal", "bar-amber"][index % 4],
                 }))}
               />
             </div>

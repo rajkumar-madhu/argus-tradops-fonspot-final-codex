@@ -168,7 +168,21 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
     }
 
 
-def normalize_session_event(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict[str, Any]:
+def _session_result(status_text: str) -> str:
+    text = str(status_text or "").strip()
+    if not text:
+        return "—"
+    if "success" in text.lower():
+        return "Success"
+    return text
+
+
+def normalize_session_event(
+    doc: dict[str, Any],
+    *,
+    mask_sensitive: bool = True,
+    source_row: int | None = None,
+) -> dict[str, Any]:
     details = doc.get("Userdetails") if isinstance(doc.get("Userdetails"), dict) else {}
     exch = details.get("UserExchDetails") if isinstance(details.get("UserExchDetails"), list) else []
     segments = [str(x.get("ExchSeg")) for x in exch if isinstance(x, dict) and x.get("Enable", True) and x.get("ExchSeg")]
@@ -179,10 +193,11 @@ def normalize_session_event(doc: dict[str, Any], *, mask_sensitive: bool = True)
     status_text = str(doc.get("ReqStatus") or "")
     msg_type = str(doc.get("msg_type") or "")
     active = msg_type == "login" and "success" in status_text.lower()
-    return {
+    row: dict[str, Any] = {
         "event": msg_type,
         "active": active,
         "status": status_text,
+        "result": _session_result(status_text),
         "time": _iso_from_unix(doc.get("NorenTimeStamp"), doc.get("NorenNsecs")),
         "user_id": mask_id(user_id, 4) if mask_sensitive else user_id,
         "broker": str(details.get("BrokerId") or ""),
@@ -199,6 +214,9 @@ def normalize_session_event(doc: dict[str, Any], *, mask_sensitive: bool = True)
         "login_process": "***" if mask_sensitive and doc.get("LoginProcId") else str(doc.get("LoginProcId") or ""),
         "source": f"noren-{msg_type}",
     }
+    if source_row is not None:
+        row["source_row"] = source_row
+    return row
 
 
 def normalize_log(doc: dict[str, Any]) -> dict[str, Any]:

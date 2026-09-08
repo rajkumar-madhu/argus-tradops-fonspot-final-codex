@@ -4,6 +4,11 @@ import { time24 } from "@/lib/format";
 import { apiUrl } from "@/lib/runtime";
 import { authHeaders } from "@/lib/session";
 import { openAuthenticatedEventSource } from "@/lib/stream";
+import {
+  journalFieldValue,
+  ORDER_JOURNAL_FIELD_TITLES,
+  type OrderJournalFieldValues,
+} from "@/lib/order-journal-fields";
 import { DataTable, KPI } from "@/components/UI";
 function Status({ value }: { value: string }) { return <span className={`order-status ${String(value || "").toLowerCase()}`}>{value}</span> }
 
@@ -74,6 +79,8 @@ export default function LiveOrders({ initial, snapshot = false, requestedOrder }
 
   const rows = data.items || [];
   const selected = rows.find((row: any) => row.order_id === selectedId) || {};
+  const journalFields = (selected.journal_fields || {}) as OrderJournalFieldValues;
+  const maskedFields = new Set<string>(selected.masked_fields || []);
   useEffect(() => {
     if (!selectedId && rows[0]) setSelectedId(rows[0].order_id);
   }, [rows, selectedId]);
@@ -116,6 +123,18 @@ export default function LiveOrders({ initial, snapshot = false, requestedOrder }
         {key:'latency_ms',label:'Event interval',render:r=>r.latency_ms == null ? '—' : `${r.latency_ms} ms`},
       ]}/></div>
       <aside className="panel order-detail"><div className="panel-head"><b>Selected Order</b>{selected.status && <Status value={selected.status} />}</div><dl>{[["Order", selected.order_id], ["Eref", selected.eref], ["Exchange Order", selected.exchange_order_id || "—"], ["Exchange", selected.exchange], ["Symbol", selected.symbol], ["Broker", selected.broker], ["Product", selected.product], ["Type", selected.type], ["Side", selected.side], ["Qty", selected.qty], ["Filled", selected.filled_qty], ["Price", selected.price ?? "—"], ["Status Code", selected.status_code]].map(([k, v]) => <div key={String(k)}><dt>{k}</dt><dd>{String(v ?? "—")}</dd></div>)}</dl>{(selected.reason || selected.status === "REJECTED") && <div className="rejection-box"><b>{selected.code || "Reject"} · {selected.rejection_category}</b><span>{selected.reason || (snapshot ? "Free-text reason withheld in local snapshot" : "Reason not supplied")}</span></div>}</aside></section>
+    {snapshot && <details className="panel journal-field-evidence" open>
+      <summary>Mapped Journal.log fields · {selectedId || "No order selected"}</summary>
+      {!selectedId ? <p className="evidence-note">Select an order to inspect its allowlisted journal evidence.</p> : <>
+        <p className="evidence-note">Prices and timestamps are normalized for display. Order Status retains the raw OrdStatus code. Fields marked “masked” never expose their original sensitive value.</p>
+        <dl className="journal-field-grid">
+          {ORDER_JOURNAL_FIELD_TITLES.map(([field, title]) => <div key={field}>
+            <dt>{title}{maskedFields.has(field) && <span className="masked-label">masked</span>}</dt>
+            <dd>{journalFieldValue(journalFields[field])}</dd>
+          </div>)}
+        </dl>
+      </>}
+    </details>}
     <section className="order-evidence-grid" aria-label="Order investigation">
       <section className="panel"><div className="panel-head"><b>Order Lifecycle</b><span>{events.length} events</span></div>
         {evidenceState === 'loading' && <p className="evidence-note" role="status">Loading order evidence…</p>}

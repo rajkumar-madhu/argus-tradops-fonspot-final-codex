@@ -1,6 +1,10 @@
 import os
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def _bool(name: str, default: bool = False) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
@@ -24,6 +28,7 @@ def _float(name: str, default: float) -> float:
 class Settings:
     environment: str = os.getenv("TRADEOPS_ENV", "development").strip().lower()
     journal_path: str = os.getenv("TRADEOPS_JOURNAL_PATH", "")
+    journal_primary: bool = _bool("TRADEOPS_JOURNAL_PRIMARY", False)
     demo_mode: bool = _bool("TRADEOPS_DEMO_MODE", True)
     es_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     es_api_key: str | None = os.getenv("ELASTICSEARCH_API_KEY") or None

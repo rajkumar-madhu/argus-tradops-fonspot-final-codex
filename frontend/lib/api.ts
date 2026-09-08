@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { TOKEN_COOKIE } from "@/lib/session-shared";
 import { serverRuntimeConfig } from "@/lib/runtime";
 
+export { apiError } from "@/lib/api-result";
+
 export type ApiResult<T> = T & { _error?: string; _status?: number };
 
 /**
@@ -34,10 +36,6 @@ export async function getJSON<T>(path: string): Promise<ApiResult<T>> {
   } catch (err) {
     return { _error: err instanceof Error ? err.message : "Network error" } as ApiResult<T>;
   }
-}
-
-export function apiError(data: { _error?: string } | null | undefined): string | null {
-  return data?._error || null;
 }
 
 export function isAuthError(data: { _status?: number } | null | undefined): boolean {

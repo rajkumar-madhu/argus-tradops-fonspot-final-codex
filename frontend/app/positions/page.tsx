@@ -2,9 +2,8 @@ import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, LineChart, RefreshCw, Scale, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
-import { Donut, HBarList, AreaChart, VBarChart } from "@/components/Charts";
+import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
-import { demoSeries, demoTimeLabels } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
 import { fmt, money } from "@/lib/format";
 
@@ -23,11 +22,6 @@ export default async function Page() {
   });
   const exchRows = Object.entries(byExchange).map(([name, count]) => ({ name, count }));
   const maxExch = Math.max(1, ...exchRows.map((x) => x.count));
-  const mtmLabels = demoTimeLabels(12);
-  const mtmTrend = {
-    labels: mtmLabels,
-    series: [{ name: "MTM", points: demoSeries(4, mtmLabels.length, Math.max(Math.abs(netMtm), 50), Math.abs(netMtm) * 0.25), cls: netMtm >= 0 ? "s-executed" : "s-rejected" }],
-  };
   const mtmBars = rows
     .map((r: any) => ({ label: String(r.symbol).slice(0, 10), value: Math.abs(Number(r.mtm || 0)), cls: Number(r.mtm) >= 0 ? "bar-green" : "bar-red" }))
     .sort((a: any, b: any) => b.value - a.value)
@@ -47,6 +41,11 @@ export default async function Page() {
 
       {err ? (
         <EmptyState title="Unable to load positions" body={err} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="Position snapshots unavailable"
+          body={d.note || "No RMS position snapshot is configured. Order events cannot be used to infer authoritative positions, P&L or exposure."}
+        />
       ) : (
         <>
           <section className="kpi-grid four">
@@ -58,8 +57,8 @@ export default async function Page() {
 
           <section className="viz-row-3">
             <div className="panel">
-              <div className="panel-head"><b>Intraday MTM Trend</b><span className="legend"><i className="lg s-executed" /> Mark-to-market</span></div>
-              <p className="source-tag">Illustrative history — historical measurements are not supplied by this source.</p><AreaChart series={mtmTrend.series} labels={mtmTrend.labels} height={150} />
+              <div className="panel-head"><b>Intraday MTM Trend</b></div>
+              <EmptyState title="History unavailable" body="The current source supplies a point-in-time position snapshot, not an intraday MTM series." />
             </div>
             <div className="panel">
               <div className="panel-head"><b>MTM by Symbol</b></div>
