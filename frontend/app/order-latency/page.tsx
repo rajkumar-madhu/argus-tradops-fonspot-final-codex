@@ -29,7 +29,11 @@ export default async function Page() {
       <PageHead
         title="Order Latency"
         subtitle="OMS processing time and exchange confirmation round-trip, per order"
-        badge={`${d.count || 0} orders · ${d.source || "—"}`}
+        badge={
+          d.source === "journal snapshot"
+            ? `FILE-BASED · ${d.count || 0} orders`
+            : `${d.count || 0} orders · ${d.source || "—"}`
+        }
         badgeTone={s.unconfirmed_orders ? "warn" : "ok"}
       />
 
@@ -38,7 +42,7 @@ export default async function Page() {
       {!err && rows.length === 0 && (
         <EmptyState
           title="No latency data"
-          body={d.note || "The L_ORDERLATENCY feed has not been ingested for this environment."}
+          body={d.note || "No OMS latency intervals were found for this data source."}
         />
       )}
 

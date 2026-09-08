@@ -1,6 +1,7 @@
 """Explicit local journal snapshots. No polling, trading writes, or ES access."""
 from __future__ import annotations
 
+import csv
 import json
 from collections import Counter
 from datetime import datetime, timezone
@@ -443,6 +444,7 @@ def journal_trades(path: str, *, size: int = 100) -> dict[str, Any]:
 
 
 def journal_order_latency(path: str) -> dict[str, Any]:
+    """Legacy exchange-bucket summary; prefer journal_order_latency_rows for the latency UI."""
     snapshot = load_journal(path)
     buckets: dict[str, list[float]] = {}
     for row in snapshot["events"]:
@@ -472,6 +474,94 @@ def journal_order_latency(path: str) -> dict[str, Any]:
         "source": snapshot["source"],
         "note": "Derived from Noren original vs current event timestamps in the journal snapshot",
     }
+
+
+def _ms_to_us(ms: float) -> float:
+    return round(float(ms) * 1000.0, 2)
+
+
+def _float_field(value: Any) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def load_order_latency_csv(path: str) -> list[dict[str, Any]]:
+    """Parse L_ORDERLATENCY*.csv into rows shaped for _latency_payload."""
+    rows: list[dict[str, Any]] = []
+    with Path(path).open(encoding="utf-8", newline="") as stream:
+        for raw in csv.DictReader(stream):
+            rows.append(
+                {
+                    "NOREN_ORD_NUM": str(raw.get("NOREN_ORD_NUM") or "").strip(),
+                    "EXCH_SEG": str(raw.get("EXCH_SEG") or "—").strip(),
+                    "EXT_RMKS": str(raw.get("EXT_RMKS") or "").strip(),
+                    "OMS_STATUS": raw.get("OMS_STATUS"),
+                    "OMS_LATENCY": _float_field(raw.get("OMS_LATENCY")),
+                    "EXCH_STATUS": str(raw.get("EXCH_STATUS") or "").strip(),
+                    "OMS_EXCH_CONFIRMATION": _float_field(raw.get("OMS_EXCH_CONFIRMATION")),
+                    "OMSUPDATETIME": raw.get("OMSUPDATETIME") or 0,
+                    "EXCHUPDATETIME": raw.get("EXCHUPDATETIME") or 0,
+                }
+            )
+    return [row for row in rows if row["NOREN_ORD_NUM"]]
+
+
+def resolve_order_latency_csv() -> str | None:
+    """Optional L_ORDERLATENCY CSV beside the journal or at repo root."""
+    explicit = settings.order_latency_path.strip()
+    if explicit and Path(explicit).is_file():
+        return explicit
+    if settings.journal_path:
+        parent = Path(settings.journal_path).resolve().parent
+        matches = sorted(parent.glob("L_ORDERLATENCY*.csv"))
+        if matches:
+            return str(matches[-1])
+    repo_matches = sorted(Path(".").resolve().glob("L_ORDERLATENCY*.csv"))
+    if repo_matches:
+        return str(repo_matches[-1])
+    return None
+
+
+def journal_order_latency_rows(path: str) -> tuple[list[dict[str, Any]], str]:
+    """Build L_ORDERLATENCY-shaped rows from journal OMS intervals, with CSV fallback."""
+    snapshot = load_journal(path)
+    rows = _journal_latency_rows_from_items(snapshot["items"])
+    if rows:
+        return rows, snapshot["source"]
+
+    csv_path = resolve_order_latency_csv()
+    if csv_path:
+        csv_rows = load_order_latency_csv(csv_path)
+        if csv_rows:
+            return csv_rows, "order-latency csv"
+    return [], snapshot["source"]
+
+
+def _journal_latency_rows_from_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in items:
+        latency_ms = row.get("latency_ms")
+        if latency_ms is None:
+            continue
+        exch_ord = str(row.get("exchange_order_id") or "").strip()
+        status_code = row.get("status_code")
+        confirmed = bool(exch_ord)
+        rows.append(
+            {
+                "NOREN_ORD_NUM": row.get("order_id"),
+                "EXCH_SEG": row.get("exchange") or "—",
+                "EXT_RMKS": row.get("eref") or row.get("symbol") or "",
+                "OMS_STATUS": status_code if status_code is not None else "",
+                "OMS_LATENCY": _ms_to_us(float(latency_ms)),
+                "EXCH_STATUS": status_code if confirmed else "",
+                "OMS_EXCH_CONFIRMATION": 0.0,
+                "OMSUPDATETIME": 0,
+                "EXCHUPDATETIME": 0,
+            }
+        )
+    return rows
 
 
 def journal_rca(path: str, order_id: str) -> dict[str, Any]:

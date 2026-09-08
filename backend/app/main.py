@@ -699,12 +699,35 @@ def holdings(user=Depends(require("holdings:read"))):
 @app.get("/api/order-latency")
 def order_latency(user=Depends(require("latency:read"))):
     if _use_journal_data():
-        return {
-            "items": [],
-            "count": 0,
-            "source": "journal snapshot",
-            "note": "Order latency KPIs require the L_ORDERLATENCY feed. Journal snapshots only expose per-event OMS interval fields on the Orders page.",
-        }
+        from app.journal_snapshot import journal_order_latency_rows
+
+        rows, feed_kind = journal_order_latency_rows(_journal_path())
+        if not rows:
+            return {
+                "items": [],
+                "count": 0,
+                "source": "journal snapshot",
+                "note": "No OMS latency intervals were found in the journal snapshot.",
+            }
+        payload = _latency_payload(rows, "journal snapshot")
+        if feed_kind == "order-latency csv":
+            payload["notes"] = [
+                "Latencies are microseconds from the L_ORDERLATENCY CSV feed.",
+                "OMS_EXCH_CONFIRMATION derives from whole-second timestamps upstream, so values "
+                "quantise near second boundaries and should not be read as sub-second precision.",
+                "Unconfirmed orders report 0 and are excluded from confirmation statistics.",
+            ]
+            payload["oms_status_mapping_confirmed"] = OMS_STATUS_MAPPING_CONFIRMED
+        else:
+            payload["notes"] = [
+                "OMS latency is derived from NorenOrgTimeStamp → NorenTimeStamp on each ordupd event (microseconds).",
+                "Confirmed orders are those with an exchange order number on the latest journal state.",
+                "Exchange round-trip latency is not available from the journal; ingest L_ORDERLATENCY CSV for confirm timings.",
+                "Unconfirmed orders have no exchange order number and are excluded from confirmation statistics.",
+            ]
+            payload["oms_status_mapping_confirmed"] = True
+        payload["feed_kind"] = feed_kind
+        return payload
     if DEMO_MODE:
         return _latency_payload(DEMO_ORDER_LATENCY, "demo")
     empty = _latency_payload([], "elasticsearch")

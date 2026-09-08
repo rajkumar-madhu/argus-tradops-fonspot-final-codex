@@ -29,6 +29,7 @@ class Settings:
     environment: str = os.getenv("TRADEOPS_ENV", "development").strip().lower()
     journal_path: str = os.getenv("TRADEOPS_JOURNAL_PATH", "")
     journal_primary: bool = _bool("TRADEOPS_JOURNAL_PRIMARY", False)
+    order_latency_path: str = os.getenv("TRADEOPS_ORDER_LATENCY_PATH", "")
     demo_mode: bool = _bool("TRADEOPS_DEMO_MODE", True)
     es_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     es_api_key: str | None = os.getenv("ELASTICSEARCH_API_KEY") or None
