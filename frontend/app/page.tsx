@@ -96,7 +96,7 @@ const FAQS: [string, string][] = [
   ["How does it authenticate users?", "Keycloak, using Authorization Code with PKCE. Roles map to permissions per route, so a support user and a risk user see different things."],
   ["Does it add load to Elasticsearch?", "Very little. A single leader-elected collector polls Elasticsearch; every dashboard and live stream reads from Redis instead, so opening more browsers does not multiply queries."],
   ["Is account data masked?", "Yes. Account numbers, client IDs and IP addresses are masked in the normalisation layer and again excluded at the query level."],
-  ["Can we try it against sample data?", "Yes. Demo mode runs the full interface against representative data with no Elasticsearch connection at all, which is the fastest way to evaluate it."],
+  ["Can we try it against sample data?", "Yes. You can run the full interface against a journal upload or your own Elasticsearch indices with no production write path."],
 ];
 
 const SUPPORT: [React.ComponentType<any>, string, string[]][] = [
@@ -140,7 +140,7 @@ export default function Landing() {
           <p>Unify orders, trades, risk, infrastructure and logs in one platform. Detect issues faster, resolve with AI-powered insights, and keep your trading systems always on.</p>
           <div className="hero-actions">
             <Link className="primary" href="/signup">Start Free Trial →</Link>
-            <Link className="secondary" href="/signin">Book a Demo</Link>
+            <Link className="secondary" href="/signin">Get started</Link>
           </div>
           <div className="hero-tiles">
             <div><span className="tile-blue"><Zap size={16} /></span><b>Real-time visibility</b><small>Across your trading stack</small></div>
@@ -411,9 +411,9 @@ export default function Landing() {
         <div><h2>Ready to Transform Your Trading Operations?</h2><p>Get real-time visibility, reduce risk and keep your trading systems always on.</p></div>
         <div className="hero-actions">
           <Link className="primary light" href="/signup">Start Free Trial</Link>
-          <Link className="secondary ghost" href="/signin">Book a Demo</Link>
+          <Link className="secondary ghost" href="/signin">Get started</Link>
         </div>
-        <small className="cta-note">Demo mode runs the whole interface without an Elasticsearch connection. No card, no commitment.</small>
+        <small className="cta-note">Evaluate the full interface with your journal upload or Elasticsearch estate. No card, no commitment.</small>
       </section>
 
       {/* Support resource grid */}

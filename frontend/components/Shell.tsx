@@ -86,7 +86,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className={`app-shell${menuOpen ? " menu-open" : ""}`}>
       <aside className="sidebar" id="app-navigation">
         <div className="brand">
-          <Activity size={28} aria-hidden="true"/>
+          <div className="brand-bars" aria-hidden="true"><i /><i /><i /></div>
           <div><strong>TradeOps</strong><span>Trading Observability Platform</span></div>
         </div>
         <nav className="nav-list">

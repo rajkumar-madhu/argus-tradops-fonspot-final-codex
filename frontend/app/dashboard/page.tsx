@@ -11,7 +11,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ lookback?: string }>;
 }) {
   const lookback = queryWindow((await searchParams).lookback);
-  const orderSize = 5000;
+  const orderSize = 10000;
 
   const [overview, orders, rejections, exchanges, sessions, infra, loginTrend, yel] = await Promise.all([
     getJSON("/api/overview"),

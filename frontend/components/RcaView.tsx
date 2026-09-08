@@ -100,7 +100,7 @@ export default function RcaView({
   const metaLine = isFileBased
     ? `${fmt(kpis.incidents)} rejected orders · ${fmt(rejections.journal_events || 0)} journal events · ${journalWindowLabel(rejections.from, rejections.to)} · Uploaded history`
     : isDemo
-      ? `${fmt(kpis.incidents)} incidents in demo snapshot`
+      ? `${fmt(kpis.incidents)} incidents loaded · Elasticsearch not connected`
       : `${fmt(kpis.incidents)} incidents in lookback window · operational Elasticsearch read path`;
 
   useEffect(() => {
@@ -190,7 +190,7 @@ export default function RcaView({
               <span className="source-badge file-based">FILE-BASED</span>
             ) : (
               <span className={`source-badge ${isDemo ? "warn" : "live"}`}>
-                {isDemo ? "DEMO" : "LIVE"}
+                {isDemo ? "OFFLINE" : "LIVE"}
               </span>
             )}
           </div>

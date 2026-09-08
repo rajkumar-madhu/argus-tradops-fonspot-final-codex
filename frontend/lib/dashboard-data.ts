@@ -21,10 +21,9 @@ export function orderTrendFromRows(orders: OrderRow[], binMs = 300_000) {
     return { labels: ["—"], series: [{ name: "Total", points: [0], cls: "s-total" }] };
   }
   const step = Math.max(1, Math.ceil(keys.length / 8));
-  const labels = keys
-    .filter((_, i) => i % step === 0 || i === keys.length - 1)
-    .map((k) => time24(new Date(k).toISOString()).slice(0, 5));
-  const rows = keys.map((k) => bins.get(k) || { total: 0, executed: 0, rejected: 0 });
+  const sampledKeys = keys.filter((_, i) => i % step === 0 || i === keys.length - 1);
+  const labels = sampledKeys.map((k) => time24(new Date(k).toISOString()).slice(0, 5));
+  const rows = sampledKeys.map((k) => bins.get(k) || { total: 0, executed: 0, rejected: 0 });
   return {
     labels,
     series: [
@@ -49,10 +48,9 @@ export function rejectionTrendFromRows(orders: OrderRow[], binMs = 300_000) {
     return { labels: ["—"], series: [{ name: "Rejections", points: [0], cls: "s-rejected" }] };
   }
   const step = Math.max(1, Math.ceil(keys.length / 8));
-  const labels = keys
-    .filter((_, i) => i % step === 0 || i === keys.length - 1)
-    .map((k) => time24(new Date(k).toISOString()).slice(0, 5));
-  const points = keys.map((k) => bins.get(k) || 0);
+  const sampledKeys = keys.filter((_, i) => i % step === 0 || i === keys.length - 1);
+  const labels = sampledKeys.map((k) => time24(new Date(k).toISOString()).slice(0, 5));
+  const points = sampledKeys.map((k) => bins.get(k) || 0);
   return { labels, series: [{ name: "Rejections", points, cls: "s-rejected" }] };
 }
 

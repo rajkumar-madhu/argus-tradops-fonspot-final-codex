@@ -24,6 +24,7 @@ import {
   rejectionTrendFromRows,
   statusDonutSlices,
 } from "@/lib/dashboard-data";
+import { sourceBadgeText, sourceBadgeTone, sourceDisplayName } from "@/lib/data-source";
 import { fmt, journalWindowLabel, time24, timeIstStamp } from "@/lib/format";
 
 export type DashboardPayload = {
@@ -129,7 +130,7 @@ export default function DashboardView({
   const metaLine = isFileBased
     ? `${fmt(journalEvents || ov.records || 0)} journal events · ${journalWindowLabel(ov.from, ov.to)} · Uploaded history, not a live feed`
     : isDemo
-      ? `${fmt(total)} orders in the demo snapshot · synthetic operational data`
+      ? `${fmt(total)} orders loaded · Elasticsearch not connected`
       : `${fmt(total)} orders in the ${lookback} window · live Elasticsearch read path`;
 
   const ovErr = apiError(ov);
@@ -143,8 +144,8 @@ export default function DashboardView({
             {isFileBased ? (
               <span className="source-badge file-based">FILE-BASED</span>
             ) : (
-              <span className={`source-badge ${isDemo ? "warn" : "live"}`}>
-                {isDemo ? "DEMO" : "LIVE"}
+              <span className={`source-badge ${sourceBadgeTone(source)}`}>
+                {sourceBadgeText(source)}
               </span>
             )}
           </div>
@@ -230,8 +231,8 @@ export default function DashboardView({
             />
             <KpiCard
               label="Data source"
-              value={source || "—"}
-              delta={isFileBased ? "Journal snapshot" : isDemo ? "Demo fixtures" : "Elasticsearch"}
+              value={sourceDisplayName(source)}
+              delta={isFileBased ? "Journal snapshot" : isDemo ? "No ELK connection" : "Elasticsearch"}
               tone="blue"
               icon={<Layers size={18} />}
             />

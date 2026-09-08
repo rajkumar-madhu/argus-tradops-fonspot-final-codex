@@ -126,8 +126,8 @@ export default async function Page() {
             <div className="panel span-3">
               <div className="panel-head"><b>Position notes</b></div>
               <div className="empty-state">
-                <b>Demo mode</b>
-                <p>Live positions are sourced from RMS/back-office in production. Demo mode shows representative intraday exposure with masked account identifiers.</p>
+                <b>No positions feed</b>
+                <p>Live positions are sourced from RMS/back-office in production. Connect your back-office integration to populate this view.</p>
               </div>
             </div>
           </section>

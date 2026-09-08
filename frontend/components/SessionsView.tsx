@@ -70,7 +70,7 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
   const metaLine = isFileBased
     ? `${fmt(loginCount)} login + ${fmt(logoutCount)} logout events · ${fmt(journalEvents)} ordupd total · ${journalWindowLabel(live.from, live.to)} · Uploaded history, not a live feed`
     : isDemo
-      ? `${fmt(rows.length)} session events in the demo snapshot`
+      ? `${fmt(rows.length)} session events loaded · Elasticsearch not connected`
       : `${fmt(activeCount)} active sessions · ${fmt(uniqueUsers)} unique users · operational Elasticsearch read path`;
 
   return (
@@ -83,7 +83,7 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
               <span className="source-badge file-based">FILE-BASED</span>
             ) : (
               <span className={`source-badge ${isDemo ? "warn" : "live"}`}>
-                {isDemo ? "DEMO" : "LIVE"}
+                {isDemo ? "OFFLINE" : "LIVE"}
               </span>
             )}
           </div>

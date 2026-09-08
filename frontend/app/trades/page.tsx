@@ -39,7 +39,7 @@ export default async function Page({searchParams}: {searchParams: Promise<{lookb
             <KpiCard label="Total Trades" value={fmt(rows.length)} delta="Completed fills" tone="blue" icon={<Wallet size={18} />} />
             <KpiCard label="Buy Trades" value={fmt(buyCount)} delta="Aggressive buys" deltaTone="up" tone="green" icon={<ArrowUpRight size={18} />} />
             <KpiCard label="Sell Trades" value={fmt(rows.length - buyCount)} delta="Aggressive sells" deltaTone="down" tone="red" icon={<ArrowDownRight size={18} />} />
-            <KpiCard label="Turnover" value={money(totalValue)} delta="Demo notional" tone="purple" icon={<TrendingUp size={18} />} />
+            <KpiCard label="Turnover" value={money(totalValue)} delta="Intraday notional" tone="purple" icon={<TrendingUp size={18} />} />
           </section>
 
           <section className="panel">

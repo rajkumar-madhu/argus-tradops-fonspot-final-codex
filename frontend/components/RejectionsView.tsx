@@ -121,7 +121,7 @@ export default function RejectionsView({ data }: { data: any }) {
   const metaLine = isFileBased
     ? `${fmt(journalEvents || live.records || 0)} journal events. ${journalWindowLabel(live.from, live.to)} · Uploaded history, not a live feed.`
     : isDemo
-      ? `${fmt(rejectedCount)} rejected orders in the demo snapshot.`
+      ? `${fmt(rejectedCount)} rejected orders loaded · Elasticsearch not connected.`
       : connected
         ? `Streaming rejections from the event bus. ${fmt(rejectedCount)} unique rejected orders.`
         : `Event bus disconnected. Showing last loaded rejection snapshot.`;
@@ -136,7 +136,7 @@ export default function RejectionsView({ data }: { data: any }) {
               <span className="source-badge file-based">FILE-BASED</span>
             ) : (
               <span className={`source-badge ${connected ? "live" : "warn"}`}>
-                {isDemo ? "DEMO" : connected ? "LIVE SSE" : "OFFLINE"}
+                {isDemo ? "OFFLINE" : connected ? "LIVE SSE" : "OFFLINE"}
               </span>
             )}
           </div>

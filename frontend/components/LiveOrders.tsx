@@ -113,7 +113,7 @@ export default function LiveOrders({ initial, snapshot = false, requestedOrder }
       setPaused(pausedRef.current);
       if (!pausedRef.current) setData(latestData.current);
     }}>{paused ? "Resume updates" : "Pause updates"}</button></div>}
-    <section className="orders-layout"><div className="panel orders-main"><div className="panel-head"><b>Order Feed ({data.returned ?? rows.length})</b><span className="source-tag">{snapshot ? "Historical snapshot · no live stream" : initial?.source === "demo" ? "Demo snapshot · no live stream" : paused ? "Display paused · stream continues" : connected ? "Stream connected" : "Stream disconnected · last snapshot"}</span></div>
+    <section className="orders-layout"><div className="panel orders-main"><div className="panel-head"><b>Order Feed ({data.returned ?? rows.length})</b><span className="source-tag">{snapshot ? "Historical snapshot · no live stream" : initial?.source === "demo" ? "Offline · no live stream" : paused ? "Display paused · stream continues" : connected ? "Stream connected" : "Stream disconnected · last snapshot"}</span></div>
       <DataTable selectedId={selectedId} rows={rows} rowKey={r => r.order_id} onRowClick={r => setSelectedId(r.order_id)} columns={[
         {key:'time',label:'Time (IST)',render:r=>time24(r.time)},
         {key:'order_id',label:'Order'}, {key:'user',label:'User'}, {key:'broker',label:'Broker'},
