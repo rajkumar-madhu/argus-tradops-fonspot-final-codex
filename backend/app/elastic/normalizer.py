@@ -291,9 +291,9 @@ def oms_status_label(code: Any) -> str:
 
 
 def exch_confirm_label(code: Any) -> str:
-    """EXCH_STATUS: 48 = confirmed by the exchange, blank/0 = never confirmed."""
-    raw = str(code).strip()
-    if raw == "":
+    """EXCH_STATUS: 48 is confirmation evidence; blank/zero has no evidence."""
+    raw = str(code or "").strip()
+    if raw in ("", "0"):
         return "NOT_CONFIRMED"
     try:
         return "CONFIRMED" if int(float(raw)) == 48 else f"CODE_{raw}"

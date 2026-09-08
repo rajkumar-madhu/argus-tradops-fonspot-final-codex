@@ -30,3 +30,14 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# Local QA / agent dumps — not product source
+.playwright-mcp/
+output/
+design-qa.md
+L_ORDERLATENCY*.csv
+gen_order_latency.py
+
+# Reference-only management console (not part of TradeOps runtime)
+management console/
+management console.zip

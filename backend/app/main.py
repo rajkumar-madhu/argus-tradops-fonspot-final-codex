@@ -1,6 +1,7 @@
 import math
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -59,8 +60,21 @@ DEMO_MODE = settings.demo_mode
 
 
 def _journal_path() -> str | None:
+    """Return a readable journal file path, or None if unset/missing.
+
+    Compose mounts the sample journal at /data/journal/Journal.log. Host .env
+    paths are ignored inside containers when the file is not present, so API
+    handlers fall back to demo data instead of raising FileNotFoundError.
+    """
     path = (settings.journal_path or "").strip()
-    return path or None
+    if not path:
+        return None
+    try:
+        if Path(path).is_file():
+            return path
+    except OSError:
+        return None
+    return None
 
 
 def _use_journal_data() -> bool:
@@ -245,26 +259,27 @@ def _percentile(values: list[float], pct: float) -> float:
 
 
 def _latency_payload(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
-    """Aggregate raw latency rows into KPI + per-segment + table shapes.
-
-    Unconfirmed rows (blank EXCH_STATUS) carry OMS_EXCH_CONFIRMATION = 0. Those
-    zeros are excluded from every confirmation statistic — including them would
-    drag the averages toward zero and understate real exchange round-trips.
-    """
+    """Aggregate confirmation evidence separately from available timing samples."""
+    journal = source == "journal snapshot"
     oms = [float(r.get("OMS_LATENCY") or 0) for r in rows]
-    confirmed = [float(r.get("OMS_EXCH_CONFIRMATION") or 0) for r in rows if float(r.get("OMS_EXCH_CONFIRMATION") or 0) > 0]
-    unconfirmed = [r for r in rows if not str(r.get("EXCH_STATUS", "")).strip()]
+    confirmation_flags = [
+        bool(r.get("CONFIRMED")) if journal else exch_confirm_label(r.get("EXCH_STATUS")) == "CONFIRMED"
+        for r in rows
+    ]
+    confirmed = [float(r.get("OMS_EXCH_CONFIRMATION") or 0) for r, flag in zip(rows, confirmation_flags)
+                 if not journal and flag and float(r.get("OMS_EXCH_CONFIRMATION") or 0) > 0]
+    unconfirmed_count = len(rows) - sum(confirmation_flags)
 
     segments: dict[str, dict[str, Any]] = {}
-    for r in rows:
+    for r, flag in zip(rows, confirmation_flags):
         seg = r.get("EXCH_SEG") or "—"
         bucket = segments.setdefault(seg, {"segment": seg, "orders": 0, "oms": [], "conf": [], "unconfirmed": 0})
         bucket["orders"] += 1
         bucket["oms"].append(float(r.get("OMS_LATENCY") or 0))
         conf = float(r.get("OMS_EXCH_CONFIRMATION") or 0)
-        if conf > 0:
+        if not journal and flag and conf > 0:
             bucket["conf"].append(conf)
-        if not str(r.get("EXCH_STATUS", "")).strip():
+        if not flag:
             bucket["unconfirmed"] += 1
 
     by_segment = sorted(
@@ -290,16 +305,16 @@ def _latency_payload(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
                 "segment": r.get("EXCH_SEG"),
                 "ext_remarks": r.get("EXT_RMKS"),
                 "oms_status": r.get("OMS_STATUS"),
-                "oms_status_label": oms_status_label(r.get("OMS_STATUS")),
+                "oms_status_label": r.get("OMS_STATUS_LABEL", "UNKNOWN") if journal else oms_status_label(r.get("OMS_STATUS")),
                 "oms_latency_us": float(r.get("OMS_LATENCY") or 0),
                 "exch_status": r.get("EXCH_STATUS"),
-                "exch_status_label": exch_confirm_label(r.get("EXCH_STATUS")),
-                "confirm_latency_us": float(r.get("OMS_EXCH_CONFIRMATION") or 0),
+                "exch_status_label": ("CONFIRMED" if flag else "NOT_CONFIRMED") if journal else exch_confirm_label(r.get("EXCH_STATUS")),
+                "confirm_latency_us": 0.0 if journal else float(r.get("OMS_EXCH_CONFIRMATION") or 0),
                 "oms_update_time": r.get("OMSUPDATETIME"),
                 "exch_update_time": r.get("EXCHUPDATETIME"),
-                "confirmed": bool(str(r.get("EXCH_STATUS", "")).strip()),
+                "confirmed": flag,
             }
-            for r in rows
+            for r, flag in zip(rows, confirmation_flags)
         ],
         "count": len(rows),
         "summary": {
@@ -310,19 +325,20 @@ def _latency_payload(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
             "oms_max_us": round(max(oms), 2) if oms else 0.0,
             "confirm_p50_us": _percentile(confirmed, 50),
             "confirm_p95_us": _percentile(confirmed, 95),
-            "confirmed_orders": len(confirmed),
-            "unconfirmed_orders": len(unconfirmed),
-            "unconfirmed_pct": round((len(unconfirmed) / len(rows)) * 100, 1) if rows else 0.0,
+            "confirmed_orders": sum(confirmation_flags),
+            "confirmation_timing_samples": len(confirmed),
+            "unconfirmed_orders": unconfirmed_count,
+            "unconfirmed_pct": round((unconfirmed_count / len(rows)) * 100, 1) if rows else 0.0,
         },
         "by_segment": by_segment,
-        # Surfaced so the UI can label the OMS status column as provisional
-        # rather than silently asserting a mapping nobody has confirmed.
-        "oms_status_mapping_confirmed": OMS_STATUS_MAPPING_CONFIRMED,
+        "oms_status_mapping_confirmed": True if journal else OMS_STATUS_MAPPING_CONFIRMED,
+        "latency_kind": "journal_event_interval" if journal else "oms_latency",
+        "confirmation_timing_available": bool(confirmed),
         "notes": [
             "Latencies are microseconds.",
             "OMS_EXCH_CONFIRMATION derives from whole-second timestamps upstream, so values "
             "quantise near second boundaries and should not be read as sub-second precision.",
-            "Unconfirmed orders report 0 and are excluded from confirmation statistics.",
+            "Confirmation statistics include only positive timings for exchange-confirmed rows.",
         ],
         "source": source,
     }
@@ -702,28 +718,24 @@ def order_latency(user=Depends(require("latency:read"))):
         from app.journal_snapshot import journal_order_latency_rows
 
         rows, feed_kind = journal_order_latency_rows(_journal_path())
+        payload = _latency_payload(rows, feed_kind)
+        payload["source"] = "journal snapshot"
         if not rows:
-            return {
-                "items": [],
-                "count": 0,
-                "source": "journal snapshot",
-                "note": "No OMS latency intervals were found in the journal snapshot.",
-            }
-        payload = _latency_payload(rows, "journal snapshot")
+            payload["note"] = "No event intervals or latency CSV rows were found in the journal snapshot source."
         if feed_kind == "order-latency csv":
             payload["notes"] = [
                 "Latencies are microseconds from the L_ORDERLATENCY CSV feed.",
                 "OMS_EXCH_CONFIRMATION derives from whole-second timestamps upstream, so values "
                 "quantise near second boundaries and should not be read as sub-second precision.",
-                "Unconfirmed orders report 0 and are excluded from confirmation statistics.",
+                "Confirmation statistics include only positive timings for exchange-confirmed rows.",
             ]
             payload["oms_status_mapping_confirmed"] = OMS_STATUS_MAPPING_CONFIRMED
         else:
             payload["notes"] = [
-                "OMS latency is derived from NorenOrgTimeStamp → NorenTimeStamp on each ordupd event (microseconds).",
-                "Confirmed orders are those with an exchange order number on the latest journal state.",
-                "Exchange round-trip latency is not available from the journal; ingest L_ORDERLATENCY CSV for confirm timings.",
-                "Unconfirmed orders have no exchange order number and are excluded from confirmation statistics.",
+                "Journal event intervals use original → current Noren timestamps, including nanoseconds (microseconds).",
+                "These event intervals are not measured OMS processing or exchange round-trip latency.",
+                "Confirmed indicates an exchange order number on the latest journal state, not a measured acknowledgement time.",
+                "Exchange confirmation timing is unavailable from the journal; zero timing fields are compatibility placeholders, not measurements.",
             ]
             payload["oms_status_mapping_confirmed"] = True
         payload["feed_kind"] = feed_kind
@@ -825,14 +837,14 @@ def risk(user=Depends(require("risk:read"))):
 
 @app.get("/api/reports")
 def reports(user=Depends(require("reports:read"))):
-    if _use_journal_data():
+    # Catalog templates are not derived from the journal; show the demo catalog
+    # whenever journal/demo mode is active so the Reports UI is not empty.
+    if _use_journal_data() or DEMO_MODE:
         return {
-            "items": [],
-            "source": "journal snapshot",
-            "note": "Scheduled reports are not configured for the local journal snapshot",
+            **DEMO_REPORTS,
+            "source": "journal snapshot" if _use_journal_data() else "demo",
+            "note": "Catalog templates only — scheduled delivery is not configured",
         }
-    if DEMO_MODE:
-        return DEMO_REPORTS
     return {"items": [], "source": "postgresql", "note": "Scheduled reports not configured"}
 
 

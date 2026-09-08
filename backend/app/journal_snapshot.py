@@ -16,6 +16,7 @@ from app.elastic.normalizer import (
     mask_ip,
     normalize_order,
     normalize_session_event,
+    order_status,
     rejection_category,
     rejection_code,
 )
@@ -554,6 +555,13 @@ def _journal_latency_rows_from_items(items: list[dict[str, Any]]) -> list[dict[s
                 "EXCH_SEG": row.get("exchange") or "—",
                 "EXT_RMKS": row.get("eref") or row.get("symbol") or "",
                 "OMS_STATUS": status_code if status_code is not None else "",
+                "OMS_STATUS_LABEL": order_status({
+                    "OrdStatus": status_code,
+                    "TotalFillQty": row.get("filled_qty"),
+                    "QtyToFill": row.get("qty"),
+                    "RejReason": row.get("reason"),
+                }),
+                "CONFIRMED": confirmed,
                 "OMS_LATENCY": _ms_to_us(float(latency_ms)),
                 "EXCH_STATUS": status_code if confirmed else "",
                 "OMS_EXCH_CONFIRMATION": 0.0,
