@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import {
-  cellText, columnHeader, displayValue, isUntranslated, istStamp, istTime, lifecycleSteps,
+  cellText, columnHeader, columnTracks, displayValue, isUntranslated, istStamp, istTime, lifecycleSteps,
   statusTone, summaryColumns, timeHint,
 } from "@/lib/journal-explore";
 import { apiUrl } from "@/lib/runtime";
@@ -31,12 +31,12 @@ export default function JournalStream({ rows, columns, msgType }: {
       className="jx-stream"
       role="table"
       aria-label="Journal records"
-      style={{ ["--jx-cols" as string]: String(summary.length) }}
+      style={{ ["--jx-cols" as string]: String(summary.length), ["--jx-template" as string]: columnTracks(summary) }}
     >
       <div className="jx-row jx-head" role="row">
         <span className="jx-caret" aria-hidden="true" />
         {summary.map((column) => (
-          <span key={column} role="columnheader">{columnHeader(column)}</span>
+          <span key={column} role="columnheader" title={column}>{columnHeader(column)}</span>
         ))}
       </div>
       {rows.map((row) => {

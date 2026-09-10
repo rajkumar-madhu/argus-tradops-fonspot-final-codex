@@ -41,6 +41,10 @@ STATUS_LABELS = {
     '115': 'Pending',
 }
 
+# The field each histogram bucket is broken down by, so the explorer can stack
+# bars by outcome. It must also be a facet field (never masked or withheld).
+LEVEL_FIELDS = {'ordupd': 'OrdStatus', 'login': 'ReqStatus', 'logout': 'ReqStatus'}
+
 MAX_FACET_VALUES = 25
 HISTOGRAM_BUCKETS = 48
 
@@ -72,9 +76,12 @@ def build_index(path, kind):
     """Inverted index for one message type. Cached alongside the snapshot."""
     rows = snapshot(path)['items'][kind]
     postings = {field: defaultdict(list) for field in FACET_FIELDS.get(kind, ())}
-    times, haystacks = [], []
+    times, haystacks, levels = [], [], []
+    level_field = LEVEL_FIELDS.get(kind)
     for position, row in enumerate(rows):
         fields = row['fields']
+        level = fields.get(level_field) if level_field else None
+        levels.append(None if level in (None, '') else str(level))
         for field, values in postings.items():
             value = fields.get(field)
             if value not in (None, ''):
@@ -87,6 +94,8 @@ def build_index(path, kind):
                      for field, values in postings.items()},
         'times': times,
         'haystacks': haystacks,
+        'levels': levels,
+        'level_field': level_field,
     }
 
 
@@ -140,24 +149,41 @@ def _label(field, value):
 
 
 def _histogram(index, positions):
-    times = sorted(t for t in (index['times'][p] for p in positions) if t is not None)
-    if not times:
-        return {'buckets': [], 'start': None, 'end': None, 'undated': len(positions)}
-    start, end = times[0], times[-1]
+    """Time buckets over the matched rows, each split by the kind's level field.
+
+    `by` counts rows per level value in the bucket; a row with no level value
+    is counted under the empty string so every bucket's `by` sums to `count`.
+    """
+    level_field = index.get('level_field')
+    dated = sorted((index['times'][p], index['levels'][p]) for p in positions
+                   if index['times'][p] is not None)
+    if not dated:
+        return {'buckets': [], 'start': None, 'end': None, 'undated': len(positions),
+                'level_field': level_field}
+    start, end = dated[0][0], dated[-1][0]
     span = end - start
     width = (span / HISTOGRAM_BUCKETS) if span > 0 else 1.0
     counts = [0] * HISTOGRAM_BUCKETS
-    for value in times:
-        slot = int((value - start) / width) if span > 0 else 0
-        counts[min(slot, HISTOGRAM_BUCKETS - 1)] += 1
-    buckets = [{'start': datetime.fromtimestamp(start + i * width, timezone.utc).isoformat(),
-                'count': count} for i, count in enumerate(counts)]
+    by = [defaultdict(int) for _ in range(HISTOGRAM_BUCKETS)]
+    for value, level in dated:
+        slot = min(int((value - start) / width) if span > 0 else 0, HISTOGRAM_BUCKETS - 1)
+        counts[slot] += 1
+        if level_field:
+            by[slot][level or ''] += 1
+    buckets = []
+    for i, count in enumerate(counts):
+        bucket = {'start': datetime.fromtimestamp(start + i * width, timezone.utc).isoformat(),
+                  'count': count}
+        if level_field:
+            bucket['by'] = dict(by[i])
+        buckets.append(bucket)
     return {
+        'level_field': level_field,
         'buckets': buckets,
         'start': datetime.fromtimestamp(start, timezone.utc).isoformat(),
         'end': datetime.fromtimestamp(end, timezone.utc).isoformat(),
         'bucket_seconds': width,
-        'undated': len(positions) - len(times),
+        'undated': len(positions) - len(dated),
     }
 
 

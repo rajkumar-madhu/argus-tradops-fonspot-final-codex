@@ -178,3 +178,35 @@ test("lifecycle steps are ordered oldest first with gaps and never carry reasons
   assert.equal(formatGap(90061000), "+1d 01h");
   assert.equal(formatGap(0), "+<1 ms", "same-timestamp events are not a measured zero");
 });
+
+test('level breakdown groups documented status codes and keeps unknown codes apart', async () => {
+  const { levelBreakdown, levelKey } = await import('../lib/journal-explore.ts');
+  assert.equal(levelKey('OrdStatus', '65'), 'rejected');
+  assert.equal(levelKey('OrdStatus', '54'), 'pending');
+  assert.equal(levelKey('OrdStatus', '98'), 'other');
+  const b = levelBreakdown([
+    { start: 'a', count: 4, by: { '48': 2, '56': 1, '98': 1 } },
+    { start: 'b', count: 2, by: { '50': 1, '110': 1 } },
+  ], 'OrdStatus');
+  assert.equal(b.total, 6);
+  assert.deepEqual(b.groups.map((g) => [g.key, g.total]), [['rejected', 1], ['pending', 1], ['open', 2], ['complete', 1], ['other', 1]]);
+  assert.deepEqual(b.bins.map((x) => x.values), [[1, 0, 2, 0, 1], [0, 1, 0, 1, 0]]);
+  // Every bin still sums to its bucket count.
+  assert.deepEqual(b.bins.map((x) => x.values.reduce((s, v) => s + v, 0)), [4, 2]);
+});
+
+test('level breakdown is absent without a level field or a split', async () => {
+  const { levelBreakdown, levelKey } = await import('../lib/journal-explore.ts');
+  assert.equal(levelBreakdown([{ start: 'a', count: 1 }], 'OrdStatus'), null);
+  assert.equal(levelBreakdown([{ start: 'a', count: 1, by: { x: 1 } }], null), null);
+  assert.equal(levelKey('ReqStatus', 'logout success'), 'ok');
+  assert.equal(levelKey('ReqStatus', 'Invalid password'), 'other');
+});
+
+test('row headers are short, IST for time, and say prices are raw units', async () => {
+  const { columnHeader, columnTracks } = await import('../lib/journal-explore.ts');
+  assert.equal(columnHeader('Event Time (UTC)'), 'Time (IST)');
+  assert.equal(columnHeader('PriceToFill'), 'Price (raw)');
+  assert.equal(columnHeader('Seqno'), 'Seqno');
+  assert.equal(columnTracks(['NorenOrdNum', 'Seqno']), '22px 128px minmax(80px, 1fr)');
+});

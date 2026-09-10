@@ -247,9 +247,24 @@ export function timeHint(field: string, value: unknown): string | null {
   return year >= 2000 && year <= 2100 ? istStamp(ms) : null;
 }
 
-/** Collapsed-row header: the event time column is presented in IST. */
+/**
+ * Collapsed-row header. The event time column is presented in IST; a few order
+ * fields get short names (the raw field name stays in the header's tooltip).
+ * Prices keep raw source units in this view, and the header says so.
+ */
+const COLUMN_HEADERS: Record<string, string> = {
+  "Event Time (UTC)": "Time (IST)",
+  OrdStatus: "Status",
+  TradingSymbol: "Symbol",
+  ExchSeg: "Exch",
+  TransType: "Side",
+  QtyToFill: "Qty",
+  PriceToFill: "Price (raw)",
+  NorenOrdNum: "Order no.",
+};
+
 export function columnHeader(column: string): string {
-  return column === "Event Time (UTC)" ? "Event time (IST)" : column;
+  return COLUMN_HEADERS[column] ?? column;
 }
 
 /** "+<1 ms", "+850 ms", "+12.3 s", "+4m 05s", "+2h 03m", "+1d 04h". */
@@ -294,4 +309,95 @@ export function lifecycleSteps(events: LifecycleEvent[]) {
       exchangeOrderId: e.exchange_order_id || "",
     };
   });
+}
+
+/* ── Outcome breakdown ("logs by level") ─────────────────────────────────
+   The journal has no log level. The nearest honest analogue is each record's
+   outcome: order status for ordupd, request status for logins and logouts.
+   Groups collect documented codes only; anything else is "Undocumented". */
+
+export type LevelGroup = { key: string; label: string; color: string; cls: string; codes: string };
+
+const ORDER_LEVELS: LevelGroup[] = [
+  { key: "rejected", label: "Rejected", color: "#e5383b", cls: "seg-red", codes: "56, 65" },
+  { key: "pending", label: "Pending", color: "#f59e0b", cls: "seg-amber", codes: "109, 110, 115 and trigger pending 54" },
+  { key: "open", label: "Open", color: "#0b5cff", cls: "seg-blue", codes: "48" },
+  { key: "complete", label: "Complete", color: "#16a34a", cls: "seg-green", codes: "50" },
+  { key: "cancelled", label: "Cancelled", color: "#94a3b8", cls: "seg-muted", codes: "52" },
+  { key: "other", label: "Undocumented", color: "#8b5cf6", cls: "seg-purple", codes: "codes with no documented meaning" },
+];
+
+const REQUEST_LEVELS: LevelGroup[] = [
+  { key: "ok", label: "Success", color: "#16a34a", cls: "seg-green", codes: "request status contains “success”" },
+  { key: "other", label: "Other status", color: "#e5383b", cls: "seg-red", codes: "any other request status" },
+];
+
+export function levelGroups(field: string | null | undefined): LevelGroup[] {
+  if (field === "OrdStatus") return ORDER_LEVELS;
+  if (field === "ReqStatus") return REQUEST_LEVELS;
+  return [];
+}
+
+/** The outcome group a level-field value falls in. */
+export function levelKey(field: string, value: string): string {
+  if (field === "OrdStatus") {
+    if (value === "54") return "pending";
+    return statusTone(value) || "other";
+  }
+  if (field === "ReqStatus") return /success/i.test(value) ? "ok" : "other";
+  return "other";
+}
+
+export type LevelBucket = HistogramBucket & { by?: Record<string, number> };
+
+/**
+ * Stacked-bar series from histogram buckets that carry a per-value `by` split.
+ * Only groups with at least one record are returned, in the fixed order above,
+ * with totals over dated records. Null when the kind has no level field.
+ */
+export function levelBreakdown(buckets: LevelBucket[], field: string | null | undefined) {
+  const groups = levelGroups(field);
+  if (!field || !groups.length || !buckets.some((b) => b.by)) return null;
+  const index = new Map(groups.map((g, i) => [g.key, i]));
+  const rows = buckets.map((b) => {
+    const values = groups.map(() => 0);
+    for (const [value, count] of Object.entries(b.by ?? {})) values[index.get(levelKey(field, value)) ?? index.get("other")!] += count;
+    return { start: b.start, values };
+  });
+  const totals = groups.map((_, i) => rows.reduce((sum, r) => sum + r.values[i], 0));
+  const keep = groups.map((_, i) => i).filter((i) => totals[i] > 0);
+  const total = totals.reduce((a, v) => a + v, 0);
+  return {
+    total,
+    groups: keep.map((i) => ({ ...groups[i], total: totals[i], share: total ? (totals[i] / total) * 100 : 0 })),
+    bins: rows.map((r) => ({ start: r.start, values: keep.map((i) => r.values[i]) })),
+  };
+}
+
+/** Facet rows for the level field carry the group's colour dot. */
+export function levelColor(field: string, value: string, levelField: string | null | undefined): string | null {
+  if (field !== levelField) return null;
+  const key = levelKey(field, value);
+  return levelGroups(field).find((g) => g.key === key)?.color ?? null;
+}
+
+/**
+ * Grid tracks for the collapsed row. Rows are separate grids, so widths must
+ * come from the column, not the content, for columns to line up; fixed tracks
+ * keep identifiers such as a 14-digit order number on one line.
+ */
+const COLUMN_TRACKS: Record<string, string> = {
+  "Event Time (UTC)": "76px",
+  OrdStatus: "minmax(118px, 1fr)",
+  TradingSymbol: "minmax(130px, 1.4fr)",
+  ExchSeg: "54px",
+  TransType: "50px",
+  QtyToFill: "minmax(64px, .7fr)",
+  PriceToFill: "minmax(72px, .7fr)",
+  NorenOrdNum: "128px",
+  UserId: "minmax(110px, 1fr)",
+};
+
+export function columnTracks(columns: string[]): string {
+  return ["22px", ...columns.map((c) => COLUMN_TRACKS[c] ?? "minmax(80px, 1fr)")].join(" ");
 }

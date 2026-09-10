@@ -12,7 +12,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.journal_explore import (  # noqa: E402
-    FACET_FIELDS, STATUS_LABELS, build_index, explore,
+    FACET_FIELDS, LEVEL_FIELDS, STATUS_LABELS, build_index, explore,
 )
 
 
@@ -149,6 +149,26 @@ class HistogramTests(unittest.TestCase):
         histogram = explore(path, "ordupd", {})["histogram"]
         self.assertEqual(histogram["buckets"], [])
         self.assertEqual(histogram["undated"], 1)
+
+
+    def test_each_bucket_splits_by_order_status_and_sums_to_its_count(self):
+        path = write([order(1, status=48), order(2, status=56), order(3, status=56, ts=1_757_003_600)])
+        histogram = explore(path, "ordupd", {})["histogram"]
+        self.assertEqual(histogram["level_field"], "OrdStatus")
+        for bucket in histogram["buckets"]:
+            self.assertEqual(sum(bucket["by"].values()), bucket["count"])
+        self.assertEqual(histogram["buckets"][0]["by"], {"48": 1, "56": 1})
+        self.assertEqual(histogram["buckets"][-1]["by"], {"56": 1})
+
+    def test_level_breakdown_follows_the_facet_filter(self):
+        path = write([order(1, status=48), order(2, status=56)])
+        buckets = explore(path, "ordupd", {"OrdStatus": ["56"]})["histogram"]["buckets"]
+        self.assertEqual(sum(b["by"].get("48", 0) for b in buckets), 0)
+        self.assertEqual(sum(b["by"].get("56", 0) for b in buckets), 1)
+
+    def test_level_fields_are_facets_so_they_are_never_protected(self):
+        for kind, field in LEVEL_FIELDS.items():
+            self.assertIn(field, FACET_FIELDS[kind])
 
 
 class LabelTests(unittest.TestCase):
