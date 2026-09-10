@@ -321,9 +321,9 @@ export type LevelGroup = { key: string; label: string; color: string; cls: strin
 const ORDER_LEVELS: LevelGroup[] = [
   { key: "rejected", label: "Rejected", color: "#e5383b", cls: "seg-red", codes: "56, 65" },
   { key: "pending", label: "Pending", color: "#f59e0b", cls: "seg-amber", codes: "109, 110, 115 and trigger pending 54" },
-  { key: "open", label: "Open", color: "#0b5cff", cls: "seg-blue", codes: "48" },
+  { key: "open", label: "Open", color: "#78716c", cls: "seg-neutral", codes: "48" },
   { key: "complete", label: "Complete", color: "#16a34a", cls: "seg-green", codes: "50" },
-  { key: "cancelled", label: "Cancelled", color: "#94a3b8", cls: "seg-muted", codes: "52" },
+  { key: "cancelled", label: "Cancelled", color: "#a8a29e", cls: "seg-muted", codes: "52" },
   { key: "other", label: "Undocumented", color: "#8b5cf6", cls: "seg-purple", codes: "codes with no documented meaning" },
 ];
 

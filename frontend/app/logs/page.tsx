@@ -168,7 +168,7 @@ export default async function Page({ searchParams }: {
                       <StackedBars width={1000} height={210} series={levels.groups.map((g) => g.label)} colors={levels.groups.map((g) => g.color)}
                                    bins={levels.bins.map((b) => ({ label: tick(b.start), values: b.values }))} />
                     ) : (
-                      <StackedBars width={1000} height={210} series={["Records"]} colors={["#0b5cff"]}
+                      <StackedBars width={1000} height={210} series={["Records"]} colors={["#8a5a00"]}
                                    bins={buckets.map((b) => ({ label: tick(b.start), values: [b.count] }))} />
                     )}
                     <p className="ref-note">{buckets.length} equal time buckets across the selection · IST.</p>

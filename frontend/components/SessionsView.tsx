@@ -86,7 +86,7 @@ export default function SessionsView({ data, summary, embedded = false }: { data
   function printPdf() {
     const popup = window.open("", "tradeops-session-report", "noopener,noreferrer,width=1200,height=800");
     if (!popup) return;
-    popup.document.write(`<html><head><title>Argus TradeOps session report</title><style>body{font:12px Arial;color:#111;padding:24px}h2{margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:7px;text-align:left}th{background:#eef2ff}</style></head><body><h2>Argus TradeOps session report</h2><p>${reportRows.length} rows · ${isFileBased ? "FILE-BASED journal snapshot" : "source: " + (live.source || "—")}</p>${reportTableHtml()}</body></html>`);
+    popup.document.write(`<html><head><title>Argus TradeOps session report</title><style>body{font:12px Arial;color:#111;padding:24px}h2{margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5d3cb;padding:7px;text-align:left}th{background:#faf1e3}</style></head><body><h2>Argus TradeOps session report</h2><p>${reportRows.length} rows · ${isFileBased ? "FILE-BASED journal snapshot" : "source: " + (live.source || "—")}</p>${reportTableHtml()}</body></html>`);
     popup.document.close(); popup.focus(); popup.print();
   }
 

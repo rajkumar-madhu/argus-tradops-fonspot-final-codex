@@ -8660,7 +8660,10 @@ table tbody tr:hover { background: #e6f0ec; }
 .ref-timeline li.tone-open i { background: #78716c; }
 .lifecycle-stepper li.tone-open .dot,
 .lifecycle-stepper li.tone-pending .dot { background: #78716c; }
-.seg-open { stroke: #78716c; background: #78716c; }
+/* Chart segments for statuses: seg-blue is a generic series colour (now gold), so
+   Open / Flat / On hold use seg-neutral and Minor severity uses seg-minor instead. */
+.seg-neutral { stroke: #78716c; background: #78716c; }
+.seg-minor { stroke: #1f6f5c; background: #1f6f5c; }
 .sev-minor { background: #e3f0eb; color: #1f6f5c; }
 .sev-dot.sev-minor { background: #1f6f5c; }
 .exchange-log-line.level-info b { color: #5eead4; }

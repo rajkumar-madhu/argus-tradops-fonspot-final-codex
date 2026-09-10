@@ -70,7 +70,7 @@ export default async function Page() {
                 slices={[
                   { label: "Long", value: longs.length, cls: "seg-green", pct: rows.length ? `${((longs.length / rows.length) * 100).toFixed(0)}%` : "0%" },
                   { label: "Short", value: shorts.length, cls: "seg-red", pct: rows.length ? `${((shorts.length / rows.length) * 100).toFixed(0)}%` : "0%" },
-                  { label: "Flat", value: Math.max(0, rows.length - longs.length - shorts.length), cls: "seg-blue", pct: "—" },
+                  { label: "Flat", value: Math.max(0, rows.length - longs.length - shorts.length), cls: "seg-neutral", pct: "—" },
                 ]}
               />
             </div>

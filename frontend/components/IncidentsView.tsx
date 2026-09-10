@@ -18,7 +18,7 @@ import RefreshButton from "@/components/RefreshButton";
 import { Donut, HBarList, StackedBars } from "@/components/Charts";
 
 // Matches alertsTrendSeries order: Critical, Major, Minor, Info.
-const SEVERITY_COLORS = ["#e5383b", "#f59e0b", "#0b5cff", "#9aa6bb"];
+const SEVERITY_COLORS = ["#e5383b", "#f59e0b", "#1f6f5c", "#a8a29e"];
 import { EmptyState, KpiCard, Severity } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import {
