@@ -102,7 +102,9 @@ export default function LiveOrders({
   const rows = data.items || [];
   const selected = rows.find((row: any) => row.order_id === selectedId) || {};
   const countStatus = (...statuses: string[]) => rows.filter((r: any) => statuses.includes(r.status)).length;
-  const totalOrders = Number(overview?.orders ?? data.count ?? rows.length);
+  // Source-wide totals only when the overview supplied them; otherwise every
+  // tile counts the loaded rows, never a mix of `count` and loaded rows.
+  const totalOrders = Number(overview?.orders ?? rows.length);
   const liveCount = Number(overview?.open ?? countStatus('OPEN', 'PARTIAL'));
   const executedCount = Number(overview?.complete ?? countStatus('COMPLETE'));
   const rejectedCount = Number(overview?.rejected ?? countStatus('REJECTED'));

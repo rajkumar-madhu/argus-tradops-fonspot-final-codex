@@ -65,7 +65,7 @@ test('feed precedes three investigation panels and secondary disclosures start c
     html.indexOf('aria-label="Order investigation"'),
     html.indexOf('Mapped Journal.log fields'),
   );
-  assert.ok(investigation.includes('Selected Order'));
+  assert.ok(investigation.includes('Order Details'));
   assert.ok(investigation.includes('Order Lifecycle'));
   assert.ok(investigation.includes('Related Journal Evidence'));
   assert.doesNotMatch(investigation, /Market Context/);
@@ -73,18 +73,27 @@ test('feed precedes three investigation panels and secondary disclosures start c
   assert.doesNotMatch(html, /<details[^>]*\sopen(?:[\s=>])/);
 });
 
-test('uses five compact icon cards with loaded counts, not source-wide totals', () => {
+test('six reference KPI tiles count loaded rows when no overview totals are supplied', () => {
   const html = render();
-  assert.equal((html.match(/class="kpi-card"/g) || []).length, 5);
+  assert.equal((html.match(/class="kpi-card"/g) || []).length, 6);
   for (const [label, value] of [
-    ['Loaded orders', 4],
+    ['Total Orders', 4],
+    ['Live Orders', 1],
     ['Executed', 1],
     ['Rejected', 1],
-    ['Open / Pending', 2],
+    ['Pending', 1],
   ]) {
     assert.match(html, new RegExp(`${label}</span><b class="kpi-card-value">${value}</b>`));
   }
+  // `count` is source-wide; it must never be mixed into loaded-row tiles.
   assert.doesNotMatch(html, />900</);
+});
+
+test('overview totals, when supplied, drive the tiles and are labelled as source-wide', () => {
+  const html = render({ overview: { orders: 7592, open: 3580, complete: 1927, rejected: 866, pending: 950 } });
+  assert.match(html, /Total Orders<\/span><b class="kpi-card-value">7,592<\/b>/);
+  assert.match(html, /Unique orders in source/);
+  assert.match(html, /Rejected<\/span><b class="kpi-card-value">866<\/b>/);
 });
 
 test('feed header owns pause control and retains real account/product/type/fill columns', () => {
