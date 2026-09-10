@@ -108,20 +108,20 @@ export function infraAsProcesses(infra: Record<string, any>) {
   return scripts.map((s) => {
     const v = infra[s.key] || {};
     const status = String(v.status || "Unknown");
-    const healthy = /healthy|connected|loaded|ok/i.test(status);
+    // Dependency reachability does not establish process state or exit code.
     return {
       name: s.name,
       host: s.host,
-      pid: healthy ? "—" : "—",
-      status: healthy ? "RUNNING" : "STOPPED",
+      pid: "—",
+      status: "UNAVAILABLE",
       cpu_pct: v.cpu_pct ?? "—",
       memory_pct: v.memory_pct ?? "—",
       uptime: "—",
       last_heartbeat: "—",
       last_execution: "—",
       response_ms: v.replication_lag_ms ?? "—",
-      exit_code: healthy ? 0 : 1,
-      remarks: healthy ? "OK" : status,
+      exit_code: "—",
+      remarks: `Process telemetry unavailable; dependency status: ${status}`,
     };
   });
 }
@@ -141,14 +141,14 @@ export function buildExecutionLogs(rejections: any[], infra: Record<string, any>
     const status = String((v as any).status || "");
     if (/unavailable|disconnect/i.test(status)) {
       lines.push({
-        time: new Date().toISOString().slice(11, 19),
+        time: "—",
         level: "ERROR",
         process: k,
         message: `${k} status: ${status}`,
       });
     } else {
       lines.push({
-        time: new Date().toISOString().slice(11, 19),
+        time: "—",
         level: "INFO",
         process: k,
         message: `${k} status: ${status}`,

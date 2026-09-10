@@ -11,9 +11,11 @@
 
 import { apiUrl } from "@/lib/runtime";
 import { clearToken, setToken } from "@/lib/session";
+import { keycloakRegistrationUrl } from "@/lib/oidc-registration";
 
 export type AuthConfig = {
   auth_disabled: boolean;
+  registration_allowed?: boolean;
   issuer: string;
   authorization_endpoint: string;
   token_endpoint: string;
@@ -137,19 +139,10 @@ export async function logout(): Promise<void> {
 }
 
 /**
- * Keycloak exposes self-registration at the `/registrations` sibling of the
- * authorization endpoint. Returns null when auth is disabled or unconfigured so the
- * caller can fall back to the local /verify placeholder.
+ * Keycloak self-registration URL. Returns null unless the API says the realm
+ * allows it — Devops-common-cicd does not, and hitting /registrations yields
+ * Keycloak's "We are sorry... Registration not allowed" page.
  */
 export function registrationUrl(cfg: AuthConfig, returnTo = "/dashboard"): string | null {
-  if (cfg.auth_disabled || !cfg.authorization_endpoint || !cfg.client_id) return null;
-  const base = cfg.authorization_endpoint.replace(/\/auth$/, "/registrations");
-  const params = new URLSearchParams({
-    client_id: cfg.client_id,
-    redirect_uri: redirectUri(),
-    response_type: "code",
-    scope: "openid profile email",
-    state: returnTo,
-  });
-  return `${base}?${params.toString()}`;
+  return keycloakRegistrationUrl(cfg, window.location.origin, returnTo);
 }

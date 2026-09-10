@@ -1,44 +1,4 @@
-/** Deterministic demo series for SVG charts (no Date.now / Math.random). */
-
-export function demoTimeLabels(count: number, startHour = 9, startMin = 15, stepMin = 10): string[] {
-  const start = startHour * 60 + startMin;
-  return Array.from({ length: count }, (_, i) => {
-    const m = start + i * stepMin;
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
-    return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-  });
-}
-
-export function demoSeries(seed: number, count: number, base: number, variance: number): number[] {
-  return Array.from({ length: count }, (_, i) =>
-    Math.max(0, Math.round(base + Math.sin((i + seed) * 0.65) * variance + ((i + seed) % 4) * 1.5)),
-  );
-}
-
-export function exchangeLatencyTrend(exchanges: string[]) {
-  const labels = demoTimeLabels(12, 8, 30, 5);
-  const palette = ["s-latency-1", "s-latency-2", "s-latency-3", "s-latency-4", "s-latency-5", "s-latency-6"];
-  const bases = [12, 14, 45, 18, 20, 16];
-  return {
-    labels,
-    series: exchanges.slice(0, 6).map((name, i) => ({
-      name,
-      points: demoSeries(i + 1, labels.length, bases[i % bases.length], 4 + i * 2),
-      cls: palette[i % palette.length],
-    })),
-  };
-}
-
-export function orderFlowTrend() {
-  const labels = demoTimeLabels(14, 9, 0, 5);
-  const preOpen = labels.map((_, i) => (i < 3 ? 120 + i * 40 : 0));
-  const market = labels.map((_, i) => (i < 3 ? 0 : 800 + Math.sin(i * 0.8) * 200 + i * 30));
-  return {
-    labels,
-    bars: labels.map((l, i) => ({ label: l, value: Math.round(preOpen[i] + market[i]), cls: i < 3 ? "bar-blue" : "bar-green" })),
-  };
-}
+/** Chart series derived from API rows. Every point must come from returned data. */
 
 export function loginTrendFromBuckets(buckets: { time?: string; key?: string; count?: number }[]) {
   const labels = buckets.map((b) => {
@@ -52,51 +12,6 @@ export function loginTrendFromBuckets(buckets: { time?: string; key?: string; co
   });
   const points = buckets.map((b) => Number(b.count || 0));
   return { labels, series: [{ name: "Logins", points, cls: "s-total" }] };
-}
-
-export function portfolioTrend(totalValue: number) {
-  const labels = demoTimeLabels(16, 9, 15, 15);
-  const base = totalValue * 0.94;
-  const investment = labels.map((_, i) => Math.round(base + i * (totalValue - base) / labels.length * 0.3));
-  const current = labels.map((_, i) => Math.round(base + (totalValue - base) * (0.2 + (i / labels.length) * 0.8) + Math.sin(i * 0.5) * totalValue * 0.002));
-  return {
-    labels,
-    series: [
-      { name: "Investment", points: investment, cls: "s-total" },
-      { name: "Current Value", points: current, cls: "s-executed" },
-    ],
-  };
-}
-
-export function sectorAllocation(rows: { symbol: string; value: number }[]) {
-  const sectors: Record<string, number> = {
-    "Banking & Finance": 0,
-    IT: 0,
-    "Oil & Gas": 0,
-    Auto: 0,
-    Others: 0,
-  };
-  const map: Record<string, string> = {
-    RELIANCE: "Oil & Gas",
-    HDFCBANK: "Banking & Finance",
-    INFY: "IT",
-    TCS: "IT",
-    ALPHA: "Others",
-    GAMMA: "Others",
-  };
-  for (const r of rows) {
-    const key = Object.keys(map).find((k) => r.symbol.includes(k)) || "Others";
-    sectors[map[key] || "Others"] += Number(r.value || 0);
-  }
-  const entries = Object.entries(sectors).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const total = Math.max(1, entries.reduce((s, [, v]) => s + v, 0));
-  return entries.map(([name, value], i) => ({
-    label: name,
-    value,
-    pct: `${((value / total) * 100).toFixed(1)}%`,
-    cls: ["bar-blue", "bar-purple", "bar-teal", "bar-amber", "bar-green"][i % 5],
-    barPct: (value / total) * 100,
-  }));
 }
 
 export function mtmDistribution(rows: { pnl_pct: number }[]) {
@@ -128,8 +43,4 @@ export function tradeVolumeTrend(rows: { time: string; value: number }[]) {
     labels,
     series: [{ name: "Turnover", points: values, cls: "s-executed" }],
   };
-}
-
-export function sparklineValues(seed: number, count = 10): number[] {
-  return demoSeries(seed, count, 50, 22);
 }

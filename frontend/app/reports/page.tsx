@@ -17,6 +17,7 @@ export default async function Page() {
         subtitle="Scheduled operational, rejection and session audit reports"
         badge={`Source: ${d.source || '—'}`}
       />
+      <Card title="On-demand file reports"><p className="file-context"><a href="/sessions">Generate session audit report →</a><a href="/trades">Explore execution journal →</a><a href="/order-latency">Filter and export latency observations →</a><a href="/data-quality">Export source validation inventory →</a></p></Card>
       {err && <EmptyState title="Unable to load reports" body={err} />}
       {!err && (
         <>

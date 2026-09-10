@@ -14,6 +14,13 @@ def evaluate_checks(checks: dict[str, Callable[[], bool]]) -> dict:
 
 def readiness() -> dict:
     from app.config import settings
+    if settings.journal_primary and settings.journal_path:
+        from pathlib import Path
+        from app import file_routes
+        checks = {"journal_file": lambda: Path(settings.journal_path).is_file()}
+        if settings.csv_dir:
+            checks["csv_cache"] = lambda: file_routes._store is not None and bool(file_routes._store.sources()["items"])
+        return evaluate_checks(checks) | {"mode": "file snapshot", "note": "Snapshot readiness excludes live ES, Redis and PostgreSQL; their coverage remains unavailable."}
     if settings.demo_mode:
         return {"status": "ready", "mode": "demo", "dependencies": {}}
     from app.elastic.client import get_es

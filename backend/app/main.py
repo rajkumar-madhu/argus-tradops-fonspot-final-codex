@@ -1,4 +1,8 @@
 import math
+import logging
+import json
+import re
+import uuid
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,7 +47,11 @@ from app.elastic.noren_service import (
     incident_candidates,
 )
 
+from app import file_routes, journal_routes
+
 app = FastAPI(title="TradeOps Observability API", version="1.1.0")
+app.include_router(file_routes.router)
+app.include_router(journal_routes.router)
 if settings.metrics_enabled:
     app.mount("/metrics", make_asgi_app())
 
@@ -52,8 +60,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
 
 DEMO_MODE = settings.demo_mode
@@ -126,17 +135,38 @@ def _metrics_path(request: Request) -> str:
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
     started = time.perf_counter()
-    response = await call_next(request)
-    if request.url.path.startswith("/metrics"):
-        return response
-    path = _metrics_path(request)
-    API_REQUESTS.labels(method=request.method, path=path, status=str(response.status_code)).inc()
-    API_LATENCY.labels(method=request.method, path=path).observe(time.perf_counter() - started)
+    supplied = request.headers.get("x-request-id", "")
+    request_id = supplied if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", supplied) else uuid.uuid4().hex
+    try:
+        response = await call_next(request)
+    except Exception:
+        # Never include raw exception text, URL query strings or credentials.
+        response = JSONResponse({"detail": "Service unavailable", "request_id": request_id}, status_code=503)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store"
+    if not request.url.path.startswith("/metrics"):
+        path = _metrics_path(request)
+        elapsed = time.perf_counter() - started
+        API_REQUESTS.labels(method=request.method, path=path, status=str(response.status_code)).inc()
+        API_LATENCY.labels(method=request.method, path=path).observe(elapsed)
+        logging.getLogger("tradeops.api").info(json.dumps({"event":"request", "request_id":request_id, "route":path, "status":response.status_code, "duration_seconds":round(elapsed,4)}))
     return response
 
 
 @app.on_event("startup")
 def startup() -> None:
+    for name in ("tradeops.api", "tradeops.ingestion"):
+        logger = logging.getLogger(name)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter("%(message)s"))
+            logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+    file_routes.initialize()
     # Safe/idempotent table creation for the starter build. Production teams can
     # replace create_all with Alembic migrations without changing API contracts.
     if not DEMO_MODE and settings.auto_create_schema:
@@ -377,6 +407,7 @@ def health():
         "status": "ok",
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
+        "csv_configured": bool(settings.csv_dir),
         "journal_primary": settings.journal_primary,
         "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
         "time": datetime.now(timezone.utc).isoformat(),
@@ -427,6 +458,7 @@ def auth_config():
     id, realm and issuer are all discoverable from the login URL anyway."""
     return {
         "auth_disabled": settings.auth_disabled,
+        "registration_allowed": settings.allow_signup,
         "issuer": settings.keycloak_issuer,
         "authorization_endpoint": f"{settings.keycloak_issuer}/protocol/openid-connect/auth",
         "token_endpoint": f"{settings.keycloak_issuer}/protocol/openid-connect/token",
@@ -615,10 +647,10 @@ def exchanges(user=Depends(require("exchange:read"))):
         for row in data.get("items") or []:
             items.append({
                 "name": row.get("name") or "—",
-                "status": row.get("status") or "Healthy",
-                "latency_ms": row.get("lag_ms") or 0,
-                "reject_rate": row.get("reject_rate") or 0,
-                "heartbeat_age_s": 0,
+                "status": "Historical events",
+                "latency_ms": None,
+                "reject_rate": row.get("reject_rate"),
+                "heartbeat_age_s": None,
                 "events": row.get("events") or 0,
             })
         return {"items": items, "count": len(items), "source": data.get("source")}
@@ -629,13 +661,12 @@ def exchanges(user=Depends(require("exchange:read"))):
     total_events = sum(int(x.get("events") or 0) for x in overview_data.get("exchanges") or [])
     for row in overview_data.get("exchanges") or []:
         events = int(row.get("events") or 0)
-        reject_rate = round((overview_data.get("reject_rate") or 0) * (events / total_events), 2) if total_events else 0
         items.append({
             "name": row.get("name") or "—",
-            "status": "Healthy" if events else "No events",
-            "latency_ms": 0,
-            "reject_rate": reject_rate,
-            "heartbeat_age_s": 0,
+            "status": "Events observed" if events else "No events",
+            "latency_ms": None,
+            "reject_rate": None,
+            "heartbeat_age_s": None,
             "events": events,
         })
     return {"items": items, "count": len(items), "source": overview_data.get("source", "elasticsearch")}
@@ -718,6 +749,8 @@ def holdings(user=Depends(require("holdings:read"))):
 
 @app.get("/api/order-latency")
 def order_latency(user=Depends(require("latency:read"))):
+    if file_routes._store is not None:
+        return file_routes._store.latency()
     if _use_journal_data():
         from app.journal_snapshot import journal_order_latency_rows
 
@@ -753,6 +786,8 @@ def order_latency(user=Depends(require("latency:read"))):
 
 @app.get("/api/infra")
 def infra(user=Depends(require("infra:read"))):
+    from app.prometheus_service import node_summary
+    prom = node_summary()
     if _use_journal_data():
         elk = elk_status()
         return {
@@ -764,12 +799,24 @@ def infra(user=Depends(require("infra:read"))):
             "redis": {"status": "Unavailable", "streams": []},
             "postgres": {"status": "Unavailable", "migrations": "alembic"},
             "journal": {"status": "Loaded", "path": True},
+            "prometheus": prom,
             "source": "journal snapshot",
         }
     if DEMO_MODE:
-        return DEMO_INFRA
+        payload = dict(DEMO_INFRA)
+        payload["prometheus"] = prom
+        return payload
     elk = elk_status()
     redis = redis_status()
+    from app.db import engine
+    from sqlalchemy import text
+    postgres_status = "Unavailable"
+    try:
+        with engine.connect() as connection:
+            if connection.execute(text("SELECT 1")).scalar() == 1:
+                postgres_status = "Healthy"
+    except Exception:
+        pass  # Connection errors may contain credentials; never expose them.
     return {
         "elasticsearch": {
             "status": "Connected" if elk.get("connected") else "Disconnected",
@@ -780,7 +827,8 @@ def infra(user=Depends(require("infra:read"))):
             "status": "Healthy" if redis.get("connected") else "Disconnected",
             "streams": redis.get("streams"),
         },
-        "postgres": {"status": "Healthy", "migrations": "alembic"},
+        "postgres": {"status": postgres_status, "migrations": "alembic"},
+        "prometheus": prom,
         "source": "live",
     }
 
@@ -841,15 +889,7 @@ def risk(user=Depends(require("risk:read"))):
 
 @app.get("/api/reports")
 def reports(user=Depends(require("reports:read"))):
-    # Catalog templates are not derived from the journal; show the demo catalog
-    # whenever journal/demo mode is active so the Reports UI is not empty.
-    if _use_journal_data() or DEMO_MODE:
-        return {
-            **DEMO_REPORTS,
-            "source": "journal snapshot" if _use_journal_data() else "demo",
-            "note": "Catalog templates only — scheduled delivery is not configured",
-        }
-    return {"items": [], "source": "postgresql", "note": "Scheduled reports not configured"}
+    return {"items": [], "source": "unconfigured", "note": "Scheduled delivery is not configured. Export filtered records from the latency, queue or order views."}
 
 
 @app.get("/api/config")
@@ -857,6 +897,7 @@ def runtime_config(user=Depends(require("dashboard:read"))):
     return {
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
+        "csv_configured": bool(settings.csv_dir),
         "journal_primary": settings.journal_primary,
         "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
         "auth_disabled": settings.auth_disabled,
@@ -882,7 +923,7 @@ def elasticsearch_status(user=Depends(require("logs:read"))):
 
 
 @app.get("/api/elk/log-level-trend")
-def elasticsearch_log_level_trend(interval: str = Query("5m"), user=Depends(require("logs:read"))):
+def elasticsearch_log_level_trend(interval: str = Query("5m", pattern=r"^(1m|5m|15m|30m|1h)$"), user=Depends(require("logs:read"))):
     if DEMO_MODE:
         return {"buckets":[],"source":"demo"}
     return log_level_trend(interval)
@@ -897,7 +938,7 @@ def elasticsearch_services(user=Depends(require("logs:read"))):
 
 @app.get("/api/logs/search")
 def search_logs(
-    q: str = Query("", description="Free-text / Elasticsearch query_string query"),
+    q: str = Query("", max_length=500, description="Search allowlisted operational fields"),
     size: int = Query(50, ge=1, le=500),
     index: str | None = Query(None, description="Optional allowed configured Noren index pattern"),
     user=Depends(require("logs:read")),

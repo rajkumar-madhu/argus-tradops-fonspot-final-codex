@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
 from typing import Any
 
 from app.truedata.symbols import SymbolSpec
@@ -28,39 +29,57 @@ def _num(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _spread_bps(bid: float, ask: float) -> float:
-    if bid <= 0 or ask <= 0:
-        return 0.0
+def _optional_num(value: Any) -> float | None:
+    if value is None or value == "" or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _first(data: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if data.get(key) is not None:
+            return data[key]
+    return None
+
+
+def _spread_bps(bid: float | None, ask: float | None) -> float | None:
+    if bid is None or ask is None or bid <= 0 or ask < bid:
+        return None
     mid = (bid + ask) / 2
     if mid <= 0:
-        return 0.0
+        return None
     return round((ask - bid) / mid * 10_000, 2)
 
 
 def normalize_tick(tick: Any, spec: SymbolSpec) -> dict[str, Any]:
     """Map a TrueData live tick object to the TradeOps market-data contract."""
     data = _as_dict(tick)
-    ltp = _num(data.get("ltp"))
-    bid = _num(data.get("best_bid_price") or data.get("bid"), ltp)
-    ask = _num(data.get("best_ask_price") or data.get("ask"), ltp)
-    bid_qty = int(_num(data.get("best_bid_qty") or data.get("total_bid")))
-    ask_qty = int(_num(data.get("best_ask_qty") or data.get("total_ask")))
+    ltp = _optional_num(data.get("ltp"))
+    bid = _optional_num(_first(data, "best_bid_price", "bid"))
+    ask = _optional_num(_first(data, "best_ask_price", "ask"))
+    bid_qty = _optional_num(data.get("best_bid_qty"))
+    ask_qty = _optional_num(data.get("best_ask_qty"))
+    change = _optional_num(data.get("change_perc"))
     return {
         "symbol": str(data.get("symbol") or spec.symbol),
         "exchange": spec.exchange,
         "segment": spec.segment,
         "ltp": ltp,
-        "change_pct": round(_num(data.get("change_perc")), 3),
+        "change_pct": round(change, 3) if change is not None else None,
         "bid": bid,
         "ask": ask,
         "bid_qty": bid_qty,
         "ask_qty": ask_qty,
         "spread_bps": _spread_bps(bid, ask),
-        "volume": int(_num(data.get("ttq") or data.get("volume"))),
-        "open": _num(data.get("day_open") or data.get("open")),
-        "high": _num(data.get("day_high") or data.get("high")),
-        "low": _num(data.get("day_low") or data.get("low")),
-        "oi": int(_num(data.get("oi"))),
+        "volume": _optional_num(_first(data, "ttq", "volume")),
+        "open": _optional_num(_first(data, "day_open", "open")),
+        "high": _optional_num(_first(data, "day_high", "high")),
+        "low": _optional_num(_first(data, "day_low", "low")),
+        "oi": _optional_num(data.get("oi")),
         "tick_time": data.get("timestamp"),
         "source": "truedata",
     }

@@ -1,12 +1,16 @@
 # Reference and data coverage audit
 
-Audit date: 2026-09-08. This audit covers every repository image and spreadsheet/data source discovered with an unignored file scan. Reference values are illustrative unless independently present in the journal/API.
+Audit date: 2026-09-08; image inventory re-counted 2026-09-09 after a second batch of references landed. This audit covers every repository image and spreadsheet/data source discovered with an unignored file scan. Reference values are illustrative unless independently present in the journal/API.
 
 ## Inventory
 
-### Reference images (29 files; 21 unique pixel images)
+### Reference images (67 files; 45 unique pixel images)
 
-All 28 files in `images ref/` are 1536×1024 except the 1024×1536 landing page. Eight are byte-identical duplicates:
+Re-counted 2026-09-09. `images ref/` holds 114.4 MB, of which 37.1 MB is byte-identical duplication. The folder is gitignored, so none of this is in history. It arrived in two batches.
+
+#### First batch — 2026-09-07 (28 files, 21 unique)
+
+All 1536×1024 except the 1024×1536 landing page. Eight are byte-identical duplicates:
 
 - `01_16_35 PM` Market Data (duplicate: `01_19_05 PM`)
 - `01_16_53 PM` Infrastructure (duplicates: `01_19_33 PM`, `01_19_49 PM`)
@@ -32,6 +36,30 @@ All 28 files in `images ref/` are 1536×1024 except the 1024×1536 landing page.
 
 The exact filenames all begin `images ref/ChatGPT Image Sep 7, 2026, ` followed by the time above. No reference file was modified.
 
+#### Second batch — 2026-09-08, ~23:37–23:41 (39 files, 24 new unique)
+
+Added after the original audit. It falls into four groups.
+
+**1. Renames of first-batch images (12 files, zero new content).** Byte-identical copies under descriptive names — `TradeOps RCA Analysis Dashboard.png` == `01_19_01 PM`, `TradeOps Risk & Limits Dashboard.png` == `01_19_28 PM`, and likewise for Market Data (`01_16_35`), Infrastructure (`01_16_53`), Alerts & Incidents (`01_17_00`), Live Order Monitoring (`01_18_02`), Live Order Monitoring(1) (`01_18_11`), Trading Operations (`01_18_27`), Live Orders (`01_18_36`), Holdings Analytics (`01_18_51`), User Sessions (`01_19_20`) and User Sessions(1) (`01_20_18`). These account for most of the duplicated bytes and can be deleted without loss.
+
+**2. First-batch screens redrawn in a unified TradeOps shell (7 files).** The `(1)`-suffixed `ChatGPT Image Sep 7, 2026, …` files are new images, not higher-resolution copies: the same screens rendered in the newer TradeOps design system (navy rail, market ticker header, dense tables). Spot-checked: `01_18_45 PM (1)` is Positions and `01_18_17 PM (1)` is the WeCrew Sentinel security screen. Others follow their first-batch siblings: `01_17_00 (1)` Alerts, `01_18_02 (1)` Live Orders, `01_18_36 (1)` Live Orders detail, `01_19_21 (1)` Sessions, `01_19_33 (1)` Infrastructure. Note `01_18_36 PM (1)` and `(2)` are identical to each other.
+
+**3. Competing product brandings (17 files, 14 unique).** These are separate design directions, not variants of one system:
+
+| Family | Files | Character |
+|---|---|---|
+| **TradeOps** (Trading Observability Platform) | Command Center, Real-Time Trading, Trading Operations(1), Professional Order Book | Light, navy rail, nav matching the current routes almost 1:1; subtitled "Real-time monitoring for Noren Trader / OMS / RMS / Exchange / Infrastructure". Order Book adds Level-5 depth. |
+| **AEGIS TradeOps** (© WeCrew Technologies, v2.1.0) | Mission Control ×3 (incl. `Mission Control Trading Operations Dashboard.png`, 1582×994 variant), Order Trace | Deeper IA than the app has: OMS Latency, Queue Monitor, Exchange/FIX, Evidence Center, Data Pipeline. Order Trace is a single-order 8-hop latency waterfall with correlated logs and an AI RCA summary. |
+| **Argus TradOps** (© WeCrew Technology Solutions) | Command Center(1) (== `a_clean_high_resolution_screenshot_mockup_of_a.png`), Market Operations | Command Center is the deepest nav of any reference. Market Operations is the workspace already cited for `/order-book` and `/market-data`, and is the only reference that labels its own data honestly ("DEMO DATA • NOT LIVE", "Market feed: simulated", "ELK: not connected"). |
+| **LinkedEye APM** (Live Trading Monitoring Platform v2.4.1) | Adapter Status, Adapter Monitoring, Trading Operations, `b6a18eab-…png` | Dark, very dense, 1672×941 / 1623×969. All four render the same Adapter Status screen (client × exchange adapter matrix, process table, execution logs) in three chrome variants: left rail, desktop menu bar, and tabbed. |
+| **INDMONEY TradOps** | Operations Dashboard | Closest to this repo's actual data reality: a "Live (Files)" badge and a source-health panel listing `ORDERLATENCY` CSV, `QueSize_NSE2` CSV and `Journal.log`. |
+
+**4. Out of scope for TradeOps (3 files).** `WeCrew SecureOps Security Dashboard.png` is an AppSec/CSPM product (findings, attack paths, SBOM). `AEGIS Trace Explorer Dashboard.png` is a different AEGIS — "AI Agent Observability", with token usage, model cost and MCP tool calls. `ChatGPT Image Sep 8, 2026, 12_16_26 PM.png` (1312×1199) is not a UI mockup at all but a multi-tenant Kubernetes RBAC/firewall architecture diagram.
+
+**Resolved 2026-09-09:** the current request explicitly selects Argus TradeOps. Keep the established identity and light default; preserve the navy theme as an optional preference. Other products remain information-architecture references only.
+
+Two references depict actions this system must never offer: `Professional Order Book` has a **Cancel Order** button, and the AEGIS/Sentinel screens have **Create Incident**. The read-only invariant wins over pixel parity.
+
 ### Generated comparison images (29)
 
 `output/playwright/` contains: `auth-callback.png`, `configuration.png`, `dashboard.png`, `exchange.png`, `filter-check-dashboard.png`, `filter-check-log-search.png`, `forgot-password.png`, `holdings.png`, `home.png`, `incidents.png`, `infra.png`, `logs.png`, `market-data.png`, `order-book.png`, `order-latency.png`, `orders.png`, `positions.png`, `rca.png`, `reference-1.png`, `reference-2.png`, `reference-3.png`, `rejections.png`, `reports.png`, `risk.png`, `sessions.png`, `signin.png`, `signup.png`, `trades.png`, and `verify.png`.
@@ -44,7 +72,7 @@ The remaining 11 of 69 discovered images are Playwright/browser package logos un
 - `L_ORDERLATENCY20260624095454.csv` — readable UTF-8 CSV, 25 data rows, consistently 9 columns. Headers: `NOREN_ORD_NUM`, `EXCH_SEG`, `EXT_RMKS`, `OMS_STATUS`, `OMS_LATENCY`, `EXCH_STATUS`, `OMS_EXCH_CONFIRMATION`, `OMSUPDATETIME`, `EXCHUPDATETIME`.
 - `mirae-finspot-management-console-elk/Journal.log` — 26,153,152 bytes, 18,675 valid JSON lines and zero invalid lines.
 
-No other `.xlsx`, `.xls`, `.csv`, or `Journal.log` file was found.
+The original inventory above is historical. The current delivery includes `ORDERLATENCY_08-Sep-2026.csv` (509,100 events) and ten `QueSize_*.csv` sources (17,250 observations; four zero-byte files). See FILE_ANALYTICS.md and REFERENCE_SCREEN_INVENTORY.md for the current inventory and contract.
 
 ## Journal source coverage
 
@@ -74,7 +102,9 @@ Sensitive raw fields include PAN, IP, session identifiers, mobile/email and nest
 | `/incidents` | Alerts (`01_17_00`) | Close layout, partial persistence | Rejection/YEL-derived alerts plus Postgres incidents when available. MTTR and SLA history unavailable; synthetic SLA percentage removed. |
 | `/reports` | No dedicated full-screen PNG | Partial / unconfigured | Journal mode now returns no report fixtures. No scheduler or Email/S3 delivery is claimed. |
 | `/configuration` | Configuration (`01_20_08`) | Partial, intentionally read-only | Runtime source, indices and dependency status. No unsafe edit/test-connect controls. |
-| `/order-latency` | Separate CSV/dashboard reference | Partial | CSV is valid but is not ingested while journal snapshot is primary; page correctly reports the missing feed. |
+| `/order-latency` | Argus/AEGIS/INDMONEY latency workspace | Implemented | Indexed CSV observations, p50/p90/p95/p99/max, shared server filters, source provenance and filtered export. |
+| `/queue-monitor` | AEGIS/INDMONEY queue workspace | Implemented | Instance-specific trends, latest/peak, stale/empty states, p99 anomalies and export. |
+| `/data-quality` | INDMONEY source health / AEGIS pipeline | Implemented | File discovery, validation counters, duplicate reconciliation and original source hashes. |
 | `/signin`, `/signup`, `/forgot-password`, `/verify`, `/auth/callback` | No operational reference | Implemented | Keycloak/public auth flow; not part of the operations screenshot comparison. |
 
 Shared shell alignment is close: navy rail, compact light workspace, top context/search bar, semantic status colors, dense panels and tables. Exact pixel parity is not claimed; references contain unsupported actions such as New Order/Create Incident and invented financial/operational values that must not be copied.

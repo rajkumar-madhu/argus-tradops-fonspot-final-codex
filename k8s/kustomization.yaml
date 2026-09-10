@@ -1,0 +1,21 @@
+# Base for the deployable TradeOps workloads.
+#
+# Lives beside the manifests on purpose: kustomize refuses to load resource
+# files from above its own directory, so a `base/` subdirectory would mean
+# moving every manifest and breaking scripts/render-release.py.
+#
+# Deliberately excluded:
+#   namespace.yaml            environments create their own namespace
+#   data-services.yaml        single-node Postgres/Redis, not for production
+#   ha/                       CloudNativePG / Redis HA references
+#   *.example.yaml            secrets, NetworkPolicy and ServiceMonitor samples
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - configmap.yaml
+  - backend.yaml
+  - frontend.yaml
+  - workers.yaml
+  - migrate-job.yaml
+  - hardening.yaml

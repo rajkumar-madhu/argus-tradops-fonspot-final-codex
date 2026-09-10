@@ -1,0 +1,2 @@
+# TestClient for the pinned FastAPI/Starlette stack.
+httpx==0.28.1

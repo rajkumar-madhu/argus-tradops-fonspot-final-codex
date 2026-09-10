@@ -11,6 +11,10 @@ class ProductionConfigTests(unittest.TestCase):
         self.assertTrue(any('AUTH_DISABLED' in e for e in errors))
         self.assertTrue(any('TLS' in e for e in errors))
 
+    def test_signup_is_off_unless_explicitly_enabled(self):
+        self.assertFalse(Settings().allow_signup)
+        self.assertTrue(Settings(allow_signup=True).allow_signup)
+
     def test_hardened_settings_pass(self):
         config = Settings(environment='production', demo_mode=False, auth_disabled=False,
                           es_verify_certs=True, keycloak_url='https://identity.example.test',

@@ -176,7 +176,7 @@ def load_journal(path: str) -> dict[str, Any]:
                 order_events.append(_project_order_row(normalized))
             elif msg_type in {"login", "logout"}:
                 session_events.append(
-                    normalize_session_event(doc, mask_sensitive=False, source_row=source_row)
+                    normalize_session_event(doc, mask_sensitive=True, source_row=source_row)
                 )
             elif msg_type == "yel_connected":
                 yel_docs.append(doc)
@@ -353,13 +353,14 @@ def journal_exchanges(path: str) -> dict[str, Any]:
     reject_rate = round(rejected / (snapshot["count"] or 1) * 100, 2)
     items = []
     for name, events in snapshot["exchange_counts"].most_common():
-        share = events / total_events
+        venue_orders = [r for r in snapshot["items"] if r.get("exchange") == name]
+        venue_rejected = sum(r.get("status") == "REJECTED" for r in venue_orders)
         items.append(
             {
                 "name": name,
-                "status": "Live",
+                "status": "Historical events",
                 "events": events,
-                "reject_rate": round(reject_rate * share, 2),
+                "reject_rate": round(venue_rejected / len(venue_orders) * 100, 2) if venue_orders else None,
                 "lag_ms": None,
                 "packets_per_sec": None,
                 "last_tick": snapshot["to"],

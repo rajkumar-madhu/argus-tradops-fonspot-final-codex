@@ -36,8 +36,23 @@ ds-bundle/
 output/
 design-qa.md
 L_ORDERLATENCY*.csv
+ORDERLATENCY_*.csv
+QueSize_*.csv
 gen_order_latency.py
+latency.py
 
 # Reference-only management console (not part of TradeOps runtime)
 management console/
 management console.zip
+
+# Rebuildable analytical cache and isolated local runtime
+.local/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Local browser verification snapshots
+.playwright-cli/
+
+.playwright-cli/

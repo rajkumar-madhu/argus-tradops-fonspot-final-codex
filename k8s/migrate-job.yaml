@@ -9,6 +9,7 @@ spec:
     metadata:
       labels: {app: tradeops-db-migrate}
     spec:
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       securityContext:
         runAsNonRoot: true
@@ -18,7 +19,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: migrate
-          image: your-registry/tradeops-backend:latest
+          image: your-registry/tradeops-backend:RELEASE_REQUIRED
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef: {name: tradeops-config}
@@ -27,6 +28,9 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
       volumes:

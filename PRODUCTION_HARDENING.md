@@ -31,3 +31,7 @@ This revision adds the production controls that were intentionally left out of t
 - Pin container image tags/digests instead of `latest`.
 - Add explicit egress NetworkPolicies for the actual Elasticsearch and Keycloak addresses before enabling default deny.
 - Back up PostgreSQL and test restore/RTO regularly; Redis Streams should not be the only durable incident/RCA store.
+
+## File analytics and release validation
+
+Read [FILE_ANALYTICS.md](docs/FILE_ANALYTICS.md) for bounded source ingestion, request IDs, safe error handling, startup cache readiness and immutable release rendering. Workload templates use RELEASE_REQUIRED placeholders; only rendered manifests with real published digests are deployable. File snapshot readiness does not assert live dependency health.

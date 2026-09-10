@@ -1,5 +1,7 @@
 from __future__ import annotations
 import re
+import hashlib
+from app.session_fields import SESSION_JOURNAL_FIELDS, REDACTED_SESSION_FIELDS
 from datetime import datetime, timezone
 from typing import Any
 from app.config import settings
@@ -209,13 +211,40 @@ def normalize_session_event(
         "products": products,
         "order_types": order_types,
         "app_version": str(details.get("NorenAppVersion") or ""),
-        "session_id": mask_id(sess, 5) if mask_sensitive else sess,
-        "session_key": sess,
-        "login_process": "***" if mask_sensitive and doc.get("LoginProcId") else str(doc.get("LoginProcId") or ""),
+        "session_id": "[redacted]" if sess else "",
+        "session_key": hashlib.sha256(sess.encode()).hexdigest() if sess else "",
+        "login_process": "[redacted]" if doc.get("LoginProcId") else "",
         "source": f"noren-{msg_type}",
     }
     if source_row is not None:
         row["source_row"] = source_row
+    fields = {}
+    for field in SESSION_JOURNAL_FIELDS:
+        value = _first(doc, field, default=None)
+        if field == "Record No.":
+            value = source_row
+        elif field == "Event Time (UTC)":
+            value = row["time"]
+        elif field in REDACTED_SESSION_FIELDS:
+            value = "[redacted]" if value is not None else None
+        elif field in ("UserId", "Userdetails.UserId"):
+            value = mask_id(str(value), 4) if value is not None else None
+        elif field in ("Userdetails.LastLoginIp", "Userdetails.UserIpAddr"):
+            value = mask_ip(str(value)) if value is not None else None
+        elif field == "Userdetails.AcctIds":
+            # Account structures may contain credentials; retain only masked IDs.
+            value = [mask_account(str(v)) for v in value if isinstance(v, (str, int))] if isinstance(value, list) else (mask_account(str(value)) if isinstance(value, (str, int)) else None)
+        elif field == "Userdetails.UserExchDetails":
+            value = [{k: item[k] for k in ("ExchSeg", "Enable") if k in item and isinstance(item[k], (str, bool, int))} for item in value if isinstance(item, dict)] if isinstance(value, list) else None
+        elif field == "Userdetails.UserMws":
+            value = f"{len(value)} entries" if isinstance(value, (list, dict)) else None
+        elif isinstance(value, list):
+            value = [item for item in value if isinstance(item, (str, int, float, bool))]
+        elif isinstance(value, dict):
+            value = "[structured value withheld]"
+        fields[field] = value
+    row["journal_fields"] = fields
+    row["masked_fields"] = sorted(REDACTED_SESSION_FIELDS | {"UserId", "Userdetails.UserId", "Userdetails.AcctIds"})
     return row
 
 

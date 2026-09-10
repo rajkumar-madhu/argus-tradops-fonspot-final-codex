@@ -10,6 +10,7 @@ spec:
     metadata:
       labels: {app: tradeops-collector}
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -18,13 +19,22 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: collector
-          image: your-registry/tradeops-backend:latest
+          image: your-registry/tradeops-backend:RELEASE_REQUIRED
           command: ["python", "-m", "app.workers.collector"]
           envFrom:
             - configMapRef: {name: tradeops-config}
             - secretRef: {name: tradeops-secrets}
           env: [{name: WORKER_METRICS_PORT, value: "9108"}]
           ports: [{name: metrics, containerPort: 9108}]
+          readinessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 15
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -62,6 +72,7 @@ spec:
     metadata:
       labels: {app: tradeops-correlation}
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -70,13 +81,22 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: worker
-          image: your-registry/tradeops-backend:latest
+          image: your-registry/tradeops-backend:RELEASE_REQUIRED
           command: ["python", "-m", "app.workers.correlation_worker"]
           envFrom:
             - configMapRef: {name: tradeops-config}
             - secretRef: {name: tradeops-secrets}
           env: [{name: WORKER_METRICS_PORT, value: "9109"}]
           ports: [{name: metrics, containerPort: 9109}]
+          readinessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 15
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -114,6 +134,7 @@ spec:
     metadata:
       labels: {app: tradeops-market}
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -122,13 +143,22 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: market
-          image: your-registry/tradeops-backend:latest
+          image: your-registry/tradeops-backend:RELEASE_REQUIRED
           command: ["python", "-m", "app.workers.market_data_worker"]
           envFrom:
             - configMapRef: {name: tradeops-config}
             - secretRef: {name: tradeops-secrets}
           env: [{name: WORKER_METRICS_PORT, value: "9110"}]
           ports: [{name: metrics, containerPort: 9110}]
+          readinessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 15
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

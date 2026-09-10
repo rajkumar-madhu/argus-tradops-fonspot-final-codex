@@ -237,6 +237,34 @@ class CurrentUserTests(unittest.TestCase):
         self.assertLessEqual(len(raised.exception.detail), len("Invalid token: ") + 120)
 
 
+class JwksClientTests(unittest.TestCase):
+    def tearDown(self):
+        auth.jwks_client.cache_clear()
+
+    def test_jwks_fetch_does_not_identify_as_python_urllib(self):
+        """Cloudflare on keycloak.finspot.in 403s the default urllib User-Agent,
+        so token verification fails after an otherwise successful SSO login."""
+        auth.jwks_client.cache_clear()
+        captured = {}
+
+        def fake_client(uri, *args, **kwargs):
+            captured["uri"] = uri
+            captured["kwargs"] = kwargs
+            return mock.Mock()
+
+        with mock.patch.object(auth, "PyJWKClient", fake_client), \
+                mock.patch.object(auth, "settings", enforcing_settings(
+                    keycloak_url="https://keycloak.finspot.in",
+                    keycloak_realm="Devops-common-cicd",
+                )):
+            auth.jwks_client()
+
+        headers = captured.get("kwargs", {}).get("headers") or {}
+        user_agent = headers.get("User-Agent", "")
+        self.assertTrue(user_agent, "JWKS client must send a User-Agent")
+        self.assertNotIn("urllib", user_agent.lower())
+
+
 class FrontendParityTests(unittest.TestCase):
     """CLAUDE.md requires ROLE_PERMISSIONS to mirror the frontend ROLE_ROUTES.
 
@@ -258,6 +286,8 @@ class FrontendParityTests(unittest.TestCase):
         "/sessions": "sessions:read",
         "/logs": "logs:read",
         "/order-latency": "latency:read",
+        "/queue-monitor": "latency:read",
+        "/data-quality": "dashboard:read",
         "/risk": "risk:read",
         "/infra": "infra:read",
         "/incidents": "incidents:read",

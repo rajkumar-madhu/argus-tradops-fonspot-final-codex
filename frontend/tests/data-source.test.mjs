@@ -6,6 +6,7 @@ import {
   sourceBadgeText,
   sourceBadgeTone,
   sourceDisplayName,
+  sourceChip,
 } from "../lib/data-source.ts";
 
 test("source badges never say demo", () => {
@@ -31,4 +32,18 @@ test("snapshot sources include demo and journal", () => {
 test("source display name hides demo", () => {
   assert.equal(sourceDisplayName("journal snapshot"), "Journal file");
   assert.equal(sourceDisplayName("demo"), "Offline");
+});
+
+test('the rail source chip reuses the operator vocabulary and never says demo', () => {
+  assert.deepEqual(sourceChip({ data_source: 'elasticsearch' }), { text: 'LIVE', tone: 'live' });
+  assert.deepEqual(sourceChip({ data_source: 'journal snapshot' }), { text: 'FILE-BASED', tone: 'file-based' });
+  const offline = sourceChip({ data_source: 'demo' });
+  assert.equal(offline.text, 'OFFLINE');
+  assert.equal(offline.text.toLowerCase().includes('demo'), false);
+});
+
+test('a missing or failed config yields no rail chip at all', () => {
+  for (const bad of [null, undefined, {}, { data_source: '' }, { _error: 'Network error' }]) {
+    assert.equal(sourceChip(bad), null);
+  }
 });

@@ -5,7 +5,7 @@ import Shell from "@/components/Shell";
 import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
-import { fmt, money } from "@/lib/format";
+import { dateShort, fmt, money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -101,13 +101,16 @@ export default async function Page() {
                 rows={rows}
                 rowKey={(r) => `${r.symbol}-${r.exchange}`}
                 columns={[
+                  { key: "date", label: "Date", render: (r) => dateShort(r.date || r.as_of || r.event_time || r.time) },
                   { key: "symbol", label: "Symbol", render: (r) => <b>{r.symbol}</b> },
                   { key: "exchange", label: "Exch" },
                   { key: "product", label: "Product" },
+                  { key: "account", label: "Account", render: (r) => r.account || r.account_id || "—" },
                   { key: "net_qty", label: "Net Qty", render: (r) => <span className={Number(r.net_qty) >= 0 ? "text-green" : "text-red"}>{r.net_qty}</span> },
                   { key: "avg_price", label: "Avg", render: (r) => money(r.avg_price) },
                   { key: "ltp", label: "LTP", render: (r) => money(r.ltp) },
                   { key: "mtm", label: "MTM", render: (r) => <span className={Number(r.mtm) >= 0 ? "text-green" : "text-red"}>{money(r.mtm)}</span> },
+                  { key: "day_pnl", label: "Day P&L", render: (r) => r.day_pnl == null ? "—" : money(r.day_pnl) },
                   { key: "broker", label: "Broker" },
                 ]}
               />

@@ -65,16 +65,16 @@ const WHY: [React.ComponentType<any>, string, string][] = [
 ];
 
 const METRICS: [string, string][] = [
-  ["99.99%", "System uptime"],
-  ["<50ms", "Query latency"],
-  ["5+", "Exchange segments"],
-  ["100%", "On your infrastructure"],
+  ["Read-only", "Trading access"],
+  ["Measured", "Source timing"],
+  ["Noren", "Journal source"],
+  ["Self-hosted", "Deployment model"],
 ];
 
 const VOICES: [string, string, string][] = [
-  ["We used to grep the journal by hand to explain a rejection. Now the evidence chain is already assembled when we open the ticket.", "Head of Trading Operations", "Institutional brokerage"],
-  ["The read-only guarantee is what got it past our risk committee. It observes the stack and cannot touch it.", "Risk & Compliance Lead", "Prop trading firm"],
-  ["Our L2 desk resolves exchange connectivity questions without escalating to the platform team any more.", "Platform Engineering Manager", "Retail broker"],
+  ["Inspect rejection evidence and follow an order lifecycle from the journal.", "Trading Operations", "Investigation workflow"],
+  ["Review available risk observations with explicit source and coverage labels.", "Risk & Compliance", "Review workflow"],
+  ["Inspect reported dependency state and identify missing infrastructure telemetry.", "Platform Engineering", "Observability workflow"],
 ];
 
 const RESOURCES: [string, string, string][] = [
@@ -350,14 +350,14 @@ export default function Landing() {
         <div className="section-head center">
           <div>
             <span className="eyebrow">FROM THE DESK</span>
-            <h2>What Operators Tell Us</h2>
+            <h2>Operational workflows</h2>
           </div>
         </div>
         <div className="voice-grid">
           {VOICES.map(([quote, who, org]) => (
             <blockquote key={who}>
-              <div className="stars">{[0, 1, 2, 3, 4].map((i) => <Star key={i} size={14} />)}</div>
-              <p>“{quote}”</p>
+
+              <p>{quote}</p>
               <footer>
                 <span className="avatar">{who.slice(0, 1)}</span>
                 <span><b>{who}</b><small>{org}</small></span>
@@ -366,11 +366,11 @@ export default function Landing() {
           ))}
         </div>
         <div className="stats">
-          <div><b>99.99%</b><span>System Uptime</span></div>
-          <div><b>60%</b><span>Faster Incident Resolution</span></div>
-          <div><b>40%</b><span>Reduction in Rejections</span></div>
-          <div><b>5+</b><span>Exchanges Supported</span></div>
-          <div><b>100K+</b><span>Orders Per Second</span></div>
+          <div><b>Read-only</b><span>Trading access</span></div>
+          <div><b>Evidence</b><span>Incident investigation</span></div>
+          <div><b>Source-led</b><span>Rejection analysis</span></div>
+          <div><b>Per source</b><span>Exchange coverage</span></div>
+          <div><b>Measured</b><span>Observed timing</span></div>
         </div>
       </section>
 

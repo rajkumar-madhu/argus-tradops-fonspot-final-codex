@@ -23,9 +23,19 @@ ROLE_PERMISSIONS = {
     "auditor": {"dashboard:read","orders:read","trades:read","positions:read","holdings:read","rejections:read","rca:read","market:read","exchange:read","sessions:read","risk:read","infra:read","logs:read","incidents:read","reports:read","latency:read"},
 }
 
+# Cloudflare in front of keycloak.finspot.in 403s the default Python-urllib
+# User-Agent, which is what PyJWKClient uses unless headers are set. A token
+# then cannot be verified after a successful browser SSO login.
+JWKS_USER_AGENT = "TradeOps-Observability/1.1"
+
+
 @lru_cache
 def jwks_client():
-    return PyJWKClient(settings.keycloak_jwks_url)
+    return PyJWKClient(
+        settings.keycloak_jwks_url,
+        timeout=5,
+        headers={"User-Agent": JWKS_USER_AGENT},
+    )
 
 def _roles(payload: dict) -> set[str]:
     roles = set(payload.get("realm_access", {}).get("roles", []))
@@ -61,7 +71,7 @@ def current_user(request: Request, credentials: HTTPAuthorizationCredentials | N
         roles=_roles(payload); perms=_permissions(roles)
         return {"sub":payload.get("sub"),"preferred_username":payload.get("preferred_username"),"email":payload.get("email"),"roles":sorted(roles),"permissions":sorted(perms)}
     except Exception as exc:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(exc)[:120]}")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 def require(permission: str) -> Callable:
     def dep(user=Depends(current_user)):

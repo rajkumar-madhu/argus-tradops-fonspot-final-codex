@@ -6,14 +6,18 @@ import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { mtmDistribution } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
-import { fmt, money } from "@/lib/format";
+import { dateShort, fmt, money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ exchange?: string; product?: string }> }) {
   const d: any = await getJSON("/api/holdings");
   const err = apiError(d);
-  const rows = d.items || [];
+  const params = await searchParams;
+  const sourceRows = d.items || [];
+  const exchanges: string[] = Array.from(new Set<string>(sourceRows.map((r: any) => String(r.exchange || "").trim()).filter(Boolean))).sort();
+  const products: string[] = Array.from(new Set<string>(sourceRows.map((r: any) => String(r.product || "").trim()).filter(Boolean))).sort();
+  const rows = sourceRows.filter((r: any) => (!params.exchange || params.exchange === "all" || String(r.exchange) === params.exchange) && (!params.product || params.product === "all" || String(r.product) === params.product));
   const portfolioValue = rows.reduce((s: number, r: any) => s + Number(r.value || 0), 0);
   const investment = rows.reduce((s: number, r: any) => s + Number(r.avg_price || 0) * Number(r.qty || 0), 0);
   const unrealized = portfolioValue - investment;
@@ -45,7 +49,7 @@ export default async function Page() {
           <p>Delivery holdings, average cost, portfolio valuation and sector exposure</p>
         </div>
         <div className="time-controls"><RefreshButton/>
-          <span className="source-tag">{rows.length} holdings · {d.source || "—"}</span>
+          <span className="source-tag">{rows.length}{rows.length !== sourceRows.length ? ` of ${sourceRows.length}` : ""} holdings · {d.source || "—"}</span>
         </div>
       </section>
 
@@ -58,6 +62,16 @@ export default async function Page() {
         />
       ) : (
         <>
+          <form className="holdings-filter-rail panel" method="get" aria-label="Holdings filters">
+            <div className="filter-tabs" role="list" aria-label="Product filter">
+              <a className={!params.product || params.product === "all" ? "active" : ""} href={`/holdings?exchange=${encodeURIComponent(params.exchange || "all")}&product=all`}>All products</a>
+              {products.map((product) => <a key={product} className={params.product === product ? "active" : ""} href={`/holdings?exchange=${encodeURIComponent(params.exchange || "all")}&product=${encodeURIComponent(product)}`}>{product}</a>)}
+            </div>
+            <label>Exchange<select name="exchange" defaultValue={params.exchange || "all"}><option value="all">All exchanges</option>{exchanges.map((exchange) => <option key={exchange} value={exchange}>{exchange}</option>)}</select></label>
+            <label>Product<select name="product" defaultValue={params.product || "all"}><option value="all">All products</option>{products.map((product) => <option key={product} value={product}>{product}</option>)}</select></label>
+            <button className="btn" type="submit">Apply</button>
+            {(params.exchange || params.product) && <a className="link-btn" href="/holdings">Clear filters</a>}
+          </form>
           <section className="kpi-grid six">
             <KpiCard label="Total Investment" value={money(investment)} delta="Cost basis" tone="blue" icon={<Wallet size={18} />} />
             <KpiCard label="Current Value" value={money(portfolioValue)} delta={`${investment ? ((unrealized / investment) * 100).toFixed(1) : "0"}%`} deltaTone={unrealized >= 0 ? "up" : "down"} tone="green" icon={<TrendingUp size={18} />} />
@@ -103,6 +117,7 @@ export default async function Page() {
                 rows={rows}
                 rowKey={(r) => `${r.symbol}-${r.exchange}`}
                 columns={[
+                  { key: "date", label: "Date", render: (r) => dateShort(r.date || r.as_of || r.event_time || r.time) },
                   { key: "symbol", label: "Symbol", render: (r) => <b>{r.symbol}</b> },
                   { key: "exchange", label: "Exch" },
                   { key: "qty", label: "Qty" },

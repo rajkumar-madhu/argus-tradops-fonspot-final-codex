@@ -61,7 +61,7 @@ export default function SignIn() {
           <span className="auth-icon"><KeyRound size={22} /></span>
           <div>
             <h2>Welcome back</h2>
-            <p>Use your organisation SSO. We never store credentials here.</p>
+            <p>Use your organisation SSO. TradeOps never stores your password.</p>
           </div>
         </div>
 
@@ -69,6 +69,13 @@ export default function SignIn() {
           <div className="auth-chip ok">
             <LayoutDashboard size={14} />
             Auth disabled — you can continue straight to the dashboard on this environment
+          </div>
+        )}
+
+        {authDisabled === false && !checking && (
+          <div className="auth-chip sso">
+            <Shield size={14} />
+            SSO is ready · access is managed by your organisation
           </div>
         )}
 
@@ -99,14 +106,14 @@ export default function SignIn() {
             onClick={authDisabled === null ? checkConfig : start}
           >
             <Shield size={16} />
-            {busy ? "Redirecting to SSO…" : checking ? "Checking connection…" : authDisabled === null ? "Retry connection" : "Continue with Keycloak SSO"}
+            {busy ? "Opening secure sign-in…" : checking ? "Checking secure sign-in…" : authDisabled === null ? "Retry connection" : "Continue with SSO"}
             {!busy && !checking && authDisabled !== null && <ArrowRight size={16} />}
           </button>
         )}
 
         <div className="auth-quick-links">
-          <Link href="/forgot-password">Forgot access?</Link>
-          <Link href="/dashboard">Preview dashboard</Link>
+          <Link href="/forgot-password">Need help signing in?</Link>
+          <Link href="/dashboard">View read-only preview</Link>
         </div>
 
         <ul className="auth-bullets compact">

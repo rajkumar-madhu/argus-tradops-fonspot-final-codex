@@ -30,6 +30,11 @@ class Settings:
     journal_path: str = os.getenv("TRADEOPS_JOURNAL_PATH", "")
     journal_primary: bool = _bool("TRADEOPS_JOURNAL_PRIMARY", False)
     order_latency_path: str = os.getenv("TRADEOPS_ORDER_LATENCY_PATH", "")
+    csv_dir: str = os.getenv("TRADEOPS_CSV_DIR", "")
+    csv_cache_path: str = os.getenv("TRADEOPS_CSV_CACHE_PATH", "/tmp/tradeops-file-cache.sqlite")
+    csv_latency_unit: str = os.getenv("TRADEOPS_CSV_LATENCY_UNIT", "unknown")
+    csv_max_bytes: int = _int("TRADEOPS_CSV_MAX_BYTES", 268435456)
+    csv_max_rows: int = _int("TRADEOPS_CSV_MAX_ROWS", 2000000)
     demo_mode: bool = _bool("TRADEOPS_DEMO_MODE", True)
     es_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     es_api_key: str | None = os.getenv("ELASTICSEARCH_API_KEY") or None
@@ -90,6 +95,8 @@ class Settings:
     rca_lookback: str = os.getenv("RCA_LOOKBACK", "30d")
     sse_heartbeat_seconds: float = _float("SSE_HEARTBEAT_SECONDS", 15.0)
     metrics_enabled: bool = _bool("METRICS_ENABLED", True)
+    prometheus_url: str = os.getenv("PROMETHEUS_URL", "").strip()
+    prometheus_timeout_seconds: float = _float("PROMETHEUS_TIMEOUT_SECONDS", 2.0)
     worker_metrics_port: int = _int("WORKER_METRICS_PORT", 9108)
     auto_create_schema: bool = _bool("AUTO_CREATE_SCHEMA", False)
 
@@ -112,6 +119,7 @@ class Settings:
     market_leader_ttl_seconds: int = _int("MARKET_LEADER_TTL_SECONDS", 15)
 
     auth_disabled: bool = _bool("AUTH_DISABLED", True)
+    allow_signup: bool = _bool("ALLOW_SIGNUP", False)
     keycloak_url: str = os.getenv("KEYCLOAK_URL", "http://localhost:8080")
     keycloak_realm: str = os.getenv("KEYCLOAK_REALM", "tradeops")
     keycloak_client_id: str = os.getenv("KEYCLOAK_CLIENT_ID", "tradeops-web")

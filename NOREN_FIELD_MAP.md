@@ -28,3 +28,7 @@
 | session region | `Userdetails.Region` | Returned |
 | app version | `Userdetails.NorenAppVersion` | Returned |
 | exchange access | `Userdetails.UserExchDetails[].ExchSeg` | Enabled segments only |
+
+## September CSV contract
+
+`ORDERLATENCY_08-Sep-2026.csv` has separate uppercase feed fields. It omits OMS_STATUS/EXCH_STATUS/EXT_RMKS. Never apply Noren journal status-code meanings or assume its duration units. See [File analytics](docs/FILE_ANALYTICS.md) for validated fields, null/zero semantics, timestamp normalization, source reconciliation and exact percentile definitions.

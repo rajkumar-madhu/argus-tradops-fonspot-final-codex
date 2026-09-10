@@ -39,8 +39,15 @@ services:
       AUTO_CREATE_SCHEMA: 'false'
       # Host paths from backend/.env are not visible in the container; mount + override.
       TRADEOPS_JOURNAL_PATH: /data/journal/Journal.log
+      TRADEOPS_CSV_DIR: /data/csv
+      TRADEOPS_CSV_CACHE_PATH: /tmp/tradeops-file-cache.sqlite
+      TRADEOPS_CSV_LATENCY_UNIT: ${TRADEOPS_CSV_LATENCY_UNIT:-unknown}
     volumes:
-      - ./mirae-finspot-management-console-elk/Journal.log:/data/journal/Journal.log:ro
+      # Bounded extract from the large root Journal.log (~80MB / 57k lines).
+      # Full 3.5GB file cannot be loaded into the API process memory.
+      - ./.local/journal-workset.log:/data/journal/Journal.log:ro
+      # Mount a dedicated CSV-only directory; see prepare-file-data.py.
+      - ${TRADEOPS_CSV_HOST_DIR:-./.local/csv-input}:/data/csv:ro
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }

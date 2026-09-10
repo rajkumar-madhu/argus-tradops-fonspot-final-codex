@@ -12,9 +12,11 @@ import {
   TrendingUp,
 } from "lucide-react";
 import RefreshButton from "@/components/RefreshButton";
-import { AreaChart, Donut, HBarList, Sparkline, VBarChart } from "@/components/Charts";
-import { DataTable, EmptyState, KpiCard, Status } from "@/components/UI";
-import { fmt, money } from "@/lib/format";
+import MarketMonitor from "@/components/MarketMonitor";
+import { hasLiveMarketFeed } from "@/lib/data-source";
+import { VBarChart } from "@/components/Charts";
+import { DataTable, EmptyState, Status } from "@/components/UI";
+import { fmt, money, timeIstDetail } from "@/lib/format";
 import { openAuthenticatedEventSource } from "@/lib/stream";
 
 const INDEX_SYMBOLS = [
@@ -33,7 +35,7 @@ function mergeQuote(prev: any, incoming: any) {
   );
   if (idx >= 0) symbols[idx] = { ...symbols[idx], ...incoming };
   else symbols.unshift(incoming);
-  return { ...prev, symbols, streamed_at: incoming.streamed_at || prev?.streamed_at };
+  return { ...prev, symbols, source: incoming.source || prev?.source, streamed_at: incoming.streamed_at || prev?.streamed_at };
 }
 
 function journalSymbolRows(orders: any[]) {
@@ -64,9 +66,16 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
   const source = live?.source || "";
   const isJournal = source === "journal snapshot";
   const isFileBased = isJournal;
-  const hasLiveFeed = (live.symbols || []).length > 0;
-  const symbols: any[] = live.symbols || [];
+  const hasLiveFeed = hasLiveMarketFeed(source, (live.symbols || []).length);
+  const symbols: any[] = hasLiveFeed ? live.symbols || [] : [];
   const feeds = live.feeds || [];
+  const feedTimestamp = live.streamed_at || live.last_update || live.updated_at;
+  const exchangeNames = ["NSE", "BSE", "NFO", "BFO", "CDS", "MCX"];
+  const exchangeCounts = new Map<string, number>();
+  for (const row of symbols) {
+    const exchange = String(row.exchange || "").toUpperCase();
+    if (exchange) exchangeCounts.set(exchange, (exchangeCounts.get(exchange) || 0) + 1);
+  }
   const journalRows = journalSymbolRows(journalOrders?.items || []);
 
   useEffect(() => setLive(data || {}), [data]);
@@ -128,20 +137,6 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
         pct: r.rejected ? -Math.min(5, r.rejected) : 0,
       }));
 
-  const nifty = indexCards.find((c) => c.key === "NIFTY 50")?.quote;
-  const niftyTrend = nifty
-    ? {
-        labels: ["Open", "Mid", "Now"],
-        series: [
-          {
-            name: "NIFTY 50",
-            points: [Number(nifty.open || nifty.ltp), Number(nifty.ltp) * 0.998, Number(nifty.ltp)],
-            cls: "s-total",
-          },
-        ],
-      }
-    : null;
-
   const sectorBars = hasLiveFeed
     ? [
         { label: "EQ", value: symbols.filter((s) => s.segment === "EQ").length, cls: "bar-blue" },
@@ -166,13 +161,9 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
 
   const depth = selected
     ? [
-        { level: "Ask 3", price: selected.ask, qty: selected.ask_qty, side: "ask" },
-        { level: "Ask 2", price: selected.ask, qty: "—", side: "ask" },
         { level: "Ask 1", price: selected.ask, qty: selected.ask_qty, side: "ask" },
         { level: "LTP", price: selected.ltp, qty: "—", side: "ltp" },
         { level: "Bid 1", price: selected.bid, qty: selected.bid_qty, side: "bid" },
-        { level: "Bid 2", price: selected.bid, qty: "—", side: "bid" },
-        { level: "Bid 3", price: selected.bid, qty: "—", side: "bid" },
       ]
     : [];
 
@@ -185,12 +176,12 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
             {isFileBased ? (
               <span className="source-badge file-based">FILE-BASED</span>
             ) : connected ? (
-              <span className="source-badge live">LIVE SSE</span>
+              <span className="source-badge live">STREAM CONNECTED</span>
             ) : (
               <span className="source-badge warn">OFFLINE</span>
             )}
           </div>
-          <p>Live indices, quotes, depth and sector performance — browsers never connect to the feed directly.</p>
+          <p>Monitor indices, price observations, best quotes and exchange coverage.</p>
           {!hasLiveFeed && (
             <p className="market-meta">
               {live.note ||
@@ -203,6 +194,8 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
         </div>
       </section>
 
+      <MarketMonitor symbols={symbols} selectedKey={selectedKey} onSelect={setSelectedKey} connected={connected} source={source} journalRows={journalRows}/>
+
       <section className="market-index-row">
         {indexCards.map((card) => {
           const q = card.quote;
@@ -214,35 +207,29 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
               <small className={hasQuote && Number(q.change_pct) >= 0 ? "up" : "down"}>
                 {hasQuote ? `${q.change_pct}%` : "No live tick"}
               </small>
-              {hasQuote && <Sparkline values={[q.open, q.ltp * 0.99, q.ltp, q.high, q.ltp]} />}
             </div>
           );
         })}
       </section>
 
-      <section className="market-charts-row">
-        <div className="panel span-2">
-          <div className="panel-head">
-            <div>
-              <b>NIFTY 50 Intraday</b>
-              <p className="sub">OHLCV from live feed when available</p>
-            </div>
-            {nifty && (
-              <span className="market-ohlc mono">
-                O {money(nifty.open)} · H {money(nifty.high)} · L {money(nifty.low)} · C {money(nifty.ltp)} · V{" "}
-                {fmt(nifty.volume)}
-              </span>
-            )}
+      <section className="market-feed-strip" aria-label="Feed coverage and freshness">
+        <div className="panel market-feed-summary">
+          <div className="panel-head"><div><b>Feed health</b><p className="sub">Snapshot and stream boundary</p></div><Radio size={16} aria-hidden /></div>
+          <div className="feed-health-row">
+            <Status value={isFileBased ? "FILE-BASED" : connected ? "CONNECTED" : "UNAVAILABLE"} />
+            <b>{feedTimestamp ? timeIstDetail(feedTimestamp) : "No observed tick"}</b>
           </div>
-          {niftyTrend ? (
-            <AreaChart series={niftyTrend.series} labels={niftyTrend.labels} height={160} />
-          ) : (
-            <EmptyState
-              title="No intraday chart"
-              body="Enable TRUEDATA or market_data_worker for index OHLCV. Journal snapshots do not include tick history."
-            />
-          )}
+          <p className="sub">{isFileBased ? "Journal activity is available; price and depth fields are withheld." : hasLiveFeed ? "Quotes arrive through the server-side market snapshot." : "Start the market data worker to populate this feed."}</p>
         </div>
+        <div className="panel market-exchange-coverage">
+          <div className="panel-head"><div><b>Exchange coverage</b><p className="sub">Symbols currently present in the snapshot</p></div></div>
+          <div className="exchange-coverage-grid">
+            {exchangeNames.map((exchange) => <div key={exchange} className={`coverage-chip${exchangeCounts.has(exchange) ? " present" : ""}`}><b>{exchange}</b><span>{exchangeCounts.get(exchange) || "—"}</span></div>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="market-charts-row">
         <div className="panel">
           <div className="panel-head">
             <div>
@@ -337,7 +324,7 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
             <DataTable
               className="compact"
               rows={quoteRows}
-              rowKey={(r) => `${r.exchange}-${r.symbol}`}
+              rowKey={(r) => `${r.exchange}:${r.symbol}`}
               onRowClick={(r) => setSelectedKey(`${r.exchange}:${r.symbol}`)}
               selectedId={selectedKey}
               columns={[
@@ -366,8 +353,8 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
         <aside className="panel market-depth-panel">
           <div className="panel-head">
             <div>
-              <b>Order Book (Market Depth)</b>
-              <p className="sub">{selected?.symbol || "No symbol selected"}</p>
+              <b>Best bid & ask</b>
+              <p className="sub">{selected?.symbol || "No symbol selected"} · Level 1 only</p>
             </div>
           </div>
           {!hasLiveFeed || !selected ? (
@@ -406,8 +393,8 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
         <div className="panel">
           <div className="panel-head">
             <div>
-              <b>Sector Performance</b>
-              <p className="sub">By segment / sector</p>
+              <b>Segment coverage</b>
+              <p className="sub">Subscribed symbol counts by instrument type</p>
             </div>
             <BarChart3 size={16} aria-hidden />
           </div>

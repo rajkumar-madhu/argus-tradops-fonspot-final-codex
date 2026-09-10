@@ -139,8 +139,8 @@ export default function ExchangeView({ exchanges, yel, infra, orders, rejections
             <KpiCard
               label="Avg Response Time"
               value={
-                rows.length
-                  ? `${(rows.reduce((s: number, x: any) => s + Number(x.latency_ms || 0), 0) / rows.length).toFixed(0)} ms`
+                rows.some((r: any) => r.latency_ms != null && Number.isFinite(r.latency_ms))
+                  ? `${(rows.filter((r: any) => r.latency_ms != null && Number.isFinite(r.latency_ms)).reduce((s: number, r: any) => s + r.latency_ms, 0) / rows.filter((r: any) => r.latency_ms != null && Number.isFinite(r.latency_ms)).length).toFixed(2)} ms`
                   : "—"
               }
               delta="Exchange event latency"
@@ -357,7 +357,7 @@ export default function ExchangeView({ exchanges, yel, infra, orders, rejections
                       <td><b>{x.name}</b></td>
                       <td><Status value={x.status || "—"} /></td>
                       <td>{fmt(x.events ?? 0)}</td>
-                      <td>{Number(x.reject_rate || 0).toFixed(2)}%</td>
+                      <td>{x.reject_rate == null ? 'Unavailable' : `${Number(x.reject_rate).toFixed(2)}%`}</td>
                     </tr>
                   ))}
                 </tbody>

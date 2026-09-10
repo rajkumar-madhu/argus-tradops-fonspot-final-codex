@@ -40,12 +40,16 @@ The collector and backend require read-only Elasticsearch access. The system per
 
 ## Production notes
 
-- Run exactly one collector replica unless you add leader election. Correlation workers can scale horizontally using the Redis consumer group.
+- Collector replicas use the implemented Redis leader lease; only the current holder polls ES. Correlation workers can scale horizontally using the Redis consumer group.
 - Use managed Redis/PostgreSQL or operators for HA. The included Compose services are local-development conveniences.
 - Put ELK API keys and database credentials in Vault/External Secrets, not ConfigMaps or Git.
 - Retain SSE behind an ingress/proxy configured with response buffering disabled and sufficient idle timeout.
-- Replace SQLAlchemy `create_all` with Alembic migrations before controlled production releases.
+- Run Alembic migrations before controlled releases; runtime schema creation defaults off.
 
 ## Hardening additions
 
 The collector can run with multiple replicas; only the instance holding `COLLECTOR_LEADER_KEY` publishes events. Correlation workers use Redis consumer groups. Pending entries are reclaimed after `REDIS_RETRY_IDLE_MS`; after `REDIS_RETRY_MAX_ATTEMPTS`, poison messages are acknowledged from the source stream and written with error/evidence metadata to `tradeops:dlq`. PostgreSQL schema changes are managed by Alembic, not runtime `create_all`.
+
+## File analytics branch
+
+The optional CSV path uses startup-batched validation into a per-replica SQLite cache; it does not poll Elasticsearch or publish invented trading events. See `docs/FILE_ANALYTICS.md`. Journal/CSV snapshots do not prove live event-bus connectivity.

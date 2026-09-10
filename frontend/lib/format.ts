@@ -12,6 +12,16 @@ export function timeShort(v: string): string {
   return time24(v);
 }
 
+/** Calendar date for trade, position and holding snapshots. */
+export function dateShort(v: unknown): string {
+  if (!v) return "—";
+  const d = new Date(String(v));
+  if (Number.isNaN(d.getTime())) return String(v);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric",
+  }).format(d);
+}
+
 export function timeFull(v: string): string {
   try {
     return new Date(v).toLocaleString();

@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileText, Layers, LogIn, LogOut, Search, Users, X } from "lucide-react";
+import { Download, FileText, Layers, LogIn, LogOut, Printer, Search, Users, X } from "lucide-react";
 import RefreshButton from "@/components/RefreshButton";
-import { EmptyState, KpiCard } from "@/components/UI";
+import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { fmt, journalWindowLabel, timeIstStamp } from "@/lib/format";
+import { SESSION_JOURNAL_FIELDS, LOGOUT_JOURNAL_FIELDS, sessionFieldText } from "@/lib/session-journal-fields";
 import { filterRows } from "@/lib/table-filters";
 
 function fromUtcDateInput(v: string): string {
@@ -31,6 +32,8 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [eventFilter, setEventFilter] = useState("");
+  const [reportSearch, setReportSearch] = useState<Record<string, string>>({});
+  const [selectedRow, setSelectedRow] = useState<Record<string, string> | null>(null);
 
   const live = data || {};
   const summaryData = summary || {};
@@ -56,6 +59,36 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
     });
     return base;
   }, [rows, query, fromDate, toDate, eventFilter]);
+
+  const journalColumns = eventFilter === "logout" ? LOGOUT_JOURNAL_FIELDS : SESSION_JOURNAL_FIELDS;
+  const tableRows = filteredRows.map((row: any) => Object.fromEntries(journalColumns.map(key => [key, sessionFieldText(row.journal_fields?.[key])]))) as Record<string, string>[];
+  const detailKeys = ["Event Time (UTC)", "msg_type", "UserId", "AccessType", "DevicePinFlag", "LastAttemptCount", "ReqStatus", "UiDevCode", "UserPrivilege", "Userdetails.BrokerId", "Userdetails.Products", "Userdetails.Region", "Userdetails.UserAccessGrp", "Userdetails.UserAccessTypes", "Userdetails.UserExchDetails", "Userdetails.NorenAppVersion"];
+  const reportColumns = [
+    ["Userdetails.UserId", "Client Id"], ["Userdetails.UserName", "UserName"], ["Userdetails.BrokerId", "Brk Id"],
+    ["Event Time (UTC)", "Login time"], ["ReqStatus", "Login attempt"], ["AccessType", "Platform"],
+    ["Userdetails.UserIpAddr", "IP Address"], ["Userdetails.UserMacAddr", "MAC Address"],
+  ] as const;
+  const reportRows = filteredRows
+    .map((row: any) => reportColumns.map(([key]) => sessionFieldText(row.journal_fields?.[key])))
+    .filter((reportRow) => reportColumns.every(([, label], index) => !reportSearch[label] || reportRow[index].toLowerCase().includes(reportSearch[label].toLowerCase())));
+
+  function reportTableHtml() {
+    const esc = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    return `<table><thead><tr>${reportColumns.map(([, label]) => `<th>${esc(label)}</th>`).join("")}</tr></thead><tbody>${reportRows.map((row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  }
+
+  function downloadExcel() {
+    const blob = new Blob([`<html><head><meta charset="utf-8"></head><body><h2>TradeOps session report</h2>${reportTableHtml()}</body></html>`], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = "tradeops-session-report.xls"; link.click(); URL.revokeObjectURL(url);
+  }
+
+  function printPdf() {
+    const popup = window.open("", "tradeops-session-report", "noopener,noreferrer,width=1200,height=800");
+    if (!popup) return;
+    popup.document.write(`<html><head><title>TradeOps session report</title><style>body{font:12px Arial;color:#111;padding:24px}h2{margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:7px;text-align:left}th{background:#eef2ff}</style></head><body><h2>TradeOps session report</h2><p>${reportRows.length} rows · ${isFileBased ? "FILE-BASED journal snapshot" : "source: " + (live.source || "—")}</p>${reportTableHtml()}</body></html>`);
+    popup.document.close(); popup.focus(); popup.print();
+  }
 
   const activeFilters =
     Number(Boolean(query)) + Number(Boolean(fromDate || toDate)) + Number(Boolean(eventFilter));
@@ -182,54 +215,45 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
         <div className="panel-head">
           <div>
             <b>Session register</b>
-            <p className="sub">Every row retains its journal source-row reference and reported login/logout result.</p>
+            <p className="sub">Requested journal columns in source order · timestamps in UTC · CSV export retains these headers.</p>
           </div>
           <span className="source-tag">
             {fmt(filteredRows.length)} of {fmt(rows.length)} rows
           </span>
         </div>
+        <div className="session-report-toolbar">
+          <b>Session report</b>
+          <span className="sub">Client, broker, platform and masked network details for the selected range</span>
+          <div className="session-report-actions">
+            <button type="button" className="secondary-btn" onClick={downloadExcel} disabled={!reportRows.length}><Download size={14} /> Excel</button>
+            <button type="button" className="secondary-btn" onClick={printPdf} disabled={!reportRows.length}><Printer size={14} /> PDF / Print</button>
+          </div>
+        </div>
+        <div className="session-report-preview table-scroll">
+          <table><thead><tr>{reportColumns.map(([, label]) => <th key={label}>{label}<input aria-label={`Search ${label}`} placeholder="Search" value={reportSearch[label] || ""} onChange={(e) => setReportSearch((current) => ({ ...current, [label]: e.target.value }))} /></th>)}</tr></thead>
+            <tbody>{reportRows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
         {rows.length === 0 ? (
           <EmptyState title="No session events" body="No login or logout rows were returned for this source." />
         ) : (
-          <div className="table-scroll" tabIndex={0} aria-label="Sessions table">
-            <table className="orders-table sessions-table">
-              <thead>
-                <tr>
-                  <th>User identifier</th>
-                  <th>Event</th>
-                  <th>Reported result</th>
-                  <th>Time · IST</th>
-                  <th>Source row</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((row: any, i: number) => (
-                  <tr key={`${row.user_id}-${row.source_row ?? i}-${row.time}`}>
-                    <td><b>{row.user_id || "—"}</b></td>
-                    <td className="mono">{row.event || "—"}</td>
-                    <td>{sessionResult(row)}</td>
-                    <td className="mono">{timeIstStamp(row.time)}</td>
-                    <td className="mono">{row.source_row ?? "—"}</td>
-                  </tr>
-                ))}
-                {!filteredRows.length && (
-                  <tr>
-                    <td colSpan={5}>
-                      <EmptyState
-                        title="No matching sessions"
-                        body="Try clearing filters or widening the UTC date range."
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <>
+          <div className="session-detail-strip panel" aria-live="polite">
+            <div className="panel-head"><div><b>Selected event details</b><p className="sub">Click a row to inspect operational fields without scrolling the full register.</p></div></div>
+            {selectedRow ? <dl className="session-detail-grid">{detailKeys.map((key) => <div key={key}><dt>{key}</dt><dd>{selectedRow[key] || "—"}</dd></div>)}</dl> : <p className="sub session-detail-empty">Select a login or logout row to view its details.</p>}
           </div>
+          <DataTable
+            columns={journalColumns.map(key => ({key, label: key}))}
+            rows={filteredRows.map((row: any) => Object.fromEntries(journalColumns.map(key => [key, sessionFieldText(row.journal_fields?.[key])])))}
+            onRowClick={(row) => setSelectedRow(row)}
+            rowKey={(row, index) => `${row['Record No.']}-${index}`}
+          />
+          </>
         )}
         {isFileBased && (
           <p className="sessions-footnote">
             <FileText size={13} aria-hidden />
-            Journal snapshot mode — user identifiers are shown as recorded in the uploaded journal file.
+            Journal snapshot mode — identifiers are masked; authentication, password, session and DPIN values are withheld. Missing fields display —.
           </p>
         )}
       </section>
