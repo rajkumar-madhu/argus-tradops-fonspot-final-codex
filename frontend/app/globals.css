@@ -8391,3 +8391,7 @@ table tbody tr:hover { background: #e6f0ec; }
 .ref-tabs button:last-child { border-right: 0; }
 .ref-tabs button.active { background: #0b5cff; color: #fff; }
 .ref-chart .hbar-value, .ref-grid .hbar-value { white-space: nowrap; min-width: 88px; text-align: right; }
+.risk-alerts { list-style: none; margin: 0; padding: 4px 16px 14px; }
+.risk-alerts li { display: flex; align-items: center; gap: 4px; padding: 7px 0; border-top: 1px solid #eef2f8; font-size: 12.5px; color: #1f2a44; }
+.risk-alerts li:first-child { border-top: 0; }
+.ref-note-pad { padding: 0 16px 12px; }
