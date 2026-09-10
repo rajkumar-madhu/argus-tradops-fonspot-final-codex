@@ -8414,3 +8414,23 @@ table tbody tr:hover { background: #e6f0ec; }
 .ref-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; background: #eef4ff; border: 1px solid #cfdcf8; color: #1f2a44; font-size: 13px; }
 .ref-banner svg { color: #0b5cff; flex: none; }
 .app-shell .ref-kpis.six .kpi-card-value { font-size: 22px; white-space: nowrap; }
+
+/* Configuration (mockup 01_20_08): category cards, section nav, detail panel. */
+.cfg-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.cfg-card { display: flex; gap: 12px; align-items: flex-start; padding: 14px; text-align: left; font: inherit; cursor: pointer; color: inherit; }
+.cfg-card.active { border-color: #0b5cff; box-shadow: 0 0 0 1px #0b5cff inset; }
+.cfg-icon { width: 44px; height: 44px; border-radius: 10px; background: #e8f0ff; color: #0b5cff; display: grid; place-items: center; flex: none; }
+.cfg-text { display: grid; gap: 3px; min-width: 0; }
+.cfg-text b { font-size: 14.5px; color: #0a1433; }
+.cfg-text small { font-size: 12px; color: #5b6782; }
+.cfg-text em { font-style: normal; font-size: 12.5px; font-weight: 700; color: #16a34a; text-transform: capitalize; }
+.cfg-main { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 14px; align-items: start; }
+.cfg-nav { display: grid; padding: 8px; gap: 2px; }
+.cfg-nav button { display: flex; align-items: center; gap: 10px; border: 0; background: transparent; text-align: left; padding: 9px 10px; border-radius: 6px; font: inherit; font-size: 13px; color: #1f2a44; cursor: pointer; }
+.cfg-nav button:hover { background: #f3f7ff; }
+.cfg-nav button.active { background: #e8f0ff; color: #0b5cff; font-weight: 600; box-shadow: inset 3px 0 0 #0b5cff; }
+.cfg-subgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 12px 16px 0; }
+.cfg-subhead { display: block; font-size: 13px; color: #0a1433; padding: 0 0 4px; }
+.cfg-rows { padding: 6px 16px 10px; }
+@media (max-width: 1300px) { .cfg-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } .cfg-main { grid-template-columns: 1fr; } }
+.cfg-text em.zero { color: #8a96ad; }

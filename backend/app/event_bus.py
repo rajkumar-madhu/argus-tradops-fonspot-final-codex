@@ -44,8 +44,10 @@ def redis_status() -> dict[str, Any]:
             except Exception:
                 stream_info[kind] = {"name": stream, "length": None}
         return {"connected": ok, "url": settings.redis_public_label, "streams": stream_info}
-    except Exception as exc:
-        return {"connected": False, "error": str(exc)[:200], "streams": STREAMS}
+    except Exception:
+        # Never echo the exception: redis errors carry host, port and, for auth
+        # failures, parts of the connection URL.
+        return {"connected": False, "error": "Redis unavailable", "url": settings.redis_public_label, "streams": STREAMS}
 
 def publish(kind: str, payload: dict[str, Any], *, maxlen: int | None = None) -> str:
     stream = STREAMS[kind]

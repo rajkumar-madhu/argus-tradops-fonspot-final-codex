@@ -70,3 +70,14 @@ class OrderReasonMasking(unittest.TestCase):
         self.assertNotIn("R1289", order["reason"])
         self.assertEqual(order["code"], "RED")
         self.assertEqual(order["rejection_category"], "RMS / Margin")
+
+
+class RedisStatusRegression(unittest.TestCase):
+    def test_redis_status_never_returns_exception_text(self):
+        from app import event_bus
+        class Broken:
+            def ping(self): raise RuntimeError('redis://:private-password@private-host:6379 refused')
+        with patch.object(event_bus, 'get_redis', return_value=Broken()):
+            result = event_bus.redis_status()
+        self.assertFalse(result['connected'])
+        self.assertNotIn('private', str(result))
