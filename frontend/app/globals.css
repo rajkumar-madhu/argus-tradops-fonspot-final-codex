@@ -8411,3 +8411,6 @@ table tbody tr:hover { background: #e6f0ec; }
 .infra-page .ref-grid.four .hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .infra-page .ref-grid.four .hbar-value { min-width: 64px; }
 .ref-page .hbar-row { grid-template-columns: minmax(80px, 1.1fr) minmax(40px, 1.4fr) auto; }
+.ref-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; background: #eef4ff; border: 1px solid #cfdcf8; color: #1f2a44; font-size: 13px; }
+.ref-banner svg { color: #0b5cff; flex: none; }
+.app-shell .ref-kpis.six .kpi-card-value { font-size: 22px; white-space: nowrap; }
