@@ -13,20 +13,22 @@ import { buildNav, togglePinned } from "@/lib/nav-model";
 import { SIGNAL_ROUTES, formatSignal, hasSignal, parseSignalCount, type NavSignals } from "@/lib/nav-signals";
 import { sourceChip, type SourceChip } from "@/lib/data-source";
 import {
-  Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, ChevronDown, ChevronLeft,
-  ChevronRight, CircleDollarSign, ClipboardList, Gauge, Layers3, LineChart, Lock, Network,
-  Pin, Search, Server, Settings, ShieldCheck, Timer, Users, WalletCards, Menu,
+  Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, ChevronLeft,
+  ChevronRight, CircleDollarSign, ClipboardList, FileText, Gauge, HelpCircle, Layers3, LineChart,
+  Lock, Moon, Network, Pin, Search, Server, Settings, ShieldCheck, Sun, Timer, Users, WalletCards, Menu,
 } from "lucide-react";
 
 /** `lib/nav-model` is React-free so it can be unit tested; icons are bound here. */
 const ICONS: Record<string, typeof BarChart3> = {
   Activity, AlertTriangle, BarChart3, BookOpenCheck, Boxes, CircleDollarSign, ClipboardList,
-  Gauge, Layers3, LineChart, Network, Search, Server, Settings, ShieldCheck, Timer, Users,
+  FileText, Gauge, Layers3, LineChart, Network, Search, Server, Settings, ShieldCheck, Timer, Users,
   WalletCards,
 };
 
-const PREFS_KEY = "argus-nav-prefs";
-const DEFAULT_PINNED = ["/dashboard", "/orders", "/rejections"];
+// v2: the rail follows the reference mockups (flat, no Pinned group by
+// default), so earlier saved layouts are not carried over.
+const PREFS_KEY = "argus-nav-prefs-v2";
+const DEFAULT_PINNED: string[] = [];
 
 type NavPrefs = { collapsed: boolean; pinned: string[]; closed: Record<string, boolean> };
 const DEFAULT_PREFS: NavPrefs = { collapsed: false, pinned: DEFAULT_PINNED, closed: {} };
@@ -73,10 +75,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // server-rendered markup and the first client render agree.
   const [prefs, setPrefs] = useState<NavPrefs>(DEFAULT_PREFS);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [query, setQuery] = useState("");
+  const query = "";
   const [signals, setSignals] = useState<NavSignals>({});
   const [chip, setChip] = useState<SourceChip>(null);
-  const filterRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { try { setDark(localStorage.getItem('argus-theme') === 'dark'); } catch {} }, []);
@@ -126,18 +127,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault(); searchRef.current?.focus();
       }
-      // "/" filters the rail. Deliberately distinct from ⌘K, which searches logs.
-      if (event.key === '/' && !typing && !event.ctrlKey && !event.metaKey) {
-        event.preventDefault();
-        setPrefs((p) => (p.collapsed ? { ...p, collapsed: false } : p));
-        window.requestAnimationFrame(() => filterRef.current?.focus());
-      }
-      if (event.key === 'Escape') { setMenuOpen(false); setQuery(""); }
+      if (event.key === 'Escape') setMenuOpen(false);
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
@@ -154,13 +147,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   // The drawer is a full rail: collapsing to icons is a desktop affordance only.
   const collapsed = prefs.collapsed && !menuOpen;
-  const { groups, noMatches } = useMemo(
-    () => buildNav({ visible, query, pinned: prefs.pinned, closed: prefs.closed, collapsed }),
-    [visible, query, prefs.pinned, prefs.closed, collapsed],
+  const { groups } = useMemo(
+    // Groups render flat and never collapse: the reference rail has no headings.
+    () => buildNav({ visible, query, pinned: prefs.pinned, closed: {}, collapsed }),
+    [visible, query, prefs.pinned, collapsed],
   );
 
-  const toggleGroup = (label: string) =>
-    setPrefs((p) => ({ ...p, closed: { ...p.closed, [label]: !p.closed[label] } }));
   const toggleRail = () =>
     setPrefs((p) => ({ ...p, collapsed: !p.collapsed }));
   const pin = (href: string) =>
@@ -174,7 +166,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <aside className="sidebar" id="app-navigation">
         <div className="brand">
           <div className="brand-bars" aria-hidden="true"><i /><i /><i /></div>
-          <div className="brand-name"><strong>Argus TradeOps</strong><span>Trading Observability</span></div>
+          <div className="brand-name"><strong>Argus TradeOps</strong><span>Trading Observability Platform</span></div>
           <button
             type="button"
             className="rail-toggle"
@@ -188,37 +180,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        {!collapsed && (
-          <div className="nav-filter">
-            <Search size={13} aria-hidden="true" />
-            <input
-              ref={filterRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Filter workspaces"
-              aria-label="Filter workspaces"
-              type="search"
-            />
-            {!query && <kbd>/</kbd>}
-          </div>
-        )}
-
-        <nav className="nav-list" aria-label="TradeOps workspaces">
+        <nav className="nav-list" aria-label="Argus TradeOps workspaces">
           {groups.map((group) => (
             <div className={`nav-group${group.isPinned ? " nav-group-pinned" : ""}`} key={group.label}>
-              {!collapsed && (
-                <button
-                  type="button"
-                  className="nav-group-label"
-                  onClick={() => toggleGroup(group.label)}
-                  aria-expanded={group.open}
-                >
-                  <ChevronDown size={10} className={group.open ? "" : "is-closed"} aria-hidden="true" />
-                  <span>{group.label}</span>
-                  {group.hiddenCount > 0 && <em>{group.hiddenCount}</em>}
-                  {group.matchCount > 0 && <em className="is-match">{group.matchCount}</em>}
-                </button>
-              )}
               {group.items.map((item) => {
                 const Icon = ICONS[item.icon] || Boxes;
                 const count = signals[item.href];
@@ -255,9 +219,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               })}
             </div>
           ))}
-          {noMatches && (
-            <p className="nav-empty">No workspace matches <b>{query}</b></p>
-          )}
         </nav>
 
         <div className="sidebar-foot">
@@ -265,6 +226,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             ? <span className={`nav-source tone-${chip.tone}`}><i aria-hidden="true" />{chip.text}</span>
             : <span className="nav-source tone-unknown"><i aria-hidden="true" />Source unreported</span>}
           <div><Lock size={11} aria-hidden="true" />Read-only · never places orders</div>
+          <Link href="/configuration" className="sidebar-help"><HelpCircle size={14} aria-hidden="true" />Help &amp; configuration</Link>
         </div>
       </aside>
       <main className="main" id="main-content" tabIndex={-1}>
@@ -272,14 +234,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <button type="button" className="nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="app-navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20}/></button><div className="env-pill">Read only</div>
           <MarketTicker variant="bar"/>
           <div className="market-right">
-            <button className="btn theme-toggle" type="button" onClick={toggleTheme} aria-pressed={dark} aria-label="Dark theme">{dark ? "Light theme" : "Dark theme"}</button>
+            <button className="bell theme-toggle" type="button" onClick={toggleTheme} aria-pressed={dark} aria-label={dark ? "Light theme" : "Dark theme"} title={dark ? "Light theme" : "Dark theme"}>{dark ? <Sun size={17}/> : <Moon size={17}/>}</button>
             <Clock/>
             <form action="/logs" className="topsearch"><Search size={14}/><input ref={searchRef} name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><kbd>⌘/Ctrl K</kbd></form>
             <Link href="/incidents" className="bell" aria-label="Alerts and incidents"><Bell size={17}/></Link>
             <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>
             <div className="avatar">{(session?.username || "T").slice(0, 1).toUpperCase()}</div>
             <div className="profile">
-              <b>{session?.username || "TradeOps"}</b>
+              <b>{session?.username || "Argus TradeOps"}</b>
               <span>{roles.length ? roles.join(", ") : "RBAC protected"}</span>
             </div>
             {checked && (session

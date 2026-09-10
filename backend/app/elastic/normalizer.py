@@ -46,6 +46,39 @@ def mask_account(value: str) -> str:
     return mask_id(value, 2)
 
 
+# Rejection reasons are free text written by the RMS/OMS. They carry the
+# diagnosis (rule, circuit limits, freeze qty) but also client identity and
+# money. mask_reason keeps the former and masks the latter. Market figures
+# (Current/LowerCircuit/UpperCircuit prices, freeze Set/Current qty) and the
+# bracketed product group ("[RISK-CSB]") are not client data and stay readable.
+_REASON_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
+    # "for C-S476-KBC", "for C-99999ACH-CSB^EQT": client code, broker suffix kept.
+    (re.compile(r"\bC-[A-Z0-9]+(-[A-Z]{2,})(\^[A-Z]+)?"), r"C-***\1"),
+    # "clientid D999-BJT", "Account K999-VRD"
+    (re.compile(r"\b(clientid|Account)(\s+)[A-Z0-9]+(-[A-Z]{2,})", re.IGNORECASE), r"\1\2***\3"),
+    # "NON-COMPLIANT CLIENT CODE : G9999"
+    (re.compile(r"(CLIENT CODE\s*:\s*)\S+", re.IGNORECASE), r"\1***"),
+    # "Continuous Debit[ 9999999-ISB M ]": the account leads the bracket.
+    (re.compile(r"(\[\s*)[A-Z]*\d[A-Z0-9]*(-[A-Z]{2,})"), r"\1***\2"),
+    # Balances, shortfalls and margins. Circuit prices are market data.
+    (re.compile(r"(?<!Current:)(?<!LowerCircuit:)(?<!UpperCircuit:)\bINR\s*-?[\d,]+(?:\.\d+)?"), "INR ***"),
+    # A client's holding quantity.
+    (re.compile(r"(Eligible Sell\s*:\s*)\d+", re.IGNORECASE), r"\1***"),
+    # PAN, 10-digit phone numbers, IPv4 addresses.
+    (re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b"), "***"),
+    (re.compile(r"\b\d{10}\b"), "***"),
+    (re.compile(r"\b(\d{1,3}\.\d{1,3})\.\d{1,3}\.\d{1,3}\b"), r"\1.x.xxx"),
+)
+
+
+def mask_reason(value: Any) -> str:
+    """Rejection reason with client identity and money masked; empty stays empty."""
+    text = str(value or "")
+    for pattern, replacement in _REASON_RULES:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def _iso_from_unix(seconds: Any, nsecs: Any = 0) -> str:
     try:
         sec = int(seconds)
@@ -84,13 +117,19 @@ def rejection_category(reason: str) -> str:
     text = str(reason or "").strip().lower()
     if not text:
         return ""
-    if "margin shortfall" in text:
+    if "margin shortfall" in text or "peak margin" in text or "shortfall:" in text:
         return "RMS / Margin"
+    # Price-band and quantity-freeze rules. Deliberately new categories, not
+    # members of the correlation worker's P2 set.
+    if "circuit limit" in text:
+        return "RMS / Circuit Limit"
+    if "freeze qty" in text:
+        return "RMS / Freeze Qty"
     if "nonsq" in text or "block type" in text:
         return "RMS / Risk Block"
     if "holding" in text:
         return "RMS / Holdings"
-    if "mwpl" in text or "regulatory" in text or "collateral" in text:
+    if "mwpl" in text or "regulatory" in text or "collateral" in text or "rrm mode" in text or "non-compliant client" in text:
         return "RMS / Regulatory"
     if "market" in text and ("not open" in text or "opened" in text):
         return "Market State"
@@ -163,8 +202,11 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
         "price": _price(doc.get("PriceToFill")),
         "fill_price": _price(doc.get("FillAvgPrice") or doc.get("FillPrice")),
         "latency_ms": _latency_ms(doc),
+        # Code and category read the raw text; the reason itself is masked so no
+        # order payload (lists, lifecycle, RCA, event bus) carries client codes,
+        # balances or holdings. mask_reason is idempotent.
         "code": rejection_code(reason),
-        "reason": reason,
+        "reason": mask_reason(reason) if mask_sensitive else reason,
         "rejection_category": rejection_category(reason),
         "source": "noren-ordupd",
     }

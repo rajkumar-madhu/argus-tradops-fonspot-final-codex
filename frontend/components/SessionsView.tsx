@@ -27,7 +27,7 @@ function sessionResult(row: Record<string, unknown>): string {
   return status;
 }
 
-export default function SessionsView({ data, summary }: { data: any; summary?: any }) {
+export default function SessionsView({ data, summary, embedded = false }: { data: any; summary?: any; embedded?: boolean }) {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -78,7 +78,7 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
   }
 
   function downloadExcel() {
-    const blob = new Blob([`<html><head><meta charset="utf-8"></head><body><h2>TradeOps session report</h2>${reportTableHtml()}</body></html>`], { type: "application/vnd.ms-excel" });
+    const blob = new Blob([`<html><head><meta charset="utf-8"></head><body><h2>Argus TradeOps session report</h2>${reportTableHtml()}</body></html>`], { type: "application/vnd.ms-excel" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a"); link.href = url; link.download = "tradeops-session-report.xls"; link.click(); URL.revokeObjectURL(url);
   }
@@ -86,7 +86,7 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
   function printPdf() {
     const popup = window.open("", "tradeops-session-report", "noopener,noreferrer,width=1200,height=800");
     if (!popup) return;
-    popup.document.write(`<html><head><title>TradeOps session report</title><style>body{font:12px Arial;color:#111;padding:24px}h2{margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:7px;text-align:left}th{background:#eef2ff}</style></head><body><h2>TradeOps session report</h2><p>${reportRows.length} rows · ${isFileBased ? "FILE-BASED journal snapshot" : "source: " + (live.source || "—")}</p>${reportTableHtml()}</body></html>`);
+    popup.document.write(`<html><head><title>Argus TradeOps session report</title><style>body{font:12px Arial;color:#111;padding:24px}h2{margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd3df;padding:7px;text-align:left}th{background:#eef2ff}</style></head><body><h2>Argus TradeOps session report</h2><p>${reportRows.length} rows · ${isFileBased ? "FILE-BASED journal snapshot" : "source: " + (live.source || "—")}</p>${reportTableHtml()}</body></html>`);
     popup.document.close(); popup.focus(); popup.print();
   }
 
@@ -108,6 +108,9 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
 
   return (
     <div className="sessions-page">
+      {/* The Overview tab owns the page header and KPIs when embedded. */}
+      {!embedded && (
+        <>
       <section className="dashboard-head sessions-head">
         <div>
           <div className="sessions-title-row">
@@ -159,6 +162,8 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
           icon={<Users size={18} />}
         />
       </section>
+        </>
+      )}
 
       <section className="panel sessions-toolbar-panel">
         <div className="sessions-toolbar">

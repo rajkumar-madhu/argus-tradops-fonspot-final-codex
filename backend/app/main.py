@@ -49,7 +49,7 @@ from app.elastic.noren_service import (
 
 from app import file_routes, journal_routes
 
-app = FastAPI(title="TradeOps Observability API", version="1.1.0")
+app = FastAPI(title="Argus TradeOps API", version="1.1.0")
 app.include_router(file_routes.router)
 app.include_router(journal_routes.router)
 if settings.metrics_enabled:

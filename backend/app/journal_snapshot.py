@@ -14,6 +14,7 @@ from app.elastic.normalizer import (
     mask_account,
     mask_id,
     mask_ip,
+    mask_reason,
     normalize_order,
     normalize_session_event,
     order_status,
@@ -112,8 +113,7 @@ def _project_order_fields(
     projected["SrcUserId"] = mask_id(str(doc.get("SrcUserId") or ""), 4)
     projected["IpAddr"] = mask_ip(str(doc.get("IpAddr") or ""))
     projected["PanNum"] = mask_id(str(doc.get("PanNum") or ""), 4)
-    if normalized.get("status") != "REJECTED":
-        projected["RejReason"] = ""
+    projected["RejReason"] = mask_reason(doc.get("RejReason")) if normalized.get("status") == "REJECTED" else ""
     return projected
 
 
@@ -133,6 +133,21 @@ def _withhold_reason(row: dict[str, Any]) -> dict[str, Any]:
     if isinstance(row.get("journal_fields"), dict):
         row["journal_fields"] = dict(row["journal_fields"], RejReason="")
     return row
+
+
+def _mask_rejection(row: dict[str, Any]) -> dict[str, Any]:
+    """Code and category come from the raw reason; only then is the text masked."""
+    raw = str(row.get("reason") or "").strip()
+    if not raw:
+        return row
+    masked = dict(row)
+    masked["code"] = row.get("code") or rejection_code(raw) or "RMS"
+    masked["rejection_category"] = row.get("rejection_category") or rejection_category(raw) or "Uncategorized"
+    masked["reason"] = mask_reason(raw)
+    fields = row.get("journal_fields")
+    if isinstance(fields, dict) and fields.get("RejReason"):
+        masked["journal_fields"] = dict(fields, RejReason=mask_reason(fields["RejReason"]))
+    return masked
 
 
 def _rejection_row(snapshot: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
@@ -252,12 +267,14 @@ def journal_order_lifecycle(path: str, order_id: str) -> dict[str, Any]:
 
 def journal_rejections(path: str) -> dict[str, Any]:
     snapshot = load_journal(path)
-    unique = [_rejection_row(snapshot, row) for row in snapshot["rejected"]]
+    unique = [_mask_rejection(_rejection_row(snapshot, row)) for row in snapshot["rejected"]]
     groups: dict[str, dict[str, Any]] = {}
     for row in unique:
         reason = str(row.get("reason") or "").strip() or "No recorded reason"
-        code = row.get("code") or rejection_code(reason) or "RMS"
-        category = row.get("rejection_category") or rejection_category(reason) or "Uncategorized"
+        code = row.get("code") or "RMS"
+        category = row.get("rejection_category") or "Uncategorized"
+        # Grouped on the masked text: the raw reasons differ only by client code
+        # and amounts, so per-client groups would both leak and fragment.
         if reason not in groups:
             groups[reason] = {"code": code, "reason": reason, "category": category, "count": 0, "trend": "—"}
         groups[reason]["count"] += 1

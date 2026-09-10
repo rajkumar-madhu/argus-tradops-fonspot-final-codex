@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Activity, ShieldCheck, BarChart3 } from "lucide-react";
 import MarketTicker from "@/components/MarketTicker";
-import { MiniBars } from "@/components/Charts";
+import { SkeletonBars } from "@/components/Charts";
 
 /**
  * Split layout shared by /signin, /signup, /verify and /forgot-password:
@@ -15,7 +15,7 @@ export default function AuthShell({ title, subtitle, children }: { title: string
         <section className="auth-brand">
           <Link href="/" className="brand">
             <div className="brand-bars"><i /><i /><i /></div>
-            <span><b>TradeOps</b><small>Trading Observability Platform</small></span>
+            <span><b>Argus TradeOps</b><small>Trading Observability Platform</small></span>
           </Link>
           <div className="auth-copy">
             <h1>{title}</h1>
@@ -27,15 +27,16 @@ export default function AuthShell({ title, subtitle, children }: { title: string
             </ul>
           </div>
           <div className="auth-preview" aria-hidden="true">
-            <div className="auth-preview-head"><span>Trading Operations · Today</span><b>● LIVE</b></div>
+            {/* Layout only: this panel renders before sign-in, so it shows no figures. */}
+            <div className="auth-preview-head"><span>Trading Operations</span></div>
             <div className="auth-preview-kpis">
-              <div><span>Orders</span><b>25,790</b><em className="up">▲ 12%</em></div>
-              <div><span>Executed</span><b>94.3%</b><em className="up">▲ 1.2%</em></div>
-              <div><span>Rejected</span><b>5.7%</b><em className="down">▼ 0.4%</em></div>
+              {["Orders", "Executed", "Rejected"].map((k) => (
+                <div key={k}><span>{k}</span><i className="preview-skel preview-skel-value" /><i className="preview-skel preview-skel-line" /></div>
+              ))}
             </div>
-            <div className="auth-preview-chart"><MiniBars values={[22, 28, 24, 36, 30, 44, 38, 52, 47, 58, 54, 66, 60, 72, 68, 80]} cls="bar-blue" /></div>
+            <div className="auth-preview-chart"><SkeletonBars count={16} /></div>
           </div>
-          <p className="auth-legal">© {new Date().getFullYear()} TradeOps · Read-only observability. No orders are ever placed from this platform.</p>
+          <p className="auth-legal">© {new Date().getFullYear()} Argus TradeOps · Read-only observability. No orders are ever placed from this platform.</p>
         </section>
         <section className="auth-form-wrap">{children}</section>
       </div>

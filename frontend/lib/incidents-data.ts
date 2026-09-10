@@ -167,7 +167,7 @@ export function buildIncidents(persisted: any, derived: any, alerts: AlertRow[])
       severity: top.severity === "Critical" ? "P1" : top.severity === "Major" ? "P2" : "P3",
       status: "OPEN",
       created: top.time,
-      owner: "TradeOps",
+      owner: "Argus TradeOps",
       type: top.source,
       raw: top.raw,
     });

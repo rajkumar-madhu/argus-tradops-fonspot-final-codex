@@ -79,3 +79,28 @@ class JournalSnapshotTests(unittest.TestCase):
         self.assertEqual(rows[0]["NOREN_ORD_NUM"], "ORD-1")
         self.assertEqual(rows[0]["EXCH_SEG"], "NSE")
         self.assertGreater(rows[0]["OMS_LATENCY"], 0)
+
+
+class JournalRejectionMaskingTests(unittest.TestCase):
+    def tearDown(self):
+        load_journal.cache_clear()
+
+    def test_rejection_reasons_are_masked_and_grouped_across_clients(self):
+        from app.journal_snapshot import journal_rejections
+        rows = [
+            {"msg_type": "ordupd", "NorenOrdNum": str(i), "NorenTimeStamp": 100 + i, "OrdStatus": 56,
+             "RejReason": f"RED:Margin Shortfall:INR {i}.50 Available:INR {i}000.00 for C-R{i}9-PSB [PSBDIRECT-PSB]"}
+            for i in range(1, 4)
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "journal.log"
+            path.write_text("\n".join(json.dumps(row) for row in rows))
+            result = journal_rejections(str(path))
+        self.assertEqual(len(result["groups"]), 1, "per-client variants collapse into one group")
+        group = result["groups"][0]
+        self.assertEqual(group["count"], 3)
+        self.assertEqual(group["reason"], "RED:Margin Shortfall:INR *** Available:INR *** for C-***-PSB [PSBDIRECT-PSB]")
+        self.assertEqual(group["code"], "RED")
+        encoded = json.dumps(result)
+        for secret in ("C-R19", "1000.00", "2.50"):
+            self.assertNotIn(secret, encoded)

@@ -5,7 +5,7 @@ from typing import Any
 
 from app.config import settings
 from app.elastic.client import get_es
-from app.elastic.normalizer import normalize_order, normalize_session_event, rejection_category, rejection_code
+from app.elastic.normalizer import mask_reason, normalize_order, normalize_session_event, rejection_category, rejection_code
 
 
 
@@ -164,21 +164,26 @@ def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
         if o["order_id"] and o["order_id"] not in latest_by_order:
             latest_by_order[o["order_id"]] = o
     unique = list(latest_by_order.values())
+    # Code and category are read from the raw reason, then the text is masked:
+    # reasons carry client codes and balances, and this payload also feeds the
+    # event bus (incident titles) and every rejection view.
+    for o in unique:
+        raw = o.get("reason") or ""
+        o["code"] = o.get("code") or rejection_code(raw) or "RMS"
+        o["rejection_category"] = o.get("rejection_category") or rejection_category(raw) or "Other"
+        o["reason"] = mask_reason(raw)
 
     groups: dict[tuple[str, str, str], dict[str, Any]] = {}
     for o in unique:
         reason = o.get("reason") or "Unknown rejection"
-        code = o.get("code") or rejection_code(reason) or "RMS"
-        category = o.get("rejection_category") or rejection_category(reason) or "Other"
+        code = o["code"]
+        category = o["rejection_category"]
         key = (code, reason, category)
         if key not in groups:
             groups[key] = {"code": code, "reason": reason, "category": category, "count": 0, "trend": "—"}
         groups[key]["count"] += 1
     ranked = sorted(groups.values(), key=lambda x: x["count"], reverse=True)[:30]
-    categories = Counter(
-        (o.get("rejection_category") or rejection_category(o.get("reason") or "") or "Uncategorized")
-        for o in unique
-    )
+    categories = Counter(o["rejection_category"] or "Uncategorized" for o in unique)
     return {
         "groups": ranked,
         "orders": unique if max_orders is None else unique[:max_orders],

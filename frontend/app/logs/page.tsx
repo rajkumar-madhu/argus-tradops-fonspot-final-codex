@@ -7,7 +7,7 @@ import { apiError, getJSON } from "@/lib/api";
 import { fmt } from "@/lib/format";
 import {
   clearFacets, displayValue, fieldLabel, histogramHeights, isUntranslated, pageBounds,
-  selectedFacets, shortTime, toggleFacet, withOffset,
+  istTime, selectedFacets, toggleFacet, withOffset,
   type Facet, type HistogramBucket,
 } from "@/lib/journal-explore";
 
@@ -103,7 +103,7 @@ export default async function Page({ searchParams }: {
             </form>
             <div className="jx-scope">
               Matching {fmt(count)} of {fmt(d.total ?? 0)} {msgType} records
-              {d.histogram?.start && <> · {shortTime(d.histogram.start)}–{shortTime(d.histogram.end)} UTC</>}
+              {d.histogram?.start && <> · {istTime(d.histogram.start)}–{istTime(d.histogram.end)} IST</>}
               {(d.histogram?.undated ?? 0) > 0 && <> · {fmt(d.histogram!.undated!)} without a timestamp</>}
             </div>
           </section>
@@ -162,7 +162,7 @@ export default async function Page({ searchParams }: {
                     {buckets.map((bucket, index) => (
                       <span key={bucket.start} className="jx-bar"
                             style={{ height: `${Math.max(heights[index], bucket.count ? 2 : 0)}%` }}
-                            title={`${shortTime(bucket.start)} · ${bucket.count}`} />
+                            title={`${istTime(bucket.start)} IST · ${bucket.count}`} />
                     ))}
                   </div>
                 )}

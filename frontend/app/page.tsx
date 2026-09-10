@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import MarketTicker from "@/components/MarketTicker";
 import LandingPreview from "@/components/LandingPreview";
-import { MiniBars } from "@/components/Charts";
+import { SkeletonBars } from "@/components/Charts";
 
 const MODULES: [React.ComponentType<any>, string, string, string][] = [
   [Activity, "Trading Operations", "Orders, trades, positions, holdings and P&L", "Monitor and analyse your trading activity in real time."],
@@ -58,7 +58,7 @@ const APIS: [React.ComponentType<any>, string, string][] = [
 ];
 
 const WHY: [React.ComponentType<any>, string, string][] = [
-  [Lock, "Read-only by design", "TradeOps never places, cancels or modifies an order. Credentials stay read-only."],
+  [Lock, "Read-only by design", "Argus TradeOps never places, cancels or modifies an order. Credentials stay read-only."],
   [Zap, "Built for the trading day", "One collector polls Elasticsearch; dashboards fan out from Redis, so load stays flat."],
   [Layers3, "Your data, your estate", "Runs entirely inside your environment. Nothing leaves the perimeter."],
   [LifeBuoy, "Support that knows markets", "Market-hours cover from people who have run trading infrastructure."],
@@ -79,17 +79,17 @@ const VOICES: [string, string, string][] = [
 
 const RESOURCES: [string, string, string][] = [
   ["Architecture", "How the collector, event bus and correlation worker fit together", "8 min read"],
-  ["Field mapping", "Translating Noren journal fields into TradeOps concepts", "6 min read"],
+  ["Field mapping", "Translating Noren journal fields into Argus TradeOps concepts", "6 min read"],
   ["Operations", "Running the stack on Kubernetes with HA Postgres and Redis", "10 min read"],
   ["Root cause", "Reading an RCA evidence chain and its confidence score", "5 min read"],
   ["Security", "PII masking, RBAC and keeping Elasticsearch credentials read-only", "7 min read"],
   ["Exchange health", "What heartbeat age and reject rate actually tell you", "4 min read"],
   ["Alerting", "Designing incident severity so P2 means something", "6 min read"],
-  ["Onboarding", "Pointing TradeOps at an existing Filebeat and Logstash pipeline", "9 min read"],
+  ["Onboarding", "Pointing Argus TradeOps at an existing Filebeat and Logstash pipeline", "9 min read"],
 ];
 
 const FAQS: [string, string][] = [
-  ["What does TradeOps actually do?", "It reads your Noren trading journal out of Elasticsearch, correlates what it finds into incidents and root-cause cases, and serves dashboards over the result. It is an observability layer, not a trading system."],
+  ["What does Argus TradeOps actually do?", "It reads your Noren trading journal out of Elasticsearch, correlates what it finds into incidents and root-cause cases, and serves dashboards over the result. It is an observability layer, not a trading system."],
   ["Can it place or modify orders?", "No. There is no write path to any trading system anywhere in the product, and the Elasticsearch credentials it uses are read-only. That constraint is architectural, not a setting."],
   ["Which exchanges and segments are covered?", "Anything present in the journal. Segments are read from the journal itself, so equities, F&O, currency and commodity all appear once they are being written."],
   ["Where does it run?", "Inside your environment — cloud, on-premise or hybrid. Kubernetes manifests ship with the product. No market or client data leaves your perimeter."],
@@ -112,7 +112,7 @@ export default function Landing() {
       <nav className="landing-nav">
         <Link href="/" className="brand">
           <div className="brand-bars"><i /><i /><i /></div>
-          <span><b>TradeOps</b><small>Trading Observability Platform</small></span>
+          <span><b>Argus TradeOps</b><small>Trading Observability Platform</small></span>
         </Link>
         <div className="navlinks">
           <a href="#suite">Product</a>
@@ -177,11 +177,11 @@ export default function Landing() {
                   <div className="suite-rows">
                     <span /><span /><span /><span />
                   </div>
-                  <MiniBars values={[28, 40, 34, 52, 46, 61, 55, 70, 64, 78]} cls="bar-blue" />
+                  <SkeletonBars count={10} />
                 </div>
               </div>
               <span className="suite-tag">{tag}</span>
-              <h3><span className="feature-icon sm"><Icon size={17} /></span>TradeOps {name}</h3>
+              <h3><span className="feature-icon sm"><Icon size={17} /></span>Argus TradeOps {name}</h3>
               <p>{body}</p>
               <ul className="ticks">
                 {points.map((p) => <li key={p}><CheckCircle2 size={14} />{p}</li>)}
@@ -240,7 +240,7 @@ export default function Landing() {
             <div className="pipe-arrow"><ArrowRight size={15} /></div>
             <div className="pipe-node"><Plug size={16} /><b>Event bus</b><small>Redis streams</small></div>
             <div className="pipe-arrow"><ArrowRight size={15} /></div>
-            <div className="pipe-node"><Gauge size={16} /><b>TradeOps UI</b><small>dashboards &amp; RCA</small></div>
+            <div className="pipe-node"><Gauge size={16} /><b>Argus TradeOps UI</b><small>dashboards &amp; RCA</small></div>
           </div>
         </div>
       </section>
@@ -275,9 +275,8 @@ export default function Landing() {
             </ul>
           </div>
           <div className="split-visual">
-            <div className="stat-bubble"><span>Orders</span><b>15,432</b><em className="up">▲ 12.4%</em></div>
-            <div className="split-chart"><MiniBars values={[30, 34, 31, 42, 38, 50, 46, 58, 55, 66, 63, 74, 70, 82, 78, 88]} cls="bar-green" /></div>
-            <div className="chart-axis"><span>09:00</span><span>12:00</span><span>15:00</span><span>18:00</span></div>
+            <div className="stat-bubble"><span>Orders</span><i className="preview-skel preview-skel-value" /></div>
+            <div className="split-chart"><SkeletonBars count={16} /></div>
           </div>
         </div>
         <div className="split-card">
@@ -307,7 +306,7 @@ export default function Landing() {
       <section id="deployment" className="deployment">
         <div>
           <h2>Flexible Deployment for Your Environment</h2>
-          <p>Deploy TradeOps anywhere: cloud, on-premise or hybrid.</p>
+          <p>Deploy Argus TradeOps anywhere: cloud, on-premise or hybrid.</p>
           <div className="deploy-cards">
             <div><Cloud /><b>Cloud</b><span>Quick deployment on AWS, Azure or GCP</span></div>
             <div><Server /><b>On-Premise</b><span>Full control within your infrastructure</span></div>
@@ -325,10 +324,10 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Why TradeOps — TrueData's credibility block */}
+      {/* Why Argus TradeOps — TrueData's credibility block */}
       <section id="why" className="why">
         <div className="section-head center">
-          <div><h2>Why Teams Choose TradeOps</h2><p>Purpose-built for Indian market operations, not a repurposed APM</p></div>
+          <div><h2>Why Teams Choose Argus TradeOps</h2><p>Purpose-built for Indian market operations, not a repurposed APM</p></div>
         </div>
         <div className="why-metrics">
           {METRICS.map(([v, l]) => <div key={l}><b>{v}</b><span>{l}</span></div>)}
@@ -430,8 +429,8 @@ export default function Landing() {
       <footer id="footer" className="landing-footer">
         <div className="footer-grid six">
           <div className="footer-brand">
-            <div className="brand"><div className="brand-bars"><i /><i /><i /></div><span><b>TradeOps</b><small>Trading Observability Platform</small></span></div>
-            <p>Read-only observability for Noren trading journals. TradeOps never places, cancels or modifies orders.</p>
+            <div className="brand"><div className="brand-bars"><i /><i /><i /></div><span><b>Argus TradeOps</b><small>Trading Observability Platform</small></span></div>
+            <p>Read-only observability for Noren trading journals. Argus TradeOps never places, cancels or modifies orders.</p>
             <form className="footer-signup" action="#footer">
               <input type="email" name="email" placeholder="Work email" aria-label="Work email" />
               <button type="submit">Subscribe</button>
@@ -446,7 +445,7 @@ export default function Landing() {
           <div><b>Platform</b><a href="#suite">Console</a><a href="#suite">RCA Studio</a><a href="#suite">Journal</a><a href="#platform">Exchange Health</a><a href="#platform">Infrastructure</a></div>
           <div><b>Modules</b><a href="#platform">Trading Operations</a><a href="#platform">Alerts &amp; Incidents</a><a href="#platform">Users &amp; Sessions</a><a href="#deployment">Deployment</a></div>
           <div><b>Developers</b><a href="#apis">Streaming events</a><a href="#apis">Metrics</a><a href="#apis">Incidents &amp; RCA</a><a href="#apis">Journal search</a></div>
-          <div><b>Resources</b><a href="#resources">Guides</a><a href="#faq">FAQ</a><a href="#why">Why TradeOps</a><a href="#customers">Customers</a></div>
+          <div><b>Resources</b><a href="#resources">Guides</a><a href="#faq">FAQ</a><a href="#why">Why Argus TradeOps</a><a href="#customers">Customers</a></div>
           <div className="footer-contact">
             <b>Support</b>
             <a href="#support"><Mail size={13} />support@tradeops.example</a>
@@ -456,7 +455,7 @@ export default function Landing() {
           </div>
         </div>
         <div className="footer-legal">
-          <span>© {new Date().getFullYear()} TradeOps. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} Argus TradeOps. All rights reserved.</span>
           <span><a href="#terms">Terms &amp; Conditions</a> · <a href="#privacy">Privacy Policy</a> · <a href="#disclaimer">Disclaimer</a> · <a href="#refund">Refund Policy</a></span>
         </div>
       </footer>

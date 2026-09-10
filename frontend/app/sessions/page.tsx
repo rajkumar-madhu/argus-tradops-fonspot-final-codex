@@ -1,5 +1,5 @@
 import Shell from "@/components/Shell";
-import SessionsView from "@/components/SessionsView";
+import SessionsOverview from "@/components/SessionsOverview";
 import { EmptyState } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
 
@@ -20,7 +20,7 @@ export default async function Page() {
           body={`${err}. Confirm the API is running on port 8001.`}
         />
       ) : (
-        <SessionsView data={sessions} summary={summary} />
+        <SessionsOverview data={sessions} summary={summary} />
       )}
     </Shell>
   );

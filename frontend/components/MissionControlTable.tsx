@@ -51,6 +51,43 @@ function Side({ value }: { value: string }) {
   return <span className={`order-side ${side === "SELL" ? "sell" : "buy"}`}>{side || "—"}</span>;
 }
 
+/**
+ * Inline record view for one order: the allow-listed, masked journal projection
+ * the API already returned with the row, so expanding needs no second fetch.
+ */
+function OrderRecord({ order }: { order: any }) {
+  const fields: Record<string, unknown> = order.journal_fields || {};
+  const shown = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  const masked: string[] = Array.isArray(order.masked_fields) ? order.masked_fields : [];
+  return (
+    <div className="jx-detail mission-record" onClick={(e) => e.stopPropagation()}>
+      <div className="jx-detail-head mission-record-head">
+        <span>
+          Order <b>{order.order_id}</b>
+          {order.source_row ? ` · source line ${order.source_row}` : ""} · {shown.length} of {Object.keys(fields).length} fields populated
+          {masked.length ? ` · ${masked.length} masked` : ""} · masked at projection
+        </span>
+        <span className="mission-row-actions">
+          <Link href={`/orders?order=${encodeURIComponent(order.order_id)}`}>Lifecycle ›</Link>
+          <Link href={`/rca?order_id=${encodeURIComponent(order.order_id)}`}>RCA ›</Link>
+        </span>
+      </div>
+      {shown.length ? (
+        <dl className="jx-fields">
+          {shown.map(([k, v]) => (
+            <div key={k} className="jx-field">
+              <dt>{k}</dt>
+              <dd>{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="mission-record-empty">This source returned no journal fields for the order; open the lifecycle view for its events.</p>
+      )}
+    </div>
+  );
+}
+
 export default function MissionControlTable({
   initial,
   source,
@@ -68,7 +105,9 @@ export default function MissionControlTable({
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [facets, setFacets] = useState<MissionFacets>(EMPTY_FACETS);
   const [draft, setDraft] = useState<MissionFacets>(EMPTY_FACETS);
+  const [openId, setOpenId] = useState<string | undefined>();
   const latestData = useRef<any>(initial || {});
+  const isJournal = source === "journal snapshot";
   const pausedRef = useRef(false);
 
   useEffect(() => {
@@ -306,6 +345,10 @@ export default function MissionControlTable({
         <DataTable
           rows={visible}
           rowKey={(r) => r.order_id}
+          selectedId={openId}
+          onRowClick={(r) => setOpenId((cur) => (cur === r.order_id ? undefined : r.order_id))}
+          renderDetail={(r) => <OrderRecord order={r} />}
+          filtersOpen={false}
           columns={[
             { key: "time", label: "Time", render: (r) => r.time_label },
             {
@@ -332,14 +375,20 @@ export default function MissionControlTable({
               label: "Status",
               render: (r) => <Status value={String(r.status || "—")} />,
             },
-            { key: "latency_ms", label: "Latency" },
+            {
+              key: "latency_ms",
+              // From the journal this is the gap between the order's original and
+              // current Noren timestamps, not a network or OMS latency.
+              label: isJournal ? "Event gap" : "Latency",
+              render: (r) => (r.latency_ms == null ? "—" : `${Number(r.latency_ms).toLocaleString("en-IN", { maximumFractionDigits: 1 })} ms`),
+            },
             {
               key: "details",
               label: "Actions",
               render: (r) => (
                 <span className="mission-row-actions">
-                  <Link href={`/orders?order=${encodeURIComponent(r.order_id)}`}>View</Link>
-                  <Link href={`/rca?order_id=${encodeURIComponent(r.order_id)}`}>RCA</Link>
+                  <Link href={`/orders?order=${encodeURIComponent(r.order_id)}`} onClick={(e) => e.stopPropagation()}>Lifecycle</Link>
+                  <Link href={`/rca?order_id=${encodeURIComponent(r.order_id)}`} onClick={(e) => e.stopPropagation()}>RCA</Link>
                 </span>
               ),
             },
@@ -347,7 +396,7 @@ export default function MissionControlTable({
         />
       )}
       <p className="mission-table-footnote">
-        Read-only · View / RCA only · TradeOps never places, cancels, or edits orders.
+        Read-only · Click a row for its full masked record · Argus TradeOps never places, cancels, or edits orders.
       </p>
     </section>
   );

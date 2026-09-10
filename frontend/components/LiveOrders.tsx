@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { time24 } from '@/lib/format';
+import { fmt, time24 } from '@/lib/format';
+import { istTime, lifecycleSteps } from '@/lib/journal-explore';
 import { apiUrl } from '@/lib/runtime';
 import { authHeaders } from '@/lib/session';
 import { openAuthenticatedEventSource } from '@/lib/stream';
@@ -9,7 +10,7 @@ import {
   ORDER_JOURNAL_FIELD_TITLES,
   type OrderJournalFieldValues,
 } from '@/lib/order-journal-fields';
-import { Activity, CheckCheck, ClipboardList, Clock3, Pause, Play, XCircle } from 'lucide-react';
+import { Activity, Check, CheckCheck, ClipboardList, Clock3, ListChecks, Pause, Play, X, XCircle } from 'lucide-react';
 import { DataTable, KpiCard } from '@/components/UI';
 function Status({ value }: { value: string }) {
   return <span className={`order-status ${String(value || '').toLowerCase()}`}>{value}</span>;
@@ -47,10 +48,13 @@ export default function LiveOrders({
   initial,
   snapshot = false,
   requestedOrder,
+  overview,
 }: {
   initial: any;
   snapshot?: boolean;
   requestedOrder?: string;
+  /** /api/overview totals; null when unavailable to this role or source. */
+  overview?: any;
 }) {
   const [data, setData] = useState<any>(initial || {});
   const [connected, setConnected] = useState(false);
@@ -97,6 +101,19 @@ export default function LiveOrders({
 
   const rows = data.items || [];
   const selected = rows.find((row: any) => row.order_id === selectedId) || {};
+  const countStatus = (...statuses: string[]) => rows.filter((r: any) => statuses.includes(r.status)).length;
+  // Source-wide totals only when the overview supplied them; otherwise every
+  // tile counts the loaded rows, never a mix of `count` and loaded rows.
+  const totalOrders = Number(overview?.orders ?? rows.length);
+  const liveCount = Number(overview?.open ?? countStatus('OPEN', 'PARTIAL'));
+  const executedCount = Number(overview?.complete ?? countStatus('COMPLETE'));
+  const rejectedCount = Number(overview?.rejected ?? countStatus('REJECTED'));
+  const pendingCount = Number(overview?.pending ?? countStatus('PENDING', 'TRIGGER_PENDING'));
+  const share = (n: number) => (totalOrders ? `${((n / totalOrders) * 100).toFixed(1)}%` : '—');
+  const lastEvent = rows.reduce((latest: string, r: any) => (r.time && (!latest || Date.parse(r.time) > Date.parse(latest)) ? r.time : latest), '');
+  const steps = lifecycleSteps(events);
+  // Long partial-fill histories: keep the first and the last two steps.
+  const stepperSteps = steps.length > 5 ? [...steps.slice(0, 2), null, ...steps.slice(-2)] : steps;
   const journalFields = (selected.journal_fields || {}) as OrderJournalFieldValues;
   const maskedFields = new Set<string>(selected.masked_fields || []);
   useEffect(() => {
@@ -138,60 +155,55 @@ export default function LiveOrders({
 
   return (
     <>
-      <section className="live-orders-kpis" aria-label="Loaded order summary">
+      <section className="kpi-grid ref-kpis six live-orders-kpis" aria-label="Order summary">
         <KpiCard
-          label="Loaded orders"
-          value={rows.length}
-          sub={snapshot ? 'Historical snapshot' : 'Current loaded window'}
-          icon={<ClipboardList size={20} />}
+          label="Total Orders"
+          value={fmt(totalOrders)}
+          delta={overview ? 'Unique orders in source' : `${fmt(rows.length)} loaded rows`}
+          tone="blue"
+          icon={<ClipboardList size={18} />}
+        />
+        <KpiCard
+          label="Live Orders"
+          value={fmt(liveCount)}
+          delta={overview ? 'Latest status open' : 'Open in loaded rows'}
+          tone="green"
+          icon={<ListChecks size={18} />}
         />
         <KpiCard
           label="Executed"
-          value={rows.filter((r: any) => r.status === 'COMPLETE').length}
-          sub="In loaded rows"
+          value={fmt(executedCount)}
+          delta={share(executedCount)}
+          deltaTone="up"
           tone="green"
-          icon={<CheckCheck size={20} />}
+          icon={<CheckCheck size={18} />}
         />
         <KpiCard
           label="Rejected"
-          value={rows.filter((r: any) => r.status === 'REJECTED').length}
-          sub="In loaded rows"
+          value={fmt(rejectedCount)}
+          delta={share(rejectedCount)}
+          deltaTone="down"
           tone="red"
-          icon={<XCircle size={20} />}
+          icon={<XCircle size={18} />}
         />
         <KpiCard
-          label="Open / Pending"
-          value={
-            rows.filter((r: any) =>
-              ['OPEN', 'PENDING', 'TRIGGER_PENDING', 'PARTIAL'].includes(r.status),
-            ).length
-          }
-          sub="Includes partial fills"
+          label="Pending"
+          value={fmt(pendingCount)}
+          delta={share(pendingCount)}
+          deltaTone={pendingCount ? 'warn' : ''}
           tone="amber"
-          icon={<Clock3 size={20} />}
+          icon={<Clock3 size={18} />}
         />
         <KpiCard
-          label="Stream / source"
-          value={
-            snapshot
-              ? 'Historical'
-              : initial?.source === 'demo'
-                ? 'Offline'
-                : paused
-                  ? 'Paused'
-                  : connected
-                    ? 'Connected'
-                    : 'Disconnected'
-          }
-          sub={
-            snapshot || initial?.source === 'demo'
-              ? 'No live stream'
-              : paused
-                ? 'Display paused · buffering'
-                : initial?.source || 'Source unavailable'
+          label="Last Update"
+          value={lastEvent ? istTime(lastEvent) : '—'}
+          delta={
+            snapshot || initial?.source === 'demo' || initial?.source === 'journal snapshot'
+              ? 'Latest journal event (IST)'
+              : paused ? 'Display paused · buffering' : connected ? 'Stream connected' : 'Stream disconnected'
           }
           tone={connected && !paused ? 'green' : 'blue'}
-          icon={<Activity size={20} />}
+          icon={<Activity size={18} />}
         />
       </section>
       <section className="panel orders-main">
@@ -256,7 +268,7 @@ export default function LiveOrders({
       <section className="order-evidence-grid" aria-label="Order investigation">
         <section className="panel order-detail">
           <div className="panel-head">
-            <b>Selected Order</b>
+            <b>Order Details{selected.order_id ? ` - ${selected.order_id}` : ''}</b>
             {selected.status && <Status value={selected.status} />}
           </div>
           <dl>
@@ -321,19 +333,31 @@ export default function LiveOrders({
                 : 'Select an order to inspect its lifecycle.'}
             </p>
           )}
-          <ol className="evidence-timeline">
-            {events.slice(-8).map((event: any, index: number) => (
-              <li key={`${event.time}-${index}`}>
-                <Status value={event.status} />
-                <time>{time24(event.time)} IST</time>
-                <span>
-                  Report {event.report_type ?? '—'} · filled {event.filled_qty ?? 0}
-                </span>
-              </li>
-            ))}
-          </ol>
-          {events.length > 8 && (
-            <p className="evidence-note">Latest 8 events shown; complete evidence is below.</p>
+          {steps.length > 0 && (
+            <ol className="lifecycle-stepper" aria-label="Order lifecycle">
+              {stepperSteps.map((step, index) =>
+                step === null ? (
+                  <li key="more" className="more">
+                    <span className="dot">…</span>
+                    <b>{steps.length - 4} more</b>
+                    <small>events</small>
+                  </li>
+                ) : (
+                  <li key={`${step.time}-${index}`} className={step.tone ? `tone-${step.tone}` : undefined}>
+                    <span className="dot">{step.tone === 'rejected' ? <X size={14} /> : <Check size={14} />}</span>
+                    <b>{step.status}</b>
+                    <small>{step.time}</small>
+                  </li>
+                ),
+              )}
+            </ol>
+          )}
+          {selected.status === 'REJECTED' && (
+            <div className="lifecycle-reject">
+              <div><span>Rejection Code</span><b>{selected.code || '—'}</b></div>
+              <div><span>Category</span><span>{selected.rejection_category || '—'}</span></div>
+              <a href={`/rca?order_id=${encodeURIComponent(selectedId)}`}>Open RCA ›</a>
+            </div>
           )}
         </section>
         <section className="panel">

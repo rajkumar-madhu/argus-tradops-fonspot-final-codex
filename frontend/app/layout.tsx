@@ -43,7 +43,7 @@ const mono = localFont({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "TradeOps Command Center",
+  title: "Argus TradeOps",
   description: "Trading observability, rejection intelligence and RCA"
 };
 

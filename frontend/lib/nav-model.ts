@@ -10,12 +10,15 @@
 export type NavItem = { href: string; label: string; icon: string };
 export type NavGroup = { label: string; items: NavItem[] };
 
-/** The four groups deliberately mirror the RBAC route sets in ROLE_ROUTES. */
+/**
+ * Rail order follows the reference mockups (Overview → Configuration). The
+ * groups still exist for the model and tests; the rail renders them flat.
+ */
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Desk",
     items: [
-      { href: "/dashboard", label: "Mission Control", icon: "BarChart3" },
+      { href: "/dashboard", label: "Overview", icon: "BarChart3" },
       { href: "/orders", label: "Live Orders", icon: "ClipboardList" },
       { href: "/order-book", label: "Order Book", icon: "BookOpenCheck" },
       { href: "/trades", label: "Trades", icon: "CircleDollarSign" },
@@ -28,9 +31,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/rejections", label: "Rejections", icon: "Activity" },
       { href: "/rca", label: "RCA & Analysis", icon: "ShieldCheck" },
-      { href: "/order-latency", label: "OMS Latency", icon: "Timer" },
-      { href: "/queue-monitor", label: "Queue Monitor", icon: "Layers3" },
-      { href: "/data-quality", label: "Data Quality", icon: "Boxes" },
     ],
   },
   {
@@ -48,7 +48,11 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/infra", label: "Infrastructure", icon: "Server" },
       { href: "/logs", label: "Logs Explorer", icon: "Search" },
       { href: "/incidents", label: "Alerts & Incidents", icon: "AlertTriangle" },
-      { href: "/reports", label: "Reports", icon: "Boxes" },
+      { href: "/reports", label: "Reports", icon: "FileText" },
+      // Not in the reference rail: the CSV-backed workspaces sit after Reports.
+      { href: "/order-latency", label: "OMS Latency", icon: "Timer" },
+      { href: "/queue-monitor", label: "Queue Monitor", icon: "Layers3" },
+      { href: "/data-quality", label: "Data Quality", icon: "Boxes" },
       { href: "/configuration", label: "Configuration", icon: "Settings" },
     ],
   },
