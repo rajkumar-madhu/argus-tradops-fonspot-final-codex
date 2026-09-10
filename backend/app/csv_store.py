@@ -176,12 +176,28 @@ class CsvStore:
                     if (now.st_size,now.st_mtime_ns,now.st_ino)!=(st.st_size,st.st_mtime_ns,st.st_ino):raise ValueError('Source changed during ingestion')
                 if not m['accepted'] and m['state']=='Ready':m['state']='No valid rows' if m['rejected'] else 'No data received'
                 elif m['rejected'] or m['invalid_values'] or m['missing_values'] or m['timestamp_mismatches']:m['state']='Partial data'
-            except (OSError,ValueError,csv.Error,UnicodeError) as error:
-                db.rollback()
-                m['state']=str(error) if isinstance(error,ValueError) and str(error) in ('Rejected path','File too large','Missing required fields','Row limit exceeded','Source changed during ingestion') else 'Unreadable or malformed file'
-                db.execute('DELETE FROM events WHERE file=?',(path.name,));m['accepted']=0;m['rejected']=m['rows'];m['duplicates']=0
+            except (OSError, ValueError, csv.Error, UnicodeError, sqlite3.Error) as error:
+                try:
+                    db.rollback()
+                except sqlite3.Error:
+                    pass
+                if isinstance(error, sqlite3.Error):
+                    # Progress-handler deadlines raise OperationalError: interrupted.
+                    # Leave prior accepted rows in place after rollback; clear the
+                    # signature so the next explicit ingest retries.
+                    m['state'] = 'Ingestion interrupted'
+                else:
+                    m['state']=str(error) if isinstance(error,ValueError) and str(error) in ('Rejected path','File too large','Missing required fields','Row limit exceeded','Source changed during ingestion') else 'Unreadable or malformed file'
+                    try:
+                        db.execute('DELETE FROM events WHERE file=?',(path.name,))
+                        m['accepted']=0;m['rejected']=m['rows'];m['duplicates']=0
+                    except sqlite3.Error:
+                        m['state'] = 'Ingestion interrupted'
                 signature=''  # Retry failed inputs on the next explicit ingestion.
             m['duration_seconds']=round(time.perf_counter()-start,4)
+            # The deadline bounds the bulk work above. Once it has fired it fires on every
+            # later statement, so disarm it or the file's state could never be recorded.
+            db.set_progress_handler(None,0)
             db.execute('INSERT OR REPLACE INTO files VALUES(?,?,?)',(path.name,signature,json.dumps(m)));db.commit()
         LOG.info('%s',json.dumps({'event':'file_ingested','kind':kind,'state':m['state'],'rows':m['rows'],'accepted':m['accepted'],'rejected':m['rejected'],'duration_seconds':m['duration_seconds']}))
         try:
