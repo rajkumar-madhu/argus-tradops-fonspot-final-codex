@@ -8300,3 +8300,37 @@ table tbody tr:hover { background: #e6f0ec; }
 .ref-kpis.six > div > .kpi-card { height: 100%; }
 .ref-grid.four .donut-legend span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ref-grid.four .ref-table th, .ref-grid.four .ref-table td { padding: 6px 7px; }
+
+/* Live Orders (mockup 01_18_02): six-tile row, two-column order details,
+   horizontal lifecycle stepper with a rejection box. */
+.app-shell .live-orders-kpis.ref-kpis.six { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 12px 0 14px; }
+.app-shell .live-orders-kpis .kpi-card { min-height: 0; }
+.app-shell .live-orders-kpis .kpi-card-sub, .app-shell .live-orders-kpis .kpi-card-delta { font-size: 12.5px; }
+.app-shell .order-detail dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; padding: 6px 16px 14px; margin: 0; }
+.app-shell .order-detail dl > div { display: grid; grid-template-columns: 110px 1fr; gap: 8px; padding: 5px 0; border-bottom: 1px solid #eef2f8; font-size: 12.5px; }
+.app-shell .order-detail dt { color: #5b6782; }
+.app-shell .order-detail dd { margin: 0; color: #1f2a44; overflow-wrap: anywhere; }
+.lifecycle-stepper { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 14px 16px 10px; padding: 0; position: relative; }
+.lifecycle-stepper::before { content: ""; position: absolute; left: 10%; right: 10%; top: 13px; height: 2px; background: #16a34a; }
+.lifecycle-stepper li { display: grid; justify-items: center; gap: 4px; text-align: center; position: relative; font-size: 12px; }
+.lifecycle-stepper .dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #16a34a; color: #fff; font-weight: 700; z-index: 1; }
+.lifecycle-stepper li.tone-rejected .dot { background: #e5383b; }
+.lifecycle-stepper li.tone-open .dot, .lifecycle-stepper li.tone-pending .dot { background: #0b5cff; }
+.lifecycle-stepper li.more .dot { background: #fff; color: #5b6782; border: 2px solid #dbe3ef; }
+.lifecycle-stepper b { color: #1f2a44; font-weight: 600; }
+.lifecycle-stepper li.tone-rejected b { color: #e5383b; }
+.lifecycle-stepper small { color: #6b778f; font-family: var(--f-mono); font-size: 11px; }
+.lifecycle-reject { margin: 4px 16px 14px; background: #fdeeee; border: 1px solid #f8cfd0; border-radius: 6px; padding: 10px 12px; display: grid; gap: 5px; font-size: 12.5px; }
+.lifecycle-reject div { display: grid; grid-template-columns: 110px 1fr; }
+.lifecycle-reject span:first-child { color: #5b6782; }
+.lifecycle-reject b { color: #e5383b; font-size: 15px; }
+.lifecycle-reject a { color: #0b5cff; font-weight: 600; font-size: 12px; }
+@media (max-width: 1400px) { .app-shell .live-orders-kpis.ref-kpis.six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.app-shell .order-detail dl > div { grid-template-columns: minmax(84px, 42%) 1fr; border-top: 0; font-size: 12.5px; }
+.app-shell .order-detail dt, .app-shell .order-detail dd { padding: 4px 0; }
+.app-shell .order-detail dd { border-left: 0; font-family: var(--f-body); font-size: 12.5px; }
+.app-shell .order-evidence-grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr); }
+.app-shell .order-detail dl > div { grid-template-columns: 92px minmax(0, 1fr); }
+.app-shell .order-detail dd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1250px) { .app-shell .order-evidence-grid { grid-template-columns: 1fr; } }
+.app-shell .order-evidence-grid .table-scroll table { min-width: 0; width: 100%; }

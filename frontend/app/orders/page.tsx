@@ -12,12 +12,15 @@ export default async function Page({
   const params = await searchParams;
   const snapshot = params.source === 'journal';
   const lookback = queryWindow(params.lookback);
+  // Totals for the KPI row come from the overview, not from the loaded page of rows.
+  const overviewPromise = getJSON('/api/overview');
   const initial: any = await getJSON(
     snapshot
       ? '/api/journal/orders?size=10000'
       : `/api/orders?size=100&lookback=${lookback}${params.order ? `&q=${encodeURIComponent(params.order)}` : ''}`,
   );
   const err = apiError(initial);
+  const overview: any = await overviewPromise;
 
   return (
     <Shell>
@@ -27,7 +30,7 @@ export default async function Page({
           subtitle={
             snapshot
               ? `Historical journal snapshot · ${initial.from || '—'} to ${initial.to || '—'}`
-              : 'Streaming order flow from the Noren journal via the Redis event bus'
+              : 'Order flow from Noren Trader / OMS'
           }
           badge={`${initial.count ?? initial.returned ?? 0} orders · ${initial.source || '—'}`}
         />
@@ -48,7 +51,7 @@ export default async function Page({
             body={`${err}. Confirm the API is running on port 8001.`}
           />
         ) : (
-          <LiveOrders initial={initial} snapshot={snapshot} requestedOrder={params.order} />
+          <LiveOrders initial={initial} snapshot={snapshot} requestedOrder={params.order} overview={apiError(overview) ? null : overview} />
         )}
       </div>
     </Shell>
