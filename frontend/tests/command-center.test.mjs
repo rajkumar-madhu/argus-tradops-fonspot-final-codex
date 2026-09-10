@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   clientImpact,
   dataQuality,
+  isDenied,
   istClock,
+  measured,
   orderBurst,
   platformHealth,
   queueInstances,
@@ -11,6 +13,7 @@ import {
   rejectRateTrend,
   sessionRail,
   slowestHop,
+  sourceChips,
   stateTone,
 } from '../lib/command-center.ts';
 
@@ -113,4 +116,22 @@ test('queue instances keep aliases separate and skip instances without data', ()
   ] });
   assert.deepEqual(q.rows.map((r) => r.instance), ['NSE2', 'NSE']);
   assert.equal(q.empty, 1);
+});
+
+test('a permission refusal is distinguished from an outage', () => {
+  assert.equal(isDenied({ _error: 'x', _status: 403 }), true);
+  assert.equal(isDenied({ _error: 'x', _status: 401 }), true);
+  assert.equal(isDenied({ _error: 'API 503', _status: 503 }), false);
+  assert.equal(isDenied({ items: [] }), false);
+});
+
+test('null latency buckets are dropped, never plotted as zero', () => {
+  assert.deepEqual(measured([170.5, null, undefined, '', 0, 2969.7]), [170.5, 0, 2969.7]);
+});
+
+test('source chips list only sources the API reports', () => {
+  const live = sourceChips({ items: [] }, { elasticsearch: { status: 'Connected' } }, 'elasticsearch');
+  assert.deepEqual(live.map((c) => [c.name, c.tone]), [['Elasticsearch', 'ok']]);
+  const file = sourceChips({ items: [{ name: 'a.csv', state: 'Ready' }] }, { journal: { status: 'Loaded' } }, 'journal snapshot');
+  assert.deepEqual(file.map((c) => c.name), ['Journal.log', 'a.csv']);
 });

@@ -177,6 +177,16 @@ export function slowestHop(summary: { oms?: Percentiles; confirmation?: Percenti
   return hops.reduce((a, b) => (b.p99 > a.p99 ? b : a));
 }
 
+/** True when the API refused the request for this user's role (not an outage). */
+export function isDenied(payload: any): boolean {
+  return payload?._status === 401 || payload?._status === 403;
+}
+
+/** Finite numbers only: a null bucket mean is a missing measurement, not zero. */
+export function measured(values: unknown[]): number[] {
+  return values.filter((v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))).map(Number);
+}
+
 /** Tone for a dependency state string reported by the API. */
 export function stateTone(state: unknown): Tone {
   const s = String(state ?? "").toLowerCase();
@@ -246,13 +256,23 @@ export function dataQuality(sources: any) {
   };
 }
 
-/** One chip per real source: the journal plus each ingested CSV file. */
-export function sourceChips(sources: any, infra: any) {
+/**
+ * One chip per source the API actually reports: the live Elasticsearch read
+ * path when that is the data source, the journal only when /api/infra reports
+ * one, and each ingested CSV file. Nothing is added for sources that are absent.
+ */
+export function sourceChips(sources: any, infra: any, dataSource?: string) {
   const files: SourceFile[] = Array.isArray(sources?.items) ? sources.items : [];
   const chips: { name: string; state: string; tone: Tone }[] = [];
   if (infra && !infra._error) {
-    const j = infra.journal?.status || "Not configured";
-    chips.push({ name: "Journal.log", state: j, tone: stateTone(j) });
+    if (dataSource === "elasticsearch" && infra.elasticsearch) {
+      const es = String(infra.elasticsearch.status || "Unavailable");
+      chips.push({ name: "Elasticsearch", state: es, tone: stateTone(es) });
+    }
+    if (infra.journal) {
+      const j = String(infra.journal.status || "Unknown");
+      chips.push({ name: "Journal.log", state: j, tone: stateTone(j) });
+    }
   }
   for (const f of files) {
     const state = String(f.state || "Unknown");

@@ -5,13 +5,16 @@ import { MiniBars } from "@/components/Charts";
 import { EmptyState } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import { fmt } from "@/lib/format";
+import { sourceBadgeText } from "@/lib/data-source";
 import { buildAlerts } from "@/lib/incidents-data";
 import {
   type Percentiles,
   type Tone,
   clientImpact,
   dataQuality,
+  isDenied,
   istDate,
+  measured,
   orderBurst,
   platformHealth,
   queueInstances,
@@ -75,14 +78,18 @@ function Tile({ label, tone, icon, value, detail, foot }: { label: string; tone:
   );
 }
 
-function LatencyCard({ title, stats, trend, tone, unit }: { title: string; stats?: Percentiles; trend: number[]; tone: "green" | "red"; unit: string }) {
+const NO_ACCESS = "Your role does not include this data. Ask an administrator for the permission.";
+
+function LatencyCard({ title, stats, trend, tone, unit, denied }: { title: string; stats?: Percentiles; trend: number[]; tone: "green" | "red"; unit: string; denied: boolean }) {
   return (
     <div className="panel cc-metric">
       <div className="cc-metric-head">
         <b>{title}</b>
         <span className="cc-unit">{unit}</span>
       </div>
-      {stats && stats.samples ? (
+      {denied ? (
+        <EmptyState title="Access limited" body={NO_ACCESS} />
+      ) : stats && stats.samples ? (
         <>
           <div className="cc-metric-value">
             <b>{num(stats.p50)}</b>
@@ -117,7 +124,12 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
   const rejectTrend = rejectRateTrend(orders);
   const queue = apiError(queues) ? null : queueInstances(queues);
   const quality = apiError(fileSources) ? null : dataQuality(fileSources);
-  const chips = sourceChips(apiError(fileSources) ? null : fileSources, apiError(infra) ? null : infra);
+  const dataSource = String(ov?.source || od?.source || "");
+  const latencyDenied = isDenied(latency);
+  const ordersDenied = isDenied(od);
+  const alertsDenied = isDenied(rj);
+  const infraDenied = isDenied(infra);
+  const chips = sourceChips(apiError(fileSources) ? null : fileSources, apiError(infra) ? null : infra, dataSource);
   const chipsReady = chips.filter((c) => c.tone === "ok").length;
   const health = platformHealth(apiError(infra) ? null : infra, ready);
   const alerts = buildAlerts({ persisted: null, derived: null, rejections: apiError(rj) ? null : rj, yel: apiError(yel) ? null : yel });
@@ -130,7 +142,9 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
     { label: "Journal", from: ov?.from, to: ov?.to },
     { label: "Latency file", from: latencyFrom, to: latencyTo },
   ]);
-  const isLive = String(ov?.source || "") === "elasticsearch";
+  const freshness = sourceBadgeText(dataSource);
+  const freshnessDetail =
+    freshness === "LIVE" ? "Elasticsearch read path" : freshness === "FILE-BASED" ? "Uploaded history, not a live feed" : "No live or file source connected";
 
   return (
     <section className="command-center" aria-label="Command Center detail">
@@ -154,32 +168,32 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
           label="Bottleneck"
           tone={hop ? "warn" : "idle"}
           icon={<AlertTriangle size={22} />}
-          value={hop ? hop.name : "No latency data"}
-          detail={hop ? "Largest p99 of the measured hops" : "Needs an ORDERLATENCY file"}
+          value={hop ? hop.name : latencyDenied ? "Access limited" : "No latency data"}
+          detail={hop ? "Largest p99 of the measured hops" : latencyDenied ? "Requires latency access" : "Needs an ORDERLATENCY file"}
           foot={hop ? `p99 ${num(hop.p99)} ${unit}` : "—"}
         />
         <Tile
           label="Client impact"
-          tone={impact.impacted ? "warn" : impact.brokers ? "ok" : "idle"}
+          tone={ordersDenied ? "idle" : impact.impacted ? "warn" : impact.brokers ? "ok" : "idle"}
           icon={<Users size={22} />}
-          value={fmt(impact.impacted)}
-          detail="Brokers with rejected orders"
-          foot={impact.brokers ? `Out of ${fmt(impact.brokers)} brokers in loaded orders` : "No broker field in loaded orders"}
+          value={ordersDenied ? "—" : fmt(impact.impacted)}
+          detail={ordersDenied ? "Requires order access" : "Brokers with rejected orders"}
+          foot={ordersDenied ? "Access limited" : impact.brokers ? `Out of ${fmt(impact.brokers)} brokers in loaded orders` : "No broker field in loaded orders"}
         />
         <Tile
           label="Open alerts"
-          tone={bySeverity("Critical") ? "bad" : openAlerts.length ? "warn" : "ok"}
+          tone={alertsDenied ? "idle" : bySeverity("Critical") ? "bad" : openAlerts.length ? "warn" : "ok"}
           icon={<ShieldAlert size={22} />}
-          value={fmt(openAlerts.length)}
-          detail="Derived from rejections and YEL"
-          foot={`${bySeverity("Critical")} critical · ${bySeverity("Major")} major · ${bySeverity("Minor")} minor`}
+          value={alertsDenied ? "—" : fmt(openAlerts.length)}
+          detail={alertsDenied ? "Requires rejection access" : "Derived from rejections and YEL"}
+          foot={alertsDenied ? "Access limited" : `${bySeverity("Critical")} critical · ${bySeverity("Major")} major · ${bySeverity("Minor")} minor`}
         />
         <Tile
           label="Data freshness"
-          tone={isLive ? "ok" : "idle"}
+          tone={freshness === "LIVE" ? "ok" : "idle"}
           icon={<Activity size={22} />}
-          value={isLive ? "LIVE" : "FILE-BASED"}
-          detail={isLive ? "Elasticsearch read path" : "Uploaded history, not a live feed"}
+          value={freshness}
+          detail={freshnessDetail}
           foot={ov?.to ? `Journal to ${istDate(ov.to)}` : "No journal window"}
         />
         <Tile
@@ -226,23 +240,27 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
         <LatencyCard
           title="OMS latency"
           stats={summary?.oms}
-          trend={trendRows.map((t) => Number(t.oms) || 0)}
+          trend={measured(trendRows.map((t) => t.oms))}
           tone="green"
           unit={unit}
+          denied={latencyDenied}
         />
         <LatencyCard
           title="Exchange confirmation"
           stats={summary?.confirmation}
-          trend={trendRows.map((t) => Number(t.confirmation) || 0)}
+          trend={measured(trendRows.map((t) => t.confirmation))}
           tone="red"
           unit={unit}
+          denied={latencyDenied}
         />
         <div className="panel cc-metric">
           <div className="cc-metric-head">
             <b>Queue depth</b>
             <span className="cc-unit">messages</span>
           </div>
-          {queue && queue.rows.length ? (
+          {isDenied(queues) ? (
+            <EmptyState title="Access limited" body={NO_ACCESS} />
+          ) : queue && queue.rows.length ? (
             <>
               <div className="cc-metric-value">
                 <b>{num(queue.rows[0].peak)}</b>
@@ -267,7 +285,9 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             <b>Order burst</b>
             <span className="cc-unit">orders / min</span>
           </div>
-          {burst ? (
+          {ordersDenied ? (
+            <EmptyState title="Access limited" body={NO_ACCESS} />
+          ) : burst ? (
             <>
               <div className="cc-metric-value">
                 <b>{fmt(burst.peak)}</b>
@@ -290,7 +310,9 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             <b>Rejection rate</b>
             <span className="cc-unit">per minute</span>
           </div>
-          {rejectTrend ? (
+          {ordersDenied ? (
+            <EmptyState title="Access limited" body={NO_ACCESS} />
+          ) : rejectTrend ? (
             <>
               <div className="cc-metric-value">
                 <b>{num(rejectTrend.overall)}%</b>
@@ -321,7 +343,9 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             <div><b>Top client impact</b><p className="sub">Brokers ranked by rejected orders</p></div>
             <Link href="/rejections">Rejections ›</Link>
           </div>
-          {impact.rows.length ? (
+          {ordersDenied ? (
+            <EmptyState title="Access limited" body={NO_ACCESS} />
+          ) : impact.rows.length ? (
             <table className="compact tight cc-table">
               <thead><tr><th>Broker</th><th>Orders</th><th>Rejected</th><th>Reject %</th><th>vs desk</th></tr></thead>
               <tbody>
@@ -347,7 +371,9 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             <div><b>Active alerts</b><p className="sub">Rejection groups and YEL connectivity</p></div>
             <Link href="/incidents">Incidents ›</Link>
           </div>
-          {openAlerts.length ? (
+          {alertsDenied ? (
+            <EmptyState title="Access limited" body={NO_ACCESS} />
+          ) : openAlerts.length ? (
             <ul className="cc-alerts">
               {openAlerts.slice(0, 4).map((a) => (
                 <li key={a.id} className={`cc-alert sev-${a.severity.toLowerCase()}`}>
@@ -369,11 +395,14 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             <div><b>Platform health</b><p className="sub">As reported by the API</p></div>
             <Link href="/infra">Infrastructure ›</Link>
           </div>
+          {/* A 403 from /api/infra is a permission boundary, not an outage: show
+              only the readiness row the user can see. */}
           <ul className="cc-health">
-            {health.map((h) => (
+            {(infraDenied ? health.slice(0, 1) : health).map((h) => (
               <li key={h.name}><span>{h.name}</span><span className={`cc-pill cc-${h.tone}`}>{h.state}</span></li>
             ))}
           </ul>
+          {infraDenied && <p className="cc-note">Dependency status needs infrastructure access.</p>}
         </div>
       </div>
 
