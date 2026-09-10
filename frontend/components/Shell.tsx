@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { canSee } from "@/lib/auth";
 import { decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
 import { logout } from "@/lib/oidc";
 import MarketTicker from "@/components/MarketTicker";
 import LiveStatusStrip from "@/components/LiveStatusStrip";
 import { apiUrl } from "@/lib/runtime";
-import { buildNav, togglePinned } from "@/lib/nav-model";
+import CommandPalette from "@/components/CommandPalette";
+import { buildNav, NAV_GROUPS, togglePinned } from "@/lib/nav-model";
 import { SIGNAL_ROUTES, formatSignal, hasSignal, parseSignalCount, type NavSignals } from "@/lib/nav-signals";
 import { sourceChip, type SourceChip } from "@/lib/data-source";
 import {
@@ -29,6 +30,7 @@ const ICONS: Record<string, typeof BarChart3> = {
 // default), so earlier saved layouts are not carried over.
 const PREFS_KEY = "argus-nav-prefs-v2";
 const DEFAULT_PINNED: string[] = [];
+const PALETTE_ROUTES = NAV_GROUPS.flatMap((g) => g.items);
 
 type NavPrefs = { collapsed: boolean; pinned: string[]; closed: Record<string, boolean> };
 const DEFAULT_PREFS: NavPrefs = { collapsed: false, pinned: DEFAULT_PINNED, closed: {} };
@@ -78,7 +80,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const query = "";
   const [signals, setSignals] = useState<NavSignals>({});
   const [chip, setChip] = useState<SourceChip>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => { try { setDark(localStorage.getItem('argus-theme') === 'dark'); } catch {} }, []);
   function toggleTheme() { const next = !dark; setDark(next); try { localStorage.setItem('argus-theme', next ? 'dark' : 'light'); } catch {} }
@@ -128,7 +130,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault(); searchRef.current?.focus();
+        event.preventDefault(); setPaletteOpen((o) => !o);
       }
       if (event.key === 'Escape') setMenuOpen(false);
     };
@@ -236,7 +238,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="market-right">
             <button className="bell theme-toggle" type="button" onClick={toggleTheme} aria-pressed={dark} aria-label={dark ? "Light theme" : "Dark theme"} title={dark ? "Light theme" : "Dark theme"}>{dark ? <Sun size={17}/> : <Moon size={17}/>}</button>
             <Clock/>
-            <form action="/logs" className="topsearch"><Search size={14}/><input ref={searchRef} name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><kbd>⌘/Ctrl K</kbd></form>
+            <form action="/logs" className="topsearch"><Search size={14}/><input name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><button type="button" className="kbd-btn" onClick={() => setPaletteOpen(true)} aria-label="Open command palette" title="Command palette"><kbd>⌘/Ctrl K</kbd></button></form>
             <Link href="/incidents" className="bell" aria-label="Alerts and incidents"><Bell size={17}/></Link>
             <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>
             <div className="avatar">{(session?.username || "T").slice(0, 1).toUpperCase()}</div>
@@ -260,6 +262,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         )}
         <div className="page">{children}</div>
       </main>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} routes={PALETTE_ROUTES} visible={visible} />
     </div>
   );
 }

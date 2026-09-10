@@ -125,6 +125,7 @@ Next.js 15 App Router, React 19, hand-written CSS in `app/globals.css`. No state
 - **SSE**: `lib/stream.ts` → `openAuthenticatedEventSource()` passes `access_token` query param (EventSource cannot set headers). Used by `LiveOrders.tsx` and `RejectionsView.tsx`. Journal-source pages deliberately do not subscribe.
 - **Runtime config**: `lib/runtime.ts` — browser uses `window.__TRADEOPS_CONFIG__.apiUrl` injected by `app/layout.tsx`.
 - `components/Shell.tsx` — sidebar nav filtered by JWT roles; sign-out via Keycloak end-session endpoint.
+- `components/CommandPalette.tsx` + `lib/command-palette.ts` — the Ctrl+K palette. Navigation only (pages, an order number to `/rca?order_id=` or `/orders?order=`, a journal search to `/logs?q=`), filtered by the same role allowlist as the rail. Every `NAV_GROUPS` route needs a `ROUTE_KEYWORDS` entry; a test pins that.
 - `ds-entry.tsx` — design-sync export surface. It exports only presentational components; anything importing `next/navigation` or `@/lib/stream` cannot render outside the app and is deliberately excluded.
 - `mock-api.local.mjs` — the fixture API behind `scripts/dev-preview.sh`.
 
