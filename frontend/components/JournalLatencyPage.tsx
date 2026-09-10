@@ -110,7 +110,7 @@ export default async function Page() {
                   <li>
                     <span>
                       <b>OMS status codes are provisional.</b> This feed&apos;s codes conflict with
-                      the Noren OrdStatus mapping used elsewhere in TradeOps (65 and 56 mean
+                      the Noren OrdStatus mapping used elsewhere in Argus TradeOps (65 and 56 mean
                       rejected there). They are shown here as the feed&apos;s own values and are
                       pending confirmation.
                     </span>

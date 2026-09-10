@@ -138,6 +138,18 @@ export function MiniBars({ values, cls = "bar-blue" }: { values: number[]; cls?:
   );
 }
 
+/**
+ * Placeholder bars for marketing and pre-sign-in illustrations. Uniform height
+ * on purpose: a rising series would read as a real trend.
+ */
+export function SkeletonBars({ count }: { count: number }) {
+  return (
+    <div className="mini-bars skeleton-bars" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => <i key={i} />)}
+    </div>
+  );
+}
+
 type VBar = { label: string; value: number; cls?: string };
 
 /** Vertical bar chart (order flow, MTM distribution). */

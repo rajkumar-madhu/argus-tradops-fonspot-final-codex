@@ -51,7 +51,7 @@ export default function SignIn() {
 
   return (
     <AuthShell
-      title="Sign in to TradeOps"
+      title="Sign in to Argus TradeOps"
       subtitle="One secure entry point for orders, rejections, sessions, and RCA — no passwords stored in this app."
     >
       <div className="auth-card auth-card-v2 compact">
@@ -61,7 +61,7 @@ export default function SignIn() {
           <span className="auth-icon"><KeyRound size={22} /></span>
           <div>
             <h2>Welcome back</h2>
-            <p>Use your organisation SSO. TradeOps never stores your password.</p>
+            <p>Use your organisation SSO. Argus TradeOps never stores your password.</p>
           </div>
         </div>
 

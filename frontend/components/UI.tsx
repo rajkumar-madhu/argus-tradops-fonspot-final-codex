@@ -85,6 +85,7 @@ export function DataTable({
   onRowClick,
   selectedId,
   className = "orders-table",
+  renderDetail,
 }: {
   columns: { key: string; label: string; render?: (row: any) => React.ReactNode }[];
   rows: any[];
@@ -92,6 +93,7 @@ export function DataTable({
   onRowClick?: (row: any) => void;
   selectedId?: string;
   className?: string;
+  renderDetail?: (row: any) => React.ReactNode;
 }) {
   return <FilterableTable
     className={className}
@@ -103,6 +105,7 @@ export function DataTable({
     }))}
     selectedId={selectedId}
     onSelect={onRowClick}
+    renderDetail={renderDetail}
   />;
 }
 

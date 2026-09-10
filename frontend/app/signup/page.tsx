@@ -57,7 +57,7 @@ export default function SignUp() {
 
   return (
     <AuthShell
-      title="Request a TradeOps workspace"
+      title="Request an Argus TradeOps workspace"
       subtitle="Bring your operations team into one read-only view of orders, rejections, and exchange health."
     >
       <div className="auth-card auth-card-v2 compact">
@@ -70,7 +70,7 @@ export default function SignUp() {
             <p>
               {registrationOpen
                 ? "Finish account creation with your organisation’s identity provider."
-                : "TradeOps uses organisation SSO. This identity provider does not allow self-registration."}
+                : "Argus TradeOps uses organisation SSO. This identity provider does not allow self-registration."}
             </p>
           </div>
         </div>

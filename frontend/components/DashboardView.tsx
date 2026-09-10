@@ -36,6 +36,8 @@ export type DashboardPayload = {
   exchanges: any;
   yel: any;
   fileSources?: unknown;
+  /** Rendered under the KPI row (the Command Center detail section). */
+  detail?: ReactNode;
 };
 
 export default function DashboardView({
@@ -46,6 +48,7 @@ export default function DashboardView({
   exchanges: ex,
   yel,
   fileSources,
+  detail,
 }: DashboardPayload) {
   const orders: any[] = od.items || [];
   const groups: any[] = rj.groups || [];
@@ -180,6 +183,8 @@ export default function DashboardView({
             })}
           </section>
 
+          {detail}
+
           {apiError(od) ? (
             <EmptyState title="Unable to load orders" body={String(apiError(od))} />
           ) : (
@@ -302,7 +307,7 @@ export default function DashboardView({
             Evidence source: {sourceDisplayName(source)}.
             {isFileBased
               ? ` Journal snapshot — KPIs reflect the uploaded file (${fmt(total)} orders).`
-              : " Read-only — TradeOps never places or cancels orders."}
+              : " Read-only — Argus TradeOps never places or cancels orders."}
           </p>
         </>
       )}

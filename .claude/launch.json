@@ -14,6 +14,13 @@
       "runtimeArgs": ["-c", "PORT=8101 node frontend/mock-api.local.mjs"],
       "port": 8101,
       "autoPort": false
+    },
+    {
+      "name": "file-preview",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/start-file-preview.sh"],
+      "port": 3102,
+      "autoPort": false
     }
   ]
 }

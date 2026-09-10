@@ -281,7 +281,7 @@ export default function ExchangeView({ exchanges, yel, infra, orders, rejections
               <div className="panel-head">
                 <div>
                   <b>Process Status</b>
-                  <p className="sub">TradeOps workers and data plane</p>
+                  <p className="sub">Argus TradeOps workers and data plane</p>
                 </div>
               </div>
               <div className="table-scroll">

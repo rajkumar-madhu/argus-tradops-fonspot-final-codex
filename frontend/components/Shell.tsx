@@ -203,7 +203,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <nav className="nav-list" aria-label="TradeOps workspaces">
+        <nav className="nav-list" aria-label="Argus TradeOps workspaces">
           {groups.map((group) => (
             <div className={`nav-group${group.isPinned ? " nav-group-pinned" : ""}`} key={group.label}>
               {!collapsed && (
@@ -279,7 +279,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>
             <div className="avatar">{(session?.username || "T").slice(0, 1).toUpperCase()}</div>
             <div className="profile">
-              <b>{session?.username || "TradeOps"}</b>
+              <b>{session?.username || "Argus TradeOps"}</b>
               <span>{roles.length ? roles.join(", ") : "RBAC protected"}</span>
             </div>
             {checked && (session
