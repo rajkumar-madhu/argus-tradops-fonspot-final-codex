@@ -1,6 +1,10 @@
 import os
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def _bool(name: str, default: bool = False) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
@@ -22,6 +26,15 @@ def _float(name: str, default: float) -> float:
 
 @dataclass(frozen=True)
 class Settings:
+    environment: str = os.getenv("TRADEOPS_ENV", "development").strip().lower()
+    journal_path: str = os.getenv("TRADEOPS_JOURNAL_PATH", "")
+    journal_primary: bool = _bool("TRADEOPS_JOURNAL_PRIMARY", False)
+    order_latency_path: str = os.getenv("TRADEOPS_ORDER_LATENCY_PATH", "")
+    csv_dir: str = os.getenv("TRADEOPS_CSV_DIR", "")
+    csv_cache_path: str = os.getenv("TRADEOPS_CSV_CACHE_PATH", "/tmp/tradeops-file-cache.sqlite")
+    csv_latency_unit: str = os.getenv("TRADEOPS_CSV_LATENCY_UNIT", "unknown")
+    csv_max_bytes: int = _int("TRADEOPS_CSV_MAX_BYTES", 268435456)
+    csv_max_rows: int = _int("TRADEOPS_CSV_MAX_ROWS", 2000000)
     demo_mode: bool = _bool("TRADEOPS_DEMO_MODE", True)
     es_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     es_api_key: str | None = os.getenv("ELASTICSEARCH_API_KEY") or None
@@ -82,6 +95,8 @@ class Settings:
     rca_lookback: str = os.getenv("RCA_LOOKBACK", "30d")
     sse_heartbeat_seconds: float = _float("SSE_HEARTBEAT_SECONDS", 15.0)
     metrics_enabled: bool = _bool("METRICS_ENABLED", True)
+    prometheus_url: str = os.getenv("PROMETHEUS_URL", "").strip()
+    prometheus_timeout_seconds: float = _float("PROMETHEUS_TIMEOUT_SECONDS", 2.0)
     worker_metrics_port: int = _int("WORKER_METRICS_PORT", 9108)
     auto_create_schema: bool = _bool("AUTO_CREATE_SCHEMA", False)
 
@@ -104,6 +119,7 @@ class Settings:
     market_leader_ttl_seconds: int = _int("MARKET_LEADER_TTL_SECONDS", 15)
 
     auth_disabled: bool = _bool("AUTH_DISABLED", True)
+    allow_signup: bool = _bool("ALLOW_SIGNUP", False)
     keycloak_url: str = os.getenv("KEYCLOAK_URL", "http://localhost:8080")
     keycloak_realm: str = os.getenv("KEYCLOAK_REALM", "tradeops")
     keycloak_client_id: str = os.getenv("KEYCLOAK_CLIENT_ID", "tradeops-web")
@@ -118,4 +134,27 @@ class Settings:
         return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
 
 
+def production_errors(config: Settings) -> list[str]:
+    """Fail closed for explicitly production deployments; never echo secrets."""
+    if config.environment != "production":
+        return []
+    errors = []
+    if config.demo_mode:
+        errors.append("Demo mode must be disabled in production")
+    if config.auth_disabled:
+        errors.append("AUTH_DISABLED must be false in production")
+    if not config.es_verify_certs:
+        errors.append("Elasticsearch TLS verification must remain enabled")
+    if not config.keycloak_url.startswith("https://"):
+        errors.append("Production Keycloak must use HTTPS")
+    from urllib.parse import urlsplit
+    password = urlsplit(config.database_url).password
+    if not password or password in {"tradeops", "postgres", "password", "changeme"}:
+        errors.append("Configure a non-default database credential")
+    return errors
+
+
 settings = Settings()
+_errors = production_errors(settings)
+if _errors:
+    raise RuntimeError("Invalid production configuration: " + "; ".join(_errors))

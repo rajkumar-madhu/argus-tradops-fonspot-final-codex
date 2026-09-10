@@ -65,16 +65,16 @@ const WHY: [React.ComponentType<any>, string, string][] = [
 ];
 
 const METRICS: [string, string][] = [
-  ["99.99%", "System uptime"],
-  ["<50ms", "Query latency"],
-  ["5+", "Exchange segments"],
-  ["100%", "On your infrastructure"],
+  ["Read-only", "Trading access"],
+  ["Measured", "Source timing"],
+  ["Noren", "Journal source"],
+  ["Self-hosted", "Deployment model"],
 ];
 
 const VOICES: [string, string, string][] = [
-  ["We used to grep the journal by hand to explain a rejection. Now the evidence chain is already assembled when we open the ticket.", "Head of Trading Operations", "Institutional brokerage"],
-  ["The read-only guarantee is what got it past our risk committee. It observes the stack and cannot touch it.", "Risk & Compliance Lead", "Prop trading firm"],
-  ["Our L2 desk resolves exchange connectivity questions without escalating to the platform team any more.", "Platform Engineering Manager", "Retail broker"],
+  ["Inspect rejection evidence and follow an order lifecycle from the journal.", "Trading Operations", "Investigation workflow"],
+  ["Review available risk observations with explicit source and coverage labels.", "Risk & Compliance", "Review workflow"],
+  ["Inspect reported dependency state and identify missing infrastructure telemetry.", "Platform Engineering", "Observability workflow"],
 ];
 
 const RESOURCES: [string, string, string][] = [
@@ -96,7 +96,7 @@ const FAQS: [string, string][] = [
   ["How does it authenticate users?", "Keycloak, using Authorization Code with PKCE. Roles map to permissions per route, so a support user and a risk user see different things."],
   ["Does it add load to Elasticsearch?", "Very little. A single leader-elected collector polls Elasticsearch; every dashboard and live stream reads from Redis instead, so opening more browsers does not multiply queries."],
   ["Is account data masked?", "Yes. Account numbers, client IDs and IP addresses are masked in the normalisation layer and again excluded at the query level."],
-  ["Can we try it against sample data?", "Yes. Demo mode runs the full interface against representative data with no Elasticsearch connection at all, which is the fastest way to evaluate it."],
+  ["Can we try it against sample data?", "Yes. You can run the full interface against a journal upload or your own Elasticsearch indices with no production write path."],
 ];
 
 const SUPPORT: [React.ComponentType<any>, string, string[]][] = [
@@ -140,7 +140,7 @@ export default function Landing() {
           <p>Unify orders, trades, risk, infrastructure and logs in one platform. Detect issues faster, resolve with AI-powered insights, and keep your trading systems always on.</p>
           <div className="hero-actions">
             <Link className="primary" href="/signup">Start Free Trial →</Link>
-            <Link className="secondary" href="/signin">Book a Demo</Link>
+            <Link className="secondary" href="/signin">Get started</Link>
           </div>
           <div className="hero-tiles">
             <div><span className="tile-blue"><Zap size={16} /></span><b>Real-time visibility</b><small>Across your trading stack</small></div>
@@ -350,14 +350,14 @@ export default function Landing() {
         <div className="section-head center">
           <div>
             <span className="eyebrow">FROM THE DESK</span>
-            <h2>What Operators Tell Us</h2>
+            <h2>Operational workflows</h2>
           </div>
         </div>
         <div className="voice-grid">
           {VOICES.map(([quote, who, org]) => (
             <blockquote key={who}>
-              <div className="stars">{[0, 1, 2, 3, 4].map((i) => <Star key={i} size={14} />)}</div>
-              <p>“{quote}”</p>
+
+              <p>{quote}</p>
               <footer>
                 <span className="avatar">{who.slice(0, 1)}</span>
                 <span><b>{who}</b><small>{org}</small></span>
@@ -366,11 +366,11 @@ export default function Landing() {
           ))}
         </div>
         <div className="stats">
-          <div><b>99.99%</b><span>System Uptime</span></div>
-          <div><b>60%</b><span>Faster Incident Resolution</span></div>
-          <div><b>40%</b><span>Reduction in Rejections</span></div>
-          <div><b>5+</b><span>Exchanges Supported</span></div>
-          <div><b>100K+</b><span>Orders Per Second</span></div>
+          <div><b>Read-only</b><span>Trading access</span></div>
+          <div><b>Evidence</b><span>Incident investigation</span></div>
+          <div><b>Source-led</b><span>Rejection analysis</span></div>
+          <div><b>Per source</b><span>Exchange coverage</span></div>
+          <div><b>Measured</b><span>Observed timing</span></div>
         </div>
       </section>
 
@@ -411,9 +411,9 @@ export default function Landing() {
         <div><h2>Ready to Transform Your Trading Operations?</h2><p>Get real-time visibility, reduce risk and keep your trading systems always on.</p></div>
         <div className="hero-actions">
           <Link className="primary light" href="/signup">Start Free Trial</Link>
-          <Link className="secondary ghost" href="/signin">Book a Demo</Link>
+          <Link className="secondary ghost" href="/signin">Get started</Link>
         </div>
-        <small className="cta-note">Demo mode runs the whole interface without an Elasticsearch connection. No card, no commitment.</small>
+        <small className="cta-note">Evaluate the full interface with your journal upload or Elasticsearch estate. No card, no commitment.</small>
       </section>
 
       {/* Support resource grid */}

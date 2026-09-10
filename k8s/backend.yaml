@@ -16,6 +16,7 @@ spec:
     metadata:
       labels: {app: tradeops-api}
     spec:
+      automountServiceAccountToken: false
       serviceAccountName: tradeops-api
       securityContext:
         runAsNonRoot: true
@@ -25,13 +26,18 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: api
-          image: your-registry/tradeops-backend:latest
+          image: your-registry/tradeops-backend:RELEASE_REQUIRED
           envFrom:
             - configMapRef: {name: tradeops-config}
             - secretRef: {name: tradeops-secrets}
           ports: [{name: http, containerPort: 8000}]
-          readinessProbe:
+          startupProbe:
             httpGet: {path: /health, port: http}
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: {path: /health/ready, port: http}
+            timeoutSeconds: 10
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:

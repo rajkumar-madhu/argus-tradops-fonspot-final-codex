@@ -76,6 +76,7 @@ const staticRoutes = {
   "/health": { status: "ok", demo_mode: true, time: new Date().toISOString(), schema: "noren-v1" },
   "/api/auth/config": {
     auth_disabled: true,
+    registration_allowed: false,
     issuer: "",
     authorization_endpoint: "",
     token_endpoint: "",

@@ -41,12 +41,12 @@ export function AreaChart({ series, labels, height = 140 }: { series: Series[]; 
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(max * f));
   return (
     <div className="chart-v2">
-      <div className="chart-v2-y">{[...yTicks].reverse().map((t) => <span key={t}>{t.toLocaleString()}</span>)}</div>
+      <div className="chart-v2-y">{[...yTicks].reverse().map((t, i) => <span key={i}>{t.toLocaleString()}</span>)}</div>
       <div className="chart-v2-plot">
         <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" role="img" aria-label="Trend chart">
           {yTicks.map((t, i) => {
             const y = height - 6 - (i / 4) * (height - 12);
-            return <line key={t} x1="0" x2={w} y1={y} y2={y} className="grid-line" />;
+            return <line key={i} x1="0" x2={w} y1={y} y2={y} className="grid-line" />;
           })}
           {series.map((s) => {
             const pts = polyline(s.points, w, height, max);
@@ -115,8 +115,8 @@ type BarRow = { label: string; value: React.ReactNode; pct: number; cls?: string
 export function HBarList({ rows, valueFirst = false }: { rows: BarRow[]; valueFirst?: boolean }) {
   return (
     <div className="hbar-list">
-      {rows.map((r) => (
-        <div className="hbar-row" key={r.label}>
+      {rows.map((r, i) => (
+        <div className="hbar-row" key={`${r.label}-${i}`}>
           <span className="hbar-label">{r.label}</span>
           <div className="hbar-track">
             <i className={r.cls || "bar-blue"} style={{ width: `${Math.max(2, Math.min(100, r.pct))}%` }} />
@@ -138,24 +138,6 @@ export function MiniBars({ values, cls = "bar-blue" }: { values: number[]; cls?:
   );
 }
 
-/** Inline sparkline for exchange cards and KPI tiles. */
-export function Sparkline({ values, cls = "spark-line" }: { values: number[]; cls?: string }) {
-  const w = 120;
-  const h = 36;
-  const max = Math.max(1, ...values);
-  const pts = values
-    .map((v, i) => `${((i / Math.max(values.length - 1, 1)) * w).toFixed(1)},${(h - 4 - (v / max) * (h - 8)).toFixed(1)}`)
-    .join(" ");
-  return (
-    <div className="exchange-spark">
-      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="Trend sparkline">
-        <polygon points={`0,${h} ${pts} ${w},${h}`} className="spark-fill" />
-        <polyline points={pts} className={cls} />
-      </svg>
-    </div>
-  );
-}
-
 type VBar = { label: string; value: number; cls?: string };
 
 /** Vertical bar chart (order flow, MTM distribution). */
@@ -163,44 +145,13 @@ export function VBarChart({ bars, showValues = false }: { bars: VBar[]; showValu
   const max = Math.max(1, ...bars.map((b) => b.value));
   return (
     <div className="vbar-chart">
-      {bars.map((b) => (
-        <div className="vbar-col" key={b.label}>
+      {bars.map((b, i) => (
+        <div className="vbar-col" key={`${b.label}-${i}`}>
           {showValues && <b>{b.value}</b>}
           <i className={b.cls || "bar-blue"} style={{ height: `${Math.max(4, (b.value / max) * 100)}%` }} />
           <span>{b.label}</span>
         </div>
       ))}
     </div>
-  );
-}
-
-type ExchangeCard = {
-  name: string;
-  status: string;
-  latency_ms: number;
-  reject_rate: number;
-  uptime_pct?: number;
-  sparkline?: number[];
-};
-
-/** Grid of exchange health cards with metrics and sparklines. */
-export function ExchangeCardGrid({ items }: { items: ExchangeCard[] }) {
-  return (
-    <section className="exchange-card-grid">
-      {items.map((x, i) => (
-        <article className="panel exchange-card" key={x.name}>
-          <div className="exchange-card-head">
-            <h3>{x.name}</h3>
-            <span className={`status ${String(x.status).toLowerCase().includes("health") ? "good" : "warn"}`}>{x.status}</span>
-          </div>
-          <div className="exchange-card-metrics">
-            <span><small>Uptime (30d)</small><b>{x.uptime_pct ?? 99.9}%</b></span>
-            <span><small>Avg Latency</small><b>{x.latency_ms} ms</b></span>
-            <span><small>Reject %</small><b>{Number(x.reject_rate).toFixed(2)}%</b></span>
-          </div>
-          <Sparkline values={x.sparkline || [40, 42, 38, 45, 41, 39, 44, 42, 40, 43]} cls={i % 2 ? "spark-line" : "spark-line"} />
-        </article>
-      ))}
-    </section>
   );
 }

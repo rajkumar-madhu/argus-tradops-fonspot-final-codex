@@ -5,8 +5,12 @@ metadata:
   namespace: tradeops
 
 data:
+  TRADEOPS_ENV: "production"
   TRADEOPS_DEMO_MODE: "false"
   AUTH_DISABLED: "false"
+  KEYCLOAK_URL: "https://keycloak.finspot.in"
+  KEYCLOAK_REALM: "Devops-common-cicd"
+  KEYCLOAK_CLIENT_ID: "tradeops-web"
   CORS_ORIGINS: "https://tradeops.example.com"
   REDIS_URL: "redis://tradeops-redis:6379/0"
   REDIS_PUBLIC_LABEL: "tradeops-redis"
@@ -20,5 +24,7 @@ data:
   COLLECTOR_LOOKBACK: "2h"
   RCA_LOOKBACK: "30d"
   TRUEDATA_ENABLED: "false"
+  PROMETHEUS_URL: ""
+  PROMETHEUS_TIMEOUT_SECONDS: "2"
   TRUEDATA_SYMBOLS: "RELIANCE-EQ,NIFTY-I,BANKNIFTY-I"
   MARKET_FLUSH_INTERVAL_SECONDS: "1"

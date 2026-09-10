@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { KeyRound, LockKeyhole } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowRight, KeyRound, LayoutDashboard, Shield } from "lucide-react";
+import AuthModeTabs from "@/components/AuthModeTabs";
 import AuthShell from "@/components/AuthShell";
 import { fetchAuthConfig, login } from "@/lib/oidc";
 
@@ -10,12 +11,32 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [email, setEmail] = useState("");
+
+  const checkConfig = useCallback(async () => {
+    setChecking(true);
+    setError(null);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const cfg = await Promise.race([
+        fetchAuthConfig(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error("The API did not respond. Please retry.")), 10000);
+        }),
+      ]);
+      setAuthDisabled(cfg.auth_disabled);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cannot reach the API");
+    } finally {
+      clearTimeout(timeout);
+      setChecking(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchAuthConfig()
-      .then((cfg) => setAuthDisabled(cfg.auth_disabled))
-      .catch((err) => setError(err instanceof Error ? err.message : "Cannot reach the API"));
-  }, []);
+    void checkConfig();
+  }, [checkConfig]);
 
   async function start() {
     setBusy(true);
@@ -29,37 +50,77 @@ export default function SignIn() {
   }
 
   return (
-    <AuthShell title="Sign in to TradeOps" subtitle="Access your trading observability workspace securely.">
-      <div className="auth-card compact">
-        <span className="auth-icon"><LockKeyhole size={22} /></span>
-        <h2>Welcome back</h2>
-        {/* Identity is owned by Keycloak. There is deliberately no local password
-            form: this app never holds credentials, only a short-lived access token. */}
-        <p>
-          {authDisabled === true
-            ? "Authentication is disabled on this environment. Continue straight to the dashboard."
-            : "Continue with your organisation's single sign-on."}
-        </p>
-        {error && <p className="form-error">{error}</p>}
+    <AuthShell
+      title="Sign in to TradeOps"
+      subtitle="One secure entry point for orders, rejections, sessions, and RCA — no passwords stored in this app."
+    >
+      <div className="auth-card auth-card-v2 compact">
+        <AuthModeTabs active="signin" />
+
+        <div className="auth-card-head">
+          <span className="auth-icon"><KeyRound size={22} /></span>
+          <div>
+            <h2>Welcome back</h2>
+            <p>Use your organisation SSO. TradeOps never stores your password.</p>
+          </div>
+        </div>
+
+        {authDisabled === true && (
+          <div className="auth-chip ok">
+            <LayoutDashboard size={14} />
+            Auth disabled — you can continue straight to the dashboard on this environment
+          </div>
+        )}
+
+        {authDisabled === false && !checking && (
+          <div className="auth-chip sso">
+            <Shield size={14} />
+            SSO is ready · access is managed by your organisation
+          </div>
+        )}
+
+        <label className="auth-field">
+          Work email
+          <input
+            type="email"
+            autoComplete="email"
+            placeholder="name@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <span className="auth-hint">Used only to pre-fill your identity provider when supported</span>
+        </label>
+
+        {error && <p className="form-error" role="alert">{error}</p>}
+
         {authDisabled === true ? (
-          <button className="primary" onClick={() => (window.location.href = "/dashboard")}>
-            Continue to dashboard →
+          <button type="button" className="primary auth-cta" onClick={() => (window.location.href = "/dashboard")}>
+            Continue to dashboard
+            <ArrowRight size={16} />
           </button>
         ) : (
-          <button className="primary" disabled={busy || authDisabled === null} onClick={start}>
-            <KeyRound size={16} />
-            {busy ? "Redirecting…" : authDisabled === null ? "Checking…" : "Sign in with Keycloak (SSO)"}
+          <button
+            type="button"
+            className="primary auth-cta"
+            disabled={busy || checking}
+            onClick={authDisabled === null ? checkConfig : start}
+          >
+            <Shield size={16} />
+            {busy ? "Opening secure sign-in…" : checking ? "Checking secure sign-in…" : authDisabled === null ? "Retry connection" : "Continue with SSO"}
+            {!busy && !checking && authDisabled !== null && <ArrowRight size={16} />}
           </button>
         )}
-        <div className="auth-or"><span>secure access</span></div>
-        <ul className="auth-bullets">
-          <li>Authorization Code + PKCE, no passwords stored here</li>
-          <li>Access is granted by role: trading ops, risk, SRE, auditor</li>
-          <li>Sessions expire automatically with your identity provider</li>
+
+        <div className="auth-quick-links">
+          <Link href="/forgot-password">Need help signing in?</Link>
+          <Link href="/dashboard">View read-only preview</Link>
+        </div>
+
+        <ul className="auth-bullets compact">
+          <li>Authorization Code + PKCE</li>
+          <li>Role-based access for ops, risk, SRE, audit</li>
+          <li>Sessions follow your identity provider policy</li>
         </ul>
-        <p className="auth-foot">
-          New to TradeOps? <Link href="/signup">Create an account</Link> · <Link href="/forgot-password">Need help signing in?</Link>
-        </p>
       </div>
     </AuthShell>
   );

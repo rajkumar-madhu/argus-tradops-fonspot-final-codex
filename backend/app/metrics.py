@@ -29,3 +29,9 @@ MARKET_CONNECTED = Gauge("tradeops_market_truedata_connected", "1 when connected
 MARKET_TICKS = Counter("tradeops_market_ticks_total", "TrueData ticks observed by the market worker")
 MARKET_PUBLISHED = Counter("tradeops_market_published_total", "Market quote events published to Redis")
 MARKET_FLUSH_SECONDS = Histogram("tradeops_market_flush_duration_seconds", "Market snapshot flush duration")
+
+# Bounded labels: no filenames, account IDs, order IDs or raw error messages.
+CSV_DURATION = Histogram('tradeops_csv_ingestion_seconds', 'CSV ingestion duration', ['kind'])
+CSV_ROWS = Counter('tradeops_csv_rows_total', 'CSV rows by validation outcome', ['kind', 'outcome'])
+CSV_QUEUE_LAST_EVENT = Gauge('tradeops_csv_queue_last_event_timestamp_seconds', 'Last observed queue event; zero means no samples', ['instance'])
+CSV_QUEUE_HAS_DATA = Gauge('tradeops_csv_queue_has_data', 'Whether a discovered queue instance has samples', ['instance'])

@@ -1,3 +1,6 @@
+import { healthTone } from "@/lib/health-state";
+import { sourceDisplayName } from "@/lib/data-source";
+import FilterableTable from "@/components/FilterableTable";
 import { fmt } from "@/lib/format";
 
 export function Card({ title, children, action }: { title?: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -52,16 +55,7 @@ export function StatusBadge({ value }: { value: string }) {
 }
 
 export function Status({ value }: { value: string }) {
-  const v = value.toLowerCase();
-  const c =
-    v.includes("health") || v.includes("complete") || v.includes("active") || v.includes("live") || v.includes("connected") || v.includes("ready")
-      ? "good"
-      : v.includes("warn") || v.includes("pending") || v.includes("degraded") || v.includes("watch")
-        ? "warn"
-        : v.includes("reject") || v.includes("down") || v.includes("fail")
-          ? "bad"
-          : "neutral";
-  return <span className={`status ${c}`}>{value}</span>;
+  return <span className={`status ${healthTone(value)}`}>{value || "Unavailable"}</span>;
 }
 
 export function Severity({ value }: { value: string }) {
@@ -72,7 +66,7 @@ export function Severity({ value }: { value: string }) {
 
 export function SourceTag({ source }: { source?: string }) {
   if (!source) return null;
-  return <span className="source-tag">Source: {source}</span>;
+  return <span className="source-tag">Source: {sourceDisplayName(source)}</span>;
 }
 
 export function EmptyState({ title, body }: { title: string; body: string }) {
@@ -89,36 +83,27 @@ export function DataTable({
   rows,
   rowKey,
   onRowClick,
+  selectedId,
   className = "orders-table",
 }: {
   columns: { key: string; label: string; render?: (row: any) => React.ReactNode }[];
   rows: any[];
   rowKey: (row: any, index: number) => string;
   onRowClick?: (row: any) => void;
+  selectedId?: string;
   className?: string;
 }) {
-  return (
-    <div className="table-scroll">
-      <table className={className}>
-        <thead>
-          <tr>
-            {columns.map((c) => (
-              <th key={c.key}>{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={rowKey(row, i)} onClick={onRowClick ? () => onRowClick(row) : undefined} style={onRowClick ? { cursor: "pointer" } : undefined}>
-              {columns.map((c) => (
-                <td key={c.key}>{c.render ? c.render(row) : row[c.key] ?? "—"}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <FilterableTable
+    className={className}
+    columns={columns.map(({key, label}) => ({key, label}))}
+    rows={rows.map((row, index) => ({
+      id: rowKey(row, index),
+      values: row,
+      cells: columns.map(c => c.render ? c.render(row) : row[c.key] == null ? "—" : typeof row[c.key] === "object" ? JSON.stringify(row[c.key]) : String(row[c.key])),
+    }))}
+    selectedId={selectedId}
+    onSelect={onRowClick}
+  />;
 }
 
 export function OrderDetailPanel({ order }: { order: any }) {
@@ -188,13 +173,10 @@ export function KpiCard({
       <div className="kpi-card-body">
         <span className="kpi-card-label">{label}</span>
         <b className="kpi-card-value">{value}</b>
-        {(delta || sub) && (
-          <small className={`kpi-card-delta ${deltaTone}`}>
-            {delta}
-            {delta && sub ? " " : ""}
-            {sub && <span className="kpi-card-sub">{sub}</span>}
-          </small>
-        )}
+        {delta ? (
+          <small className={`kpi-card-delta ${deltaTone}`}>{delta}</small>
+        ) : null}
+        {sub ? <span className="kpi-card-sub">{sub}</span> : null}
       </div>
       <span className={`kpi-tile tile-${tone}`}>{icon}</span>
     </div>

@@ -1,5 +1,7 @@
 from __future__ import annotations
 import re
+import hashlib
+from app.session_fields import SESSION_JOURNAL_FIELDS, REDACTED_SESSION_FIELDS
 from datetime import datetime, timezone
 from typing import Any
 from app.config import settings
@@ -168,7 +170,21 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
     }
 
 
-def normalize_session_event(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict[str, Any]:
+def _session_result(status_text: str) -> str:
+    text = str(status_text or "").strip()
+    if not text:
+        return "—"
+    if "success" in text.lower():
+        return "Success"
+    return text
+
+
+def normalize_session_event(
+    doc: dict[str, Any],
+    *,
+    mask_sensitive: bool = True,
+    source_row: int | None = None,
+) -> dict[str, Any]:
     details = doc.get("Userdetails") if isinstance(doc.get("Userdetails"), dict) else {}
     exch = details.get("UserExchDetails") if isinstance(details.get("UserExchDetails"), list) else []
     segments = [str(x.get("ExchSeg")) for x in exch if isinstance(x, dict) and x.get("Enable", True) and x.get("ExchSeg")]
@@ -179,10 +195,11 @@ def normalize_session_event(doc: dict[str, Any], *, mask_sensitive: bool = True)
     status_text = str(doc.get("ReqStatus") or "")
     msg_type = str(doc.get("msg_type") or "")
     active = msg_type == "login" and "success" in status_text.lower()
-    return {
+    row: dict[str, Any] = {
         "event": msg_type,
         "active": active,
         "status": status_text,
+        "result": _session_result(status_text),
         "time": _iso_from_unix(doc.get("NorenTimeStamp"), doc.get("NorenNsecs")),
         "user_id": mask_id(user_id, 4) if mask_sensitive else user_id,
         "broker": str(details.get("BrokerId") or ""),
@@ -194,11 +211,41 @@ def normalize_session_event(doc: dict[str, Any], *, mask_sensitive: bool = True)
         "products": products,
         "order_types": order_types,
         "app_version": str(details.get("NorenAppVersion") or ""),
-        "session_id": mask_id(sess, 5) if mask_sensitive else sess,
-        "session_key": sess,
-        "login_process": "***" if mask_sensitive and doc.get("LoginProcId") else str(doc.get("LoginProcId") or ""),
+        "session_id": "[redacted]" if sess else "",
+        "session_key": hashlib.sha256(sess.encode()).hexdigest() if sess else "",
+        "login_process": "[redacted]" if doc.get("LoginProcId") else "",
         "source": f"noren-{msg_type}",
     }
+    if source_row is not None:
+        row["source_row"] = source_row
+    fields = {}
+    for field in SESSION_JOURNAL_FIELDS:
+        value = _first(doc, field, default=None)
+        if field == "Record No.":
+            value = source_row
+        elif field == "Event Time (UTC)":
+            value = row["time"]
+        elif field in REDACTED_SESSION_FIELDS:
+            value = "[redacted]" if value is not None else None
+        elif field in ("UserId", "Userdetails.UserId"):
+            value = mask_id(str(value), 4) if value is not None else None
+        elif field in ("Userdetails.LastLoginIp", "Userdetails.UserIpAddr"):
+            value = mask_ip(str(value)) if value is not None else None
+        elif field == "Userdetails.AcctIds":
+            # Account structures may contain credentials; retain only masked IDs.
+            value = [mask_account(str(v)) for v in value if isinstance(v, (str, int))] if isinstance(value, list) else (mask_account(str(value)) if isinstance(value, (str, int)) else None)
+        elif field == "Userdetails.UserExchDetails":
+            value = [{k: item[k] for k in ("ExchSeg", "Enable") if k in item and isinstance(item[k], (str, bool, int))} for item in value if isinstance(item, dict)] if isinstance(value, list) else None
+        elif field == "Userdetails.UserMws":
+            value = f"{len(value)} entries" if isinstance(value, (list, dict)) else None
+        elif isinstance(value, list):
+            value = [item for item in value if isinstance(item, (str, int, float, bool))]
+        elif isinstance(value, dict):
+            value = "[structured value withheld]"
+        fields[field] = value
+    row["journal_fields"] = fields
+    row["masked_fields"] = sorted(REDACTED_SESSION_FIELDS | {"UserId", "Userdetails.UserId", "Userdetails.AcctIds"})
+    return row
 
 
 def normalize_log(doc: dict[str, Any]) -> dict[str, Any]:
@@ -273,9 +320,9 @@ def oms_status_label(code: Any) -> str:
 
 
 def exch_confirm_label(code: Any) -> str:
-    """EXCH_STATUS: 48 = confirmed by the exchange, blank/0 = never confirmed."""
-    raw = str(code).strip()
-    if raw == "":
+    """EXCH_STATUS: 48 is confirmation evidence; blank/zero has no evidence."""
+    raw = str(code or "").strip()
+    if raw in ("", "0"):
         return "NOT_CONFIRMED"
     try:
         return "CONFIRMED" if int(float(raw)) == 48 else f"CODE_{raw}"

@@ -18,15 +18,15 @@ export default async function Page() {
 
   return (
     <Shell>
-      <PageHead title="Configuration" subtitle="Runtime integration settings for Noren journal observability" badge={config.demo_mode ? "Demo mode" : "Production"} badgeTone={config.demo_mode ? "warn" : "ok"} />
+      <PageHead title="Configuration" subtitle="Runtime integration settings for Noren journal observability" badge={config.demo_mode ? "Development" : "Production"} badgeTone={config.demo_mode ? "warn" : "ok"} />
       {err && <EmptyState title="Unable to load configuration" body={err} />}
       {!err && (
         <>
           <section className="kpi-grid four">
             <KpiCard label="Schema" value={config.schema || "—"} sub="Noren field map" tone="blue" icon={<FileText size={18} />} />
-            <KpiCard label="Auth" value={config.auth_disabled ? "Disabled" : "Keycloak"} sub={config.auth_disabled ? "Local demo" : "RBAC enforced"} deltaTone={config.auth_disabled ? "warn" : "up"} tone={config.auth_disabled ? "amber" : "green"} icon={<ShieldCheck size={18} />} />
+            <KpiCard label="Auth" value={config.auth_disabled ? "Disabled" : "Keycloak"} sub={config.auth_disabled ? "Local access" : "RBAC enforced"} deltaTone={config.auth_disabled ? "warn" : "up"} tone={config.auth_disabled ? "amber" : "green"} icon={<ShieldCheck size={18} />} />
             <KpiCard label="Redis" value={bus.connected ? "Connected" : "Down"} sub={config.redis_label || "event bus"} deltaTone={bus.connected ? "up" : "down"} tone={bus.connected ? "teal" : "red"} icon={<Database size={18} />} />
-            <KpiCard label="Elasticsearch" value={elk.connected ? "Connected" : "Demo/Offline"} sub={elk.cluster || elk.mode || "—"} deltaTone={elk.connected ? "up" : "warn"} tone={elk.connected ? "purple" : "amber"} icon={<Search size={18} />} />
+            <KpiCard label="Elasticsearch" value={elk.connected ? "Connected" : "Offline"} sub={elk.cluster || elk.mode || "—"} deltaTone={elk.connected ? "up" : "warn"} tone={elk.connected ? "purple" : "amber"} icon={<Search size={18} />} />
           </section>
           <div className="config-grid">
             <Card title="Noren indices">

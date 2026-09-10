@@ -16,7 +16,7 @@ def elk_status() -> dict[str, Any]:
         info = es.info()
         return {"connected": True, "mode": "elasticsearch", "cluster": info.get("cluster_name"), "version": info.get("version", {}).get("number")}
     except Exception as exc:
-        return {"connected": False, "mode": "elasticsearch", "error": str(exc)[:300]}
+        return {"connected": False, "mode": "elasticsearch", "error": "Elasticsearch unavailable"}
 
 
 # Free-text search is restricted to these fields. `query_string` would let a

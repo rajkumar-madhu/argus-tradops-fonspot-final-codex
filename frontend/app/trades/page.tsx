@@ -1,17 +1,23 @@
+import QueryWindow, { queryWindow } from "@/components/QueryWindow";
+import RefreshButton from "@/components/RefreshButton";
 import { ArrowDownRight, ArrowUpRight, RefreshCw, TrendingUp, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
 import { AreaChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { tradeVolumeTrend } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
-import { fmt, money, timeShort } from "@/lib/format";
+import { dateShort, fmt, money, timeShort } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  const d: any = await getJSON("/api/trades?size=200");
+export default async function Page({searchParams}: {searchParams: Promise<{lookback?: string; exchange?: string}>}) {
+  const params = await searchParams;
+  const lookback = queryWindow(params.lookback);
+  const exchange = ["NSE", "BSE"].includes(String(params.exchange || "").toUpperCase()) ? String(params.exchange).toUpperCase() : "";
+  const d: any = await getJSON(`/api/trades?size=200&lookback=${lookback}`);
   const err = apiError(d);
-  const rows = d.items || [];
+  const allRows = d.items || [];
+  const rows = exchange ? allRows.filter((r: any) => String(r.exchange || "").toUpperCase() === exchange) : allRows;
   const totalValue = rows.reduce((s: number, r: any) => s + Number(r.value || 0), 0);
   const buyCount = rows.filter((r: any) => r.side === "BUY").length;
   const volumeTrend = tradeVolumeTrend(rows);
@@ -23,11 +29,8 @@ export default async function Page() {
           <h1>Trades</h1>
           <p>Executed fills and trade economics from Noren order updates</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Today</button>
-          <button>1H</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
-          <span className="source-tag">{d.count || rows.length} trades · {d.source || "—"}</span>
+        <div className="time-controls"><QueryWindow value={lookback} source={d.source}/>
+          <span className="source-tag">{rows.length} of {d.count || allRows.length} trades · {d.source || "—"}</span>
         </div>
       </section>
 
@@ -39,8 +42,12 @@ export default async function Page() {
             <KpiCard label="Total Trades" value={fmt(rows.length)} delta="Completed fills" tone="blue" icon={<Wallet size={18} />} />
             <KpiCard label="Buy Trades" value={fmt(buyCount)} delta="Aggressive buys" deltaTone="up" tone="green" icon={<ArrowUpRight size={18} />} />
             <KpiCard label="Sell Trades" value={fmt(rows.length - buyCount)} delta="Aggressive sells" deltaTone="down" tone="red" icon={<ArrowDownRight size={18} />} />
-            <KpiCard label="Turnover" value={money(totalValue)} delta="Demo notional" tone="purple" icon={<TrendingUp size={18} />} />
+            <KpiCard label="Turnover" value={money(totalValue)} delta="Intraday notional" tone="purple" icon={<TrendingUp size={18} />} />
           </section>
+
+          <nav className="journal-tabs" aria-label="Exchange journal filter">
+            {["", "NSE", "BSE"].map((value) => <a key={value || "all"} className={exchange === value ? "active" : ""} href={`/trades?lookback=${lookback}${value ? `&exchange=${value}` : ""}`}>{value || "All exchanges"}</a>)}
+          </nav>
 
           <section className="panel">
             <div className="panel-head">
@@ -57,6 +64,7 @@ export default async function Page() {
               rows={rows}
               rowKey={(r) => r.trade_id}
               columns={[
+                { key: "date", label: "Trade date", render: (r) => dateShort(r.date || r.trade_date || r.time) },
                 { key: "time", label: "Time", render: (r) => timeShort(r.time) },
                 { key: "trade_id", label: "Trade ID", render: (r) => <b>{r.trade_id}</b> },
                 { key: "order_id", label: "Order", render: (r) => <span className="text-blue">{r.order_id}</span> },

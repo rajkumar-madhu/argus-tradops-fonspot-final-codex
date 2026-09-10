@@ -35,7 +35,7 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        - podSelector: {matchLabels: {app: tradeops-frontend}}
+        - podSelector: {matchLabels: {app: tradeops-web}}
       ports:
         - {protocol: TCP, port: 8000}
 ---
@@ -49,7 +49,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [tradeops-api, tradeops-collector, tradeops-correlation]
+        values: [tradeops-api, tradeops-collector, tradeops-correlation, tradeops-market, tradeops-db-migrate]
   policyTypes: [Egress]
   egress:
     - to:
@@ -60,3 +60,60 @@ spec:
       ports: [{protocol: TCP, port: 5432}]
     # Elasticsearch/Keycloak are usually external to this namespace.
     # Add explicit namespaceSelector/ipBlock rules for your environment.
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: frontend-api-egress, namespace: tradeops}
+spec:
+  podSelector: {matchLabels: {app: tradeops-web}}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: {matchLabels: {app: tradeops-api}}
+      ports: [{protocol: TCP, port: 8000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: data-ingress, namespace: tradeops}
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [tradeops-redis, tradeops-postgres]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - {key: app, operator: In, values: [tradeops-api, tradeops-collector, tradeops-correlation, tradeops-market, tradeops-db-migrate]}
+      ports: [{protocol: TCP, port: 6379}, {protocol: TCP, port: 5432}]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-api-egress
+  namespace: tradeops
+spec:
+  podSelector: {matchLabels: {app: tradeops-web}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: tradeops-api}}}]
+      ports: [{protocol: TCP, port: 8000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-ingress
+  namespace: tradeops
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [tradeops-redis, tradeops-postgres]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - {key: app, operator: In, values: [tradeops-api, tradeops-collector, tradeops-correlation, tradeops-market, tradeops-db-migrate]}
+      ports: [{protocol: TCP, port: 5432}, {protocol: TCP, port: 6379}]

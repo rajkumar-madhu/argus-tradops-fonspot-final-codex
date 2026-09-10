@@ -1,0 +1,37 @@
+name: Verify application
+on:
+  pull_request:
+  push:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: frontend
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t tradeops-backend-test backend
+      # Mount the whole checkout, not just backend/tests: test_auth asserts role
+      # parity against frontend/lib/auth.ts and locates it relative to the repo.
+      # requirements-dev.txt (httpx, for FastAPI's TestClient) is test-only, so it
+      # is installed into this throwaway container rather than the production image.
+      - run: >-
+          docker run --rm -v "$PWD:/repo:ro" tradeops-backend-test
+          sh -c "pip install --user --no-cache-dir -r /repo/backend/requirements-dev.txt
+          && python -m unittest discover -s /repo/backend/tests -v"

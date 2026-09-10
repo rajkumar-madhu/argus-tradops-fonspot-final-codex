@@ -7,28 +7,28 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tradeops}
     volumes: [tradeops-postgres:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tradeops -d tradeops"]
+      test: ['CMD-SHELL', 'pg_isready -U tradeops -d tradeops']
       interval: 5s
       timeout: 3s
       retries: 20
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ['redis-server', '--appendonly', 'yes']
     volumes: [tradeops-redis:/data]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 20
   migrate:
     build: ./backend
-    command: ["alembic", "upgrade", "head"]
+    command: ['alembic', 'upgrade', 'head']
     env_file: ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
     depends_on:
-      postgres: {condition: service_healthy}
-    restart: "no"
+      postgres: { condition: service_healthy }
+    restart: 'no'
   backend:
     build: ./backend
     env_file: ./backend/.env
@@ -36,48 +36,59 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
       CORS_ORIGINS: http://localhost:3000
-      AUTO_CREATE_SCHEMA: "false"
+      AUTO_CREATE_SCHEMA: 'false'
+      # Host paths from backend/.env are not visible in the container; mount + override.
+      TRADEOPS_JOURNAL_PATH: /data/journal/Journal.log
+      TRADEOPS_CSV_DIR: /data/csv
+      TRADEOPS_CSV_CACHE_PATH: /tmp/tradeops-file-cache.sqlite
+      TRADEOPS_CSV_LATENCY_UNIT: ${TRADEOPS_CSV_LATENCY_UNIT:-unknown}
+    volumes:
+      # Bounded extract from the large root Journal.log (~80MB / 57k lines).
+      # Full 3.5GB file cannot be loaded into the API process memory.
+      - ./.local/journal-workset.log:/data/journal/Journal.log:ro
+      # Mount a dedicated CSV-only directory; see prepare-file-data.py.
+      - ${TRADEOPS_CSV_HOST_DIR:-./.local/csv-input}:/data/csv:ro
     depends_on:
-      migrate: {condition: service_completed_successfully}
-      redis: {condition: service_healthy}
-    ports: ["8001:8000"]
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    ports: ['8001:8000']
   collector:
     build: ./backend
-    command: ["python", "-m", "app.workers.collector"]
+    command: ['python', '-m', 'app.workers.collector']
     env_file: ./backend/.env
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
-      WORKER_METRICS_PORT: "9108"
+      WORKER_METRICS_PORT: '9108'
     depends_on:
-      migrate: {condition: service_completed_successfully}
-      redis: {condition: service_healthy}
-    ports: ["9108:9108"]
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    ports: ['9108:9108']
     restart: unless-stopped
   correlation-worker:
     build: ./backend
-    command: ["python", "-m", "app.workers.correlation_worker"]
+    command: ['python', '-m', 'app.workers.correlation_worker']
     env_file: ./backend/.env
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://tradeops:${POSTGRES_PASSWORD:-tradeops}@postgres:5432/tradeops
-      WORKER_METRICS_PORT: "9109"
+      WORKER_METRICS_PORT: '9109'
     depends_on:
-      migrate: {condition: service_completed_successfully}
-      redis: {condition: service_healthy}
-    ports: ["9109:9109"]
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    ports: ['9109:9109']
     restart: unless-stopped
   market-data-worker:
     build: ./backend
-    command: ["python", "-m", "app.workers.market_data_worker"]
+    command: ['python', '-m', 'app.workers.market_data_worker']
     env_file: ./backend/.env
     environment:
       REDIS_URL: redis://redis:6379/0
-      WORKER_METRICS_PORT: "9110"
-      TRUEDATA_ENABLED: "false"
+      WORKER_METRICS_PORT: '9110'
+      TRUEDATA_ENABLED: 'false'
     depends_on:
-      redis: {condition: service_healthy}
-    ports: ["9110:9110"]
+      redis: { condition: service_healthy }
+    ports: ['9110:9110']
     restart: unless-stopped
   frontend:
     build: ./frontend
@@ -88,7 +99,7 @@ services:
       # Server components run inside Compose and need the service-network URL.
       INTERNAL_API_URL: http://backend:8000
     depends_on: [backend]
-    ports: ["3000:3000"]
+    ports: ['3000:3000']
 volumes:
   tradeops-postgres:
   tradeops-redis:

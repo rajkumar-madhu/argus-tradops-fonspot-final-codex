@@ -1,11 +1,11 @@
+import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, LineChart, RefreshCw, Scale, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
-import { Donut, HBarList, AreaChart, VBarChart } from "@/components/Charts";
+import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
-import { demoSeries, demoTimeLabels } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
-import { fmt, money } from "@/lib/format";
+import { dateShort, fmt, money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +22,6 @@ export default async function Page() {
   });
   const exchRows = Object.entries(byExchange).map(([name, count]) => ({ name, count }));
   const maxExch = Math.max(1, ...exchRows.map((x) => x.count));
-  const mtmLabels = demoTimeLabels(12);
-  const mtmTrend = {
-    labels: mtmLabels,
-    series: [{ name: "MTM", points: demoSeries(4, mtmLabels.length, Math.max(Math.abs(netMtm), 50), Math.abs(netMtm) * 0.25), cls: netMtm >= 0 ? "s-executed" : "s-rejected" }],
-  };
   const mtmBars = rows
     .map((r: any) => ({ label: String(r.symbol).slice(0, 10), value: Math.abs(Number(r.mtm || 0)), cls: Number(r.mtm) >= 0 ? "bar-green" : "bar-red" }))
     .sort((a: any, b: any) => b.value - a.value)
@@ -39,16 +34,18 @@ export default async function Page() {
           <h1>Positions</h1>
           <p>Intraday net positions by symbol, product and exchange segment</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Intraday</button>
-          <button>EOD</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+        <div className="time-controls"><RefreshButton/>
           <span className="source-tag">{d.count || rows.length} positions · {d.source || "—"}</span>
         </div>
       </section>
 
       {err ? (
         <EmptyState title="Unable to load positions" body={err} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="Position snapshots unavailable"
+          body={d.note || "No RMS position snapshot is configured. Order events cannot be used to infer authoritative positions, P&L or exposure."}
+        />
       ) : (
         <>
           <section className="kpi-grid four">
@@ -60,8 +57,8 @@ export default async function Page() {
 
           <section className="viz-row-3">
             <div className="panel">
-              <div className="panel-head"><b>Intraday MTM Trend</b><span className="legend"><i className="lg s-executed" /> Mark-to-market</span></div>
-              <AreaChart series={mtmTrend.series} labels={mtmTrend.labels} height={150} />
+              <div className="panel-head"><b>Intraday MTM Trend</b></div>
+              <EmptyState title="History unavailable" body="The current source supplies a point-in-time position snapshot, not an intraday MTM series." />
             </div>
             <div className="panel">
               <div className="panel-head"><b>MTM by Symbol</b></div>
@@ -104,13 +101,16 @@ export default async function Page() {
                 rows={rows}
                 rowKey={(r) => `${r.symbol}-${r.exchange}`}
                 columns={[
+                  { key: "date", label: "Date", render: (r) => dateShort(r.date || r.as_of || r.event_time || r.time) },
                   { key: "symbol", label: "Symbol", render: (r) => <b>{r.symbol}</b> },
                   { key: "exchange", label: "Exch" },
                   { key: "product", label: "Product" },
+                  { key: "account", label: "Account", render: (r) => r.account || r.account_id || "—" },
                   { key: "net_qty", label: "Net Qty", render: (r) => <span className={Number(r.net_qty) >= 0 ? "text-green" : "text-red"}>{r.net_qty}</span> },
                   { key: "avg_price", label: "Avg", render: (r) => money(r.avg_price) },
                   { key: "ltp", label: "LTP", render: (r) => money(r.ltp) },
                   { key: "mtm", label: "MTM", render: (r) => <span className={Number(r.mtm) >= 0 ? "text-green" : "text-red"}>{money(r.mtm)}</span> },
+                  { key: "day_pnl", label: "Day P&L", render: (r) => r.day_pnl == null ? "—" : money(r.day_pnl) },
                   { key: "broker", label: "Broker" },
                 ]}
               />
@@ -129,8 +129,8 @@ export default async function Page() {
             <div className="panel span-3">
               <div className="panel-head"><b>Position notes</b></div>
               <div className="empty-state">
-                <b>Demo mode</b>
-                <p>Live positions are sourced from RMS/back-office in production. Demo mode shows representative intraday exposure with masked account identifiers.</p>
+                <b>No positions feed</b>
+                <p>Live positions are sourced from RMS/back-office in production. Connect your back-office integration to populate this view.</p>
               </div>
             </div>
           </section>

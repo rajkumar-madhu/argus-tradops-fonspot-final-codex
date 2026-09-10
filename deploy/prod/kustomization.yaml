@@ -1,0 +1,50 @@
+# Production overlay — namespace tradeops.
+#
+# Overlays live outside k8s/ deliberately: kustomize treats a base directory
+# that contains its own overlay as a cycle, and moving the manifests into
+# k8s/base/ would break scripts/render-release.py and the docs that name them.
+#
+#   kustomize edit set image \
+#     your-registry/tradeops-backend=<registry>/tradeops-backend@sha256:<digest> \
+#     your-registry/tradeops-frontend=<registry>/tradeops-frontend@sha256:<digest>
+#   kubectl --context <ctx> apply -k deploy/prod
+#
+# The RELEASE_REQUIRED tag is left in place so a forgotten digest fails at
+# image pull rather than deploying something unintended.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tradeops
+
+resources:
+  - ../../k8s
+
+# Private-registry pull secret. Applied here rather than in the base so each
+# environment can hold its own GitLab deploy token — a UAT token should not be
+# able to pull, or be pulled from, production.
+#
+# Create it once per namespace (deploy token, scoped read_registry — not a
+# personal access token):
+#   kubectl -n tradeops create secret docker-registry gitlab-registry \
+#     --docker-server=registry.gitlab.com \
+#     --docker-username=<deploy-token-username> \
+#     --docker-password=<deploy-token>
+#
+# Targets every Deployment and the migrate Job: only the API Deployment has a
+# ServiceAccount, so attaching the secret to a ServiceAccount would miss the
+# frontend, the three workers and the Job.
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value:
+          - name: gitlab-registry
+  - target:
+      kind: Job
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value:
+          - name: gitlab-registry

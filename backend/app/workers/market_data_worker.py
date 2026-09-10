@@ -126,14 +126,27 @@ def _publish_symbol_updates(snapshot: dict[str, Any], seen: dict[str, str]) -> i
 
 def main() -> None:
     if not settings.truedata_enabled:
-        log.info("TRUEDATA_ENABLED=false — market worker idle")
+        log.info("TRUEDATA_ENABLED=false — market worker idle (holding process)")
+        if settings.metrics_enabled:
+            start_http_server(settings.worker_metrics_port)
+        # Stay up so compose restart policy does not thrash the container.
+        while True:
+            time.sleep(3600)
         return
     if not settings.truedata_username or not settings.truedata_password:
         log.error("TRUEDATA_USERNAME/TRUEDATA_PASSWORD required when TRUEDATA_ENABLED=true")
+        if settings.metrics_enabled:
+            start_http_server(settings.worker_metrics_port)
+        while True:
+            time.sleep(3600)
         return
     specs = parse_symbol_specs(settings.truedata_symbols)
     if not specs:
         log.error("TRUEDATA_SYMBOLS is empty")
+        if settings.metrics_enabled:
+            start_http_server(settings.worker_metrics_port)
+        while True:
+            time.sleep(3600)
         return
 
     if settings.metrics_enabled:

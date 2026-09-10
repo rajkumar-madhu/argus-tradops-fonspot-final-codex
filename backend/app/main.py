@@ -1,11 +1,16 @@
 import math
+import logging
+import json
+import re
+import uuid
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from prometheus_client import make_asgi_app
 import time
 
@@ -42,7 +47,11 @@ from app.elastic.noren_service import (
     incident_candidates,
 )
 
+from app import file_routes, journal_routes
+
 app = FastAPI(title="TradeOps Observability API", version="1.1.0")
+app.include_router(file_routes.router)
+app.include_router(journal_routes.router)
 if settings.metrics_enabled:
     app.mount("/metrics", make_asgi_app())
 
@@ -51,11 +60,52 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
 
 DEMO_MODE = settings.demo_mode
+
+
+def _journal_path() -> str | None:
+    """Return a readable journal file path, or None if unset/missing.
+
+    Compose mounts the sample journal at /data/journal/Journal.log. Host .env
+    paths are ignored inside containers when the file is not present, so API
+    handlers fall back to demo data instead of raising FileNotFoundError.
+    """
+    path = (settings.journal_path or "").strip()
+    if not path:
+        return None
+    try:
+        if Path(path).is_file():
+            return path
+    except OSError:
+        return None
+    return None
+
+
+def _use_journal_data() -> bool:
+    if not _journal_path():
+        return False
+    if settings.journal_primary:
+        return True
+    return DEMO_MODE
+
+
+def _with_data_source(live_fn, journal_fn):
+    if _use_journal_data():
+        return journal_fn()
+    try:
+        result = live_fn()
+        if isinstance(result, dict) and result.get("source") == "demo" and _journal_path():
+            return journal_fn()
+        return result
+    except Exception:
+        if _journal_path():
+            return journal_fn()
+        raise
 
 
 def _metrics_path(request: Request) -> str:
@@ -85,17 +135,38 @@ def _metrics_path(request: Request) -> str:
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
     started = time.perf_counter()
-    response = await call_next(request)
-    if request.url.path.startswith("/metrics"):
-        return response
-    path = _metrics_path(request)
-    API_REQUESTS.labels(method=request.method, path=path, status=str(response.status_code)).inc()
-    API_LATENCY.labels(method=request.method, path=path).observe(time.perf_counter() - started)
+    supplied = request.headers.get("x-request-id", "")
+    request_id = supplied if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", supplied) else uuid.uuid4().hex
+    try:
+        response = await call_next(request)
+    except Exception:
+        # Never include raw exception text, URL query strings or credentials.
+        response = JSONResponse({"detail": "Service unavailable", "request_id": request_id}, status_code=503)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store"
+    if not request.url.path.startswith("/metrics"):
+        path = _metrics_path(request)
+        elapsed = time.perf_counter() - started
+        API_REQUESTS.labels(method=request.method, path=path, status=str(response.status_code)).inc()
+        API_LATENCY.labels(method=request.method, path=path).observe(elapsed)
+        logging.getLogger("tradeops.api").info(json.dumps({"event":"request", "request_id":request_id, "route":path, "status":response.status_code, "duration_seconds":round(elapsed,4)}))
     return response
 
 
 @app.on_event("startup")
 def startup() -> None:
+    for name in ("tradeops.api", "tradeops.ingestion"):
+        logger = logging.getLogger(name)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter("%(message)s"))
+            logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+    file_routes.initialize()
     # Safe/idempotent table creation for the starter build. Production teams can
     # replace create_all with Alembic migrations without changing API contracts.
     if not DEMO_MODE and settings.auto_create_schema:
@@ -111,7 +182,9 @@ DEMO_ORDERS = [
 ]
 
 DEMO_SESSIONS = [
-    {"event":"login","active":True,"status":"Success","time":"2026-09-07T09:10:00+00:00","user_id":"USER***","broker":"DMO","region":"HO-DMO","access_type":"TT","privilege":4,"access_group":"DEALER-DMO","segments":["NSE","NFO"],"products":["C","M"],"order_types":["LMT","MKT"],"app_version":"1.0.8","session_id":"abcde***","login_process":"***","source":"demo"}
+    {"event":"login","active":True,"status":"Success","result":"Success","time":"2026-09-07T09:10:00+00:00","user_id":"6552010-CSB","broker":"CSB","region":"655-CSB","access_type":"TT","privilege":4,"access_group":"DEALER-DMO","segments":["NSE","NFO"],"products":["C","M"],"order_types":["LMT","MKT"],"app_version":"1.0.8","session_id":"abcde***","source_row":150,"source":"demo"},
+    {"event":"login","active":True,"status":"Success","result":"Success","time":"2026-09-07T09:09:55+00:00","user_id":"FR855-FRT","broker":"FRT","region":"HO-FRT","access_type":"MOB","privilege":5,"access_group":"DEALER-FRT","segments":["NSE","BSE"],"products":["C","M"],"order_types":["MKT","LMT"],"app_version":"1.0.8","session_id":"bcdef***","source_row":149,"source":"demo"},
+    {"event":"logout","active":False,"status":"Success","result":"Success","time":"2026-09-07T18:30:00+00:00","user_id":"FR855-FRT","broker":"FRT","region":"HO-FRT","access_type":"MOB","privilege":5,"access_group":"DEALER-FRT","segments":["NSE","BSE"],"products":["C","M"],"order_types":["MKT","LMT"],"app_version":"1.0.8","session_id":"bcdef***","source_row":220,"source":"demo"},
 ]
 
 DEMO_TRADES = [
@@ -216,26 +289,27 @@ def _percentile(values: list[float], pct: float) -> float:
 
 
 def _latency_payload(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
-    """Aggregate raw latency rows into KPI + per-segment + table shapes.
-
-    Unconfirmed rows (blank EXCH_STATUS) carry OMS_EXCH_CONFIRMATION = 0. Those
-    zeros are excluded from every confirmation statistic — including them would
-    drag the averages toward zero and understate real exchange round-trips.
-    """
+    """Aggregate confirmation evidence separately from available timing samples."""
+    journal = source == "journal snapshot"
     oms = [float(r.get("OMS_LATENCY") or 0) for r in rows]
-    confirmed = [float(r.get("OMS_EXCH_CONFIRMATION") or 0) for r in rows if float(r.get("OMS_EXCH_CONFIRMATION") or 0) > 0]
-    unconfirmed = [r for r in rows if not str(r.get("EXCH_STATUS", "")).strip()]
+    confirmation_flags = [
+        bool(r.get("CONFIRMED")) if journal else exch_confirm_label(r.get("EXCH_STATUS")) == "CONFIRMED"
+        for r in rows
+    ]
+    confirmed = [float(r.get("OMS_EXCH_CONFIRMATION") or 0) for r, flag in zip(rows, confirmation_flags)
+                 if not journal and flag and float(r.get("OMS_EXCH_CONFIRMATION") or 0) > 0]
+    unconfirmed_count = len(rows) - sum(confirmation_flags)
 
     segments: dict[str, dict[str, Any]] = {}
-    for r in rows:
+    for r, flag in zip(rows, confirmation_flags):
         seg = r.get("EXCH_SEG") or "—"
         bucket = segments.setdefault(seg, {"segment": seg, "orders": 0, "oms": [], "conf": [], "unconfirmed": 0})
         bucket["orders"] += 1
         bucket["oms"].append(float(r.get("OMS_LATENCY") or 0))
         conf = float(r.get("OMS_EXCH_CONFIRMATION") or 0)
-        if conf > 0:
+        if not journal and flag and conf > 0:
             bucket["conf"].append(conf)
-        if not str(r.get("EXCH_STATUS", "")).strip():
+        if not flag:
             bucket["unconfirmed"] += 1
 
     by_segment = sorted(
@@ -261,16 +335,16 @@ def _latency_payload(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
                 "segment": r.get("EXCH_SEG"),
                 "ext_remarks": r.get("EXT_RMKS"),
                 "oms_status": r.get("OMS_STATUS"),
-                "oms_status_label": oms_status_label(r.get("OMS_STATUS")),
+                "oms_status_label": r.get("OMS_STATUS_LABEL", "UNKNOWN") if journal else oms_status_label(r.get("OMS_STATUS")),
                 "oms_latency_us": float(r.get("OMS_LATENCY") or 0),
                 "exch_status": r.get("EXCH_STATUS"),
-                "exch_status_label": exch_confirm_label(r.get("EXCH_STATUS")),
-                "confirm_latency_us": float(r.get("OMS_EXCH_CONFIRMATION") or 0),
+                "exch_status_label": ("CONFIRMED" if flag else "NOT_CONFIRMED") if journal else exch_confirm_label(r.get("EXCH_STATUS")),
+                "confirm_latency_us": 0.0 if journal else float(r.get("OMS_EXCH_CONFIRMATION") or 0),
                 "oms_update_time": r.get("OMSUPDATETIME"),
                 "exch_update_time": r.get("EXCHUPDATETIME"),
-                "confirmed": bool(str(r.get("EXCH_STATUS", "")).strip()),
+                "confirmed": flag,
             }
-            for r in rows
+            for r, flag in zip(rows, confirmation_flags)
         ],
         "count": len(rows),
         "summary": {
@@ -281,19 +355,20 @@ def _latency_payload(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
             "oms_max_us": round(max(oms), 2) if oms else 0.0,
             "confirm_p50_us": _percentile(confirmed, 50),
             "confirm_p95_us": _percentile(confirmed, 95),
-            "confirmed_orders": len(confirmed),
-            "unconfirmed_orders": len(unconfirmed),
-            "unconfirmed_pct": round((len(unconfirmed) / len(rows)) * 100, 1) if rows else 0.0,
+            "confirmed_orders": sum(confirmation_flags),
+            "confirmation_timing_samples": len(confirmed),
+            "unconfirmed_orders": unconfirmed_count,
+            "unconfirmed_pct": round((unconfirmed_count / len(rows)) * 100, 1) if rows else 0.0,
         },
         "by_segment": by_segment,
-        # Surfaced so the UI can label the OMS status column as provisional
-        # rather than silently asserting a mapping nobody has confirmed.
-        "oms_status_mapping_confirmed": OMS_STATUS_MAPPING_CONFIRMED,
+        "oms_status_mapping_confirmed": True if journal else OMS_STATUS_MAPPING_CONFIRMED,
+        "latency_kind": "journal_event_interval" if journal else "oms_latency",
+        "confirmation_timing_available": bool(confirmed),
         "notes": [
             "Latencies are microseconds.",
             "OMS_EXCH_CONFIRMATION derives from whole-second timestamps upstream, so values "
             "quantise near second boundaries and should not be read as sub-second precision.",
-            "Unconfirmed orders report 0 and are excluded from confirmation statistics.",
+            "Confirmation statistics include only positive timings for exchange-confirmed rows.",
         ],
         "source": source,
     }
@@ -328,7 +403,23 @@ def _demo_rejections() -> dict[str, Any]:
 
 @app.get("/health")
 def health():
-    return {"status":"ok","demo_mode":DEMO_MODE,"time":datetime.now(timezone.utc).isoformat(),"schema":"noren-v1"}
+    return {
+        "status": "ok",
+        "demo_mode": DEMO_MODE,
+        "journal_path": bool(_journal_path()),
+        "csv_configured": bool(settings.csv_dir),
+        "journal_primary": settings.journal_primary,
+        "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
+        "time": datetime.now(timezone.utc).isoformat(),
+        "schema": "noren-v1",
+    }
+
+
+@app.get("/health/ready")
+def ready():
+    from app.readiness import readiness
+    result = readiness()
+    return JSONResponse(result, status_code=200 if result["status"] == "ready" else 503)
 
 
 @app.get("/api/event-bus/status")
@@ -367,6 +458,7 @@ def auth_config():
     id, realm and issuer are all discoverable from the login URL anyway."""
     return {
         "auth_disabled": settings.auth_disabled,
+        "registration_allowed": settings.allow_signup,
         "issuer": settings.keycloak_issuer,
         "authorization_endpoint": f"{settings.keycloak_issuer}/protocol/openid-connect/auth",
         "token_endpoint": f"{settings.keycloak_issuer}/protocol/openid-connect/token",
@@ -383,8 +475,12 @@ def auth_me(user=Depends(current_user)):
 
 @app.get("/api/overview")
 def overview(user=Depends(require("dashboard:read"))):
+    from app.journal_snapshot import journal_overview as journal_overview_data
+
+    if _use_journal_data():
+        return journal_overview_data(_journal_path())
     if not DEMO_MODE:
-        return noren_overview()
+        return _with_data_source(lambda: noren_overview(), lambda: journal_overview_data(_journal_path()))
     rejected = len([x for x in DEMO_ORDERS if x["status"] == "REJECTED"])
     return {
         "orders": len(DEMO_ORDERS), "complete": 0, "rejected": rejected,
@@ -398,23 +494,66 @@ def overview(user=Depends(require("dashboard:read"))):
 
 @app.get("/api/sessions")
 def sessions(user=Depends(require("sessions:read"))):
+    from app.journal_snapshot import journal_sessions as journal_sessions_data
+
+    if _use_journal_data():
+        return journal_sessions_data(_journal_path())
     if DEMO_MODE:
         return {"items":DEMO_SESSIONS,"count":len(DEMO_SESSIONS),"source":"demo"}
-    return active_sessions()
+    return _with_data_source(lambda: active_sessions(), lambda: journal_sessions_data(_journal_path()))
 
 
 @app.get("/api/sessions/summary")
 def sessions_summary(user=Depends(require("sessions:read"))):
+    from app.journal_snapshot import journal_session_summary as journal_session_summary_data
+
+    if _use_journal_data():
+        return journal_session_summary_data(_journal_path())
     if DEMO_MODE:
         return {"active_sessions":1,"unique_users":1,"unique_brokers":1,"brokers":[{"name":"DMO","count":1}],"access_types":[{"name":"TT","count":1}],"segments":[{"name":"NSE","count":1},{"name":"NFO","count":1}],"versions":[{"name":"1.0.8","count":1}],"source":"demo"}
-    return session_summary()
+    return _with_data_source(lambda: session_summary(), lambda: journal_session_summary_data(_journal_path()))
 
 
 @app.get("/api/sessions/login-trend")
 def sessions_login_trend(interval: str = Query("30m"), user=Depends(require("sessions:read"))):
+    from app.journal_snapshot import journal_login_trend as journal_login_trend_data
+
+    if _use_journal_data():
+        return journal_login_trend_data(_journal_path())
     if DEMO_MODE:
         return {"buckets":[],"source":"demo"}
-    return login_trend(interval)
+    return _with_data_source(lambda: login_trend(interval), lambda: journal_login_trend_data(_journal_path()))
+
+
+def _journal_snapshot():
+    from app.journal_snapshot import load_journal
+    path = settings.journal_path
+    if not path:
+        raise HTTPException(503, "Journal snapshot is not configured")
+    try:
+        return load_journal(path)
+    except (OSError, ValueError, TypeError):
+        raise HTTPException(503, "Journal snapshot could not be read")
+
+
+@app.get("/api/journal/orders")
+def journal_orders(size: int = Query(500, ge=1, le=10000), user=Depends(require("orders:read"))):
+    from app.journal_snapshot import journal_orders as journal_orders_data
+
+    path = _journal_path()
+    if not path:
+        raise HTTPException(503, "Journal snapshot is not configured")
+    return journal_orders_data(path, size=size)
+
+
+@app.get("/api/journal/orders/{order_id}/lifecycle")
+def journal_order_history(order_id: str, user=Depends(require("orders:read"))):
+    from app.journal_snapshot import journal_order_lifecycle
+
+    path = _journal_path()
+    if not path:
+        raise HTTPException(503, "Journal snapshot is not configured")
+    return journal_order_lifecycle(path, order_id)
 
 
 @app.get("/api/orders")
@@ -425,10 +564,14 @@ def orders(
     user_id: str | None = None,
     symbol: str | None = None,
     q: str | None = None,
-    size: int = Query(100, ge=1, le=500),
+    size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
     user=Depends(require("orders:read")),
 ):
+    from app.journal_snapshot import journal_orders as journal_orders_data
+
+    if _use_journal_data():
+        return journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q)
     if DEMO_MODE:
         items = DEMO_ORDERS
         if status: items = [x for x in items if x["status"].lower() == status.lower()]
@@ -436,44 +579,81 @@ def orders(
         if symbol: items = [x for x in items if x["symbol"].lower() == symbol.lower()]
         if q: items = [x for x in items if q.lower() in str(x).lower()]
         return {"items":items[:size],"count":len(items),"source":"demo"}
-    return live_orders(size=size, lookback=lookback, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q)
+    return _with_data_source(
+        lambda: live_orders(size=size, lookback=lookback, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q),
+        lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q),
+    )
 
 
 @app.get("/api/orders/{order_id}/lifecycle")
 def order_history(order_id: str, lookback: str = Query("30d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("orders:read"))):
+    from app.journal_snapshot import journal_order_lifecycle as journal_order_lifecycle_data
+
+    if _use_journal_data():
+        return journal_order_lifecycle_data(_journal_path(), order_id)
     if DEMO_MODE:
         events = [x for x in DEMO_ORDERS if x["order_id"] == order_id]
         return {"order_id":order_id,"events":events,"count":len(events),"source":"demo"}
-    return order_lifecycle(order_id, lookback=lookback)
+    return _with_data_source(
+        lambda: order_lifecycle(order_id, lookback=lookback),
+        lambda: journal_order_lifecycle_data(_journal_path(), order_id),
+    )
 
 
 @app.get("/api/rejections")
 def rejections(lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("rejections:read"))):
+    from app.journal_snapshot import journal_rejections as journal_rejections_data
+
+    if _use_journal_data():
+        return journal_rejections_data(_journal_path())
     if DEMO_MODE:
         return _demo_rejections()
-    return rejection_summary(lookback=lookback)
+    return _with_data_source(lambda: rejection_summary(lookback=lookback), lambda: journal_rejections_data(_journal_path()))
 
 
 @app.get("/api/rca/order/{order_id}")
 def order_rca(order_id: str, lookback: str = Query("30d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("rca:read"))):
+    from app.journal_snapshot import journal_rca as journal_rca_data
+
+    if _use_journal_data():
+        return journal_rca_data(_journal_path(), order_id)
     if DEMO_MODE:
         events = [x for x in DEMO_ORDERS if x["order_id"] == order_id]
         if not events:
             return {"order_id":order_id,"found":False,"source":"demo"}
         e = events[-1]
         return {"order_id":order_id,"found":True,"summary":{"status":e["status"],"exchange":e["exchange"],"symbol":e["symbol"],"category":e.get("rejection_category"),"code":e.get("code"),"probable_cause":e.get("reason") or e["status"],"confidence":0.90},"evidence":events,"source":"demo"}
-    return noren_rca(order_id, lookback=lookback)
+    return _with_data_source(lambda: noren_rca(order_id, lookback=lookback), lambda: journal_rca_data(_journal_path(), order_id))
 
 
 @app.get("/api/exchanges/yel")
 def exchange_yel(user=Depends(require("exchange:read"))):
+    from app.journal_snapshot import journal_yel_health as journal_yel_health_data
+
+    if _use_journal_data():
+        return journal_yel_health_data(_journal_path())
     if DEMO_MODE:
         return {"connected":True,"keys":["DEMO"],"source":"demo"}
-    return yel_health()
+    return _with_data_source(lambda: yel_health(), lambda: journal_yel_health_data(_journal_path()))
 
 
 @app.get("/api/exchanges")
 def exchanges(user=Depends(require("exchange:read"))):
+    from app.journal_snapshot import journal_exchanges as journal_exchanges_data
+
+    if _use_journal_data():
+        data = journal_exchanges_data(_journal_path())
+        items = []
+        for row in data.get("items") or []:
+            items.append({
+                "name": row.get("name") or "—",
+                "status": "Historical events",
+                "latency_ms": None,
+                "reject_rate": row.get("reject_rate"),
+                "heartbeat_age_s": None,
+                "events": row.get("events") or 0,
+            })
+        return {"items": items, "count": len(items), "source": data.get("source")}
     if DEMO_MODE:
         return {"items": DEMO_EXCHANGES, "count": len(DEMO_EXCHANGES), "source": "demo"}
     overview_data = noren_overview()
@@ -481,13 +661,12 @@ def exchanges(user=Depends(require("exchange:read"))):
     total_events = sum(int(x.get("events") or 0) for x in overview_data.get("exchanges") or [])
     for row in overview_data.get("exchanges") or []:
         events = int(row.get("events") or 0)
-        reject_rate = round((overview_data.get("reject_rate") or 0) * (events / total_events), 2) if total_events else 0
         items.append({
             "name": row.get("name") or "—",
-            "status": "Healthy" if events else "No events",
-            "latency_ms": 0,
-            "reject_rate": reject_rate,
-            "heartbeat_age_s": 0,
+            "status": "Events observed" if events else "No events",
+            "latency_ms": None,
+            "reject_rate": None,
+            "heartbeat_age_s": None,
             "events": events,
         })
     return {"items": items, "count": len(items), "source": overview_data.get("source", "elasticsearch")}
@@ -495,48 +674,65 @@ def exchanges(user=Depends(require("exchange:read"))):
 
 @app.get("/api/order-book")
 def order_book(
-    size: int = Query(100, ge=1, le=500),
+    size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
     user=Depends(require("orders:read")),
 ):
+    from app.journal_snapshot import journal_orders as journal_orders_data
+
+    if _use_journal_data():
+        return journal_orders_data(_journal_path(), size=size, status="OPEN")
     if DEMO_MODE:
         items = [x for x in DEMO_ORDERS if x["status"] in {"OPEN", "PENDING", "TRIGGER_PENDING"}]
         return {"items": items[:size], "count": len(items), "source": "demo"}
-    return live_orders(size=size, lookback=lookback, status="OPEN")
+    return _with_data_source(
+        lambda: live_orders(size=size, lookback=lookback, status="OPEN"),
+        lambda: journal_orders_data(_journal_path(), size=size, status="OPEN"),
+    )
 
 
 @app.get("/api/trades")
 def trades(
-    size: int = Query(100, ge=1, le=500),
+    size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
     user=Depends(require("trades:read")),
 ):
+    from app.journal_snapshot import journal_trades as journal_trades_data
+
+    if _use_journal_data():
+        return journal_trades_data(_journal_path(), size=size)
     if DEMO_MODE:
         return {"items": DEMO_TRADES[:size], "count": len(DEMO_TRADES), "source": "demo"}
-    data = live_orders(size=size, lookback=lookback, status="COMPLETE")
-    items = [
-        {
-            "trade_id": f"T-{o.get('order_id')}",
-            "order_id": o.get("order_id"),
-            "time": o.get("time"),
-            "exchange": o.get("exchange"),
-            "symbol": o.get("symbol"),
-            "side": o.get("side"),
-            "qty": o.get("filled_qty") or o.get("qty"),
-            "price": o.get("price"),
-            "value": round(float(o.get("price") or 0) * float(o.get("filled_qty") or o.get("qty") or 0), 2),
-            "account": o.get("account"),
-            "user": o.get("user"),
-            "broker": o.get("broker"),
-            "source": data.get("source"),
-        }
-        for o in data.get("items", [])
-    ]
-    return {"items": items, "count": len(items), "source": data.get("source", "elasticsearch")}
+
+    def _live_trades():
+        data = live_orders(size=size, lookback=lookback, status="COMPLETE")
+        items = [
+            {
+                "trade_id": f"T-{o.get('order_id')}",
+                "order_id": o.get("order_id"),
+                "time": o.get("time"),
+                "exchange": o.get("exchange"),
+                "symbol": o.get("symbol"),
+                "side": o.get("side"),
+                "qty": o.get("filled_qty") or o.get("qty"),
+                "price": o.get("price"),
+                "value": round(float(o.get("price") or 0) * float(o.get("filled_qty") or o.get("qty") or 0), 2),
+                "account": o.get("account"),
+                "user": o.get("user"),
+                "broker": o.get("broker"),
+                "source": data.get("source"),
+            }
+            for o in data.get("items", [])
+        ]
+        return {"items": items, "count": len(items), "source": data.get("source", "elasticsearch")}
+
+    return _with_data_source(_live_trades, lambda: journal_trades_data(_journal_path(), size=size))
 
 
 @app.get("/api/positions")
 def positions(user=Depends(require("positions:read"))):
+    if _use_journal_data():
+        return {"items": [], "count": 0, "source": "journal snapshot", "note": "Position snapshots require RMS integration"}
     if DEMO_MODE:
         return {"items": DEMO_POSITIONS, "count": len(DEMO_POSITIONS), "source": "demo"}
     return {"items": [], "count": 0, "source": "elasticsearch", "note": "Position snapshots require RMS integration"}
@@ -544,6 +740,8 @@ def positions(user=Depends(require("positions:read"))):
 
 @app.get("/api/holdings")
 def holdings(user=Depends(require("holdings:read"))):
+    if _use_journal_data():
+        return {"items": [], "count": 0, "source": "journal snapshot", "note": "Holdings require back-office integration"}
     if DEMO_MODE:
         return {"items": DEMO_HOLDINGS, "count": len(DEMO_HOLDINGS), "source": "demo"}
     return {"items": [], "count": 0, "source": "elasticsearch", "note": "Holdings require back-office integration"}
@@ -551,11 +749,36 @@ def holdings(user=Depends(require("holdings:read"))):
 
 @app.get("/api/order-latency")
 def order_latency(user=Depends(require("latency:read"))):
+    if file_routes._store is not None:
+        return file_routes._store.latency()
+    if _use_journal_data():
+        from app.journal_snapshot import journal_order_latency_rows
+
+        rows, feed_kind = journal_order_latency_rows(_journal_path())
+        payload = _latency_payload(rows, feed_kind)
+        payload["source"] = "journal snapshot"
+        if not rows:
+            payload["note"] = "No event intervals or latency CSV rows were found in the journal snapshot source."
+        if feed_kind == "order-latency csv":
+            payload["notes"] = [
+                "Latencies are microseconds from the L_ORDERLATENCY CSV feed.",
+                "OMS_EXCH_CONFIRMATION derives from whole-second timestamps upstream, so values "
+                "quantise near second boundaries and should not be read as sub-second precision.",
+                "Confirmation statistics include only positive timings for exchange-confirmed rows.",
+            ]
+            payload["oms_status_mapping_confirmed"] = OMS_STATUS_MAPPING_CONFIRMED
+        else:
+            payload["notes"] = [
+                "Journal event intervals use original → current Noren timestamps, including nanoseconds (microseconds).",
+                "These event intervals are not measured OMS processing or exchange round-trip latency.",
+                "Confirmed indicates an exchange order number on the latest journal state, not a measured acknowledgement time.",
+                "Exchange confirmation timing is unavailable from the journal; zero timing fields are compatibility placeholders, not measurements.",
+            ]
+            payload["oms_status_mapping_confirmed"] = True
+        payload["feed_kind"] = feed_kind
+        return payload
     if DEMO_MODE:
         return _latency_payload(DEMO_ORDER_LATENCY, "demo")
-    # The latency feed arrives as periodic L_ORDERLATENCY<TS>.csv drops rather than
-    # through the Noren journal, so there is no Elasticsearch index to query yet.
-    # Same shape as the demo branch so the UI needs no special case.
     empty = _latency_payload([], "elasticsearch")
     empty["note"] = "Order latency requires the L_ORDERLATENCY feed to be ingested"
     return empty
@@ -563,10 +786,37 @@ def order_latency(user=Depends(require("latency:read"))):
 
 @app.get("/api/infra")
 def infra(user=Depends(require("infra:read"))):
+    from app.prometheus_service import node_summary
+    prom = node_summary()
+    if _use_journal_data():
+        elk = elk_status()
+        return {
+            "elasticsearch": {
+                "status": "Connected" if elk.get("connected") else "Disconnected",
+                "cluster_health": elk.get("cluster") or "unknown",
+                "mode": elk.get("mode") or "journal-fallback",
+            },
+            "redis": {"status": "Unavailable", "streams": []},
+            "postgres": {"status": "Unavailable", "migrations": "alembic"},
+            "journal": {"status": "Loaded", "path": True},
+            "prometheus": prom,
+            "source": "journal snapshot",
+        }
     if DEMO_MODE:
-        return DEMO_INFRA
+        payload = dict(DEMO_INFRA)
+        payload["prometheus"] = prom
+        return payload
     elk = elk_status()
     redis = redis_status()
+    from app.db import engine
+    from sqlalchemy import text
+    postgres_status = "Unavailable"
+    try:
+        with engine.connect() as connection:
+            if connection.execute(text("SELECT 1")).scalar() == 1:
+                postgres_status = "Healthy"
+    except Exception:
+        pass  # Connection errors may contain credentials; never expose them.
     return {
         "elasticsearch": {
             "status": "Connected" if elk.get("connected") else "Disconnected",
@@ -577,13 +827,22 @@ def infra(user=Depends(require("infra:read"))):
             "status": "Healthy" if redis.get("connected") else "Disconnected",
             "streams": redis.get("streams"),
         },
-        "postgres": {"status": "Healthy", "migrations": "alembic"},
+        "postgres": {"status": postgres_status, "migrations": "alembic"},
+        "prometheus": prom,
         "source": "live",
     }
 
 
 @app.get("/api/market-data")
 def market_data(user=Depends(require("market:read"))):
+    if _use_journal_data():
+        return {
+            "symbols": [],
+            "feeds": [],
+            "segments": [],
+            "source": "journal snapshot",
+            "note": "Market data is not present in the journal snapshot. Enable TRUEDATA or ingest exchange ticks.",
+        }
     if DEMO_MODE:
         return DEMO_MARKET
     snapshot = load_snapshot()
@@ -608,9 +867,14 @@ def market_data(user=Depends(require("market:read"))):
 
 @app.get("/api/risk")
 def risk(user=Depends(require("risk:read"))):
-    if DEMO_MODE:
+    from app.journal_snapshot import journal_rejections as journal_rejections_data
+
+    if _use_journal_data():
+        rej = journal_rejections_data(_journal_path())
+    elif DEMO_MODE:
         return DEMO_RISK
-    rej = rejection_summary(lookback="24h")
+    else:
+        rej = rejection_summary(lookback="24h")
     breaches = [
         {
             "id": f"RB-{i+1}",
@@ -625,15 +889,17 @@ def risk(user=Depends(require("risk:read"))):
 
 @app.get("/api/reports")
 def reports(user=Depends(require("reports:read"))):
-    if DEMO_MODE:
-        return DEMO_REPORTS
-    return {"items": [], "source": "postgresql", "note": "Scheduled reports not configured"}
+    return {"items": [], "source": "unconfigured", "note": "Scheduled delivery is not configured. Export filtered records from the latency, queue or order views."}
 
 
 @app.get("/api/config")
 def runtime_config(user=Depends(require("dashboard:read"))):
     return {
         "demo_mode": DEMO_MODE,
+        "journal_path": bool(_journal_path()),
+        "csv_configured": bool(settings.csv_dir),
+        "journal_primary": settings.journal_primary,
+        "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
         "auth_disabled": settings.auth_disabled,
         "schema": "noren-v1",
         "indices": {
@@ -647,7 +913,7 @@ def runtime_config(user=Depends(require("dashboard:read"))):
         "price_divisor": settings.noren_price_divisor,
         "redis_label": settings.redis_public_label,
         "metrics_enabled": settings.metrics_enabled,
-        "source": "demo" if DEMO_MODE else "runtime",
+        "source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "runtime"),
     }
 
 
@@ -657,7 +923,7 @@ def elasticsearch_status(user=Depends(require("logs:read"))):
 
 
 @app.get("/api/elk/log-level-trend")
-def elasticsearch_log_level_trend(interval: str = Query("5m"), user=Depends(require("logs:read"))):
+def elasticsearch_log_level_trend(interval: str = Query("5m", pattern=r"^(1m|5m|15m|30m|1h)$"), user=Depends(require("logs:read"))):
     if DEMO_MODE:
         return {"buckets":[],"source":"demo"}
     return log_level_trend(interval)
@@ -672,11 +938,21 @@ def elasticsearch_services(user=Depends(require("logs:read"))):
 
 @app.get("/api/logs/search")
 def search_logs(
-    q: str = Query("", description="Free-text / Elasticsearch query_string query"),
+    q: str = Query("", max_length=500, description="Search allowlisted operational fields"),
     size: int = Query(50, ge=1, le=500),
     index: str | None = Query(None, description="Optional allowed configured Noren index pattern"),
     user=Depends(require("logs:read")),
 ) -> dict[str, Any]:
+    if _use_journal_data():
+        return {
+            "items": [],
+            "count": 0,
+            "source": "journal snapshot",
+            "note": (
+                "Raw Journal.log search is not exposed because source rows contain PAN, IP, "
+                "session and contact fields. Use the masked order, rejection and session views."
+            ),
+        }
     if DEMO_MODE:
         items = [
             {"@timestamp":"2026-09-07T09:15:02Z","service":"noren-ordupd","level":"ERROR","exchange":"BSE","order_id":"DEMO-1002","message":"RED:Margin Shortfall"},
@@ -695,19 +971,19 @@ def search_logs(
 
 @app.get("/api/stream/orders")
 async def stream_orders(request: Request, interval: float = Query(2.0, ge=1.0, le=30.0), user=Depends(require("orders:read"))):
-    return StreamingResponse(event_stream("orders", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("orders", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/rejections")
 async def stream_rejections(request: Request, interval: float = Query(3.0, ge=1.0, le=30.0), user=Depends(require("rejections:read"))):
-    return StreamingResponse(event_stream("rejections", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("rejections", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/exchange")
 async def stream_exchange(request: Request, interval: float = Query(5.0, ge=1.0, le=60.0), user=Depends(require("exchange:read"))):
-    return StreamingResponse(event_stream("exchange", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("exchange", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/market")
 async def stream_market(request: Request, interval: float = Query(1.0, ge=0.5, le=30.0), user=Depends(require("market:read"))):
-    return StreamingResponse(event_stream("market", interval), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    return StreamingResponse(event_stream("market", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 
 @app.get("/api/incidents/derived")

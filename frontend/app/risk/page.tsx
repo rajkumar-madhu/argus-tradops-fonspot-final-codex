@@ -1,3 +1,4 @@
+import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { AlertTriangle, RefreshCw, Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 import Shell from "@/components/Shell";
@@ -22,10 +23,7 @@ export default async function Page() {
           <h1>Risk & Limits</h1>
           <p>Margin utilization, concentration limits and breach monitoring</p>
         </div>
-        <div className="time-controls">
-          <button className="selected">Live</button>
-          <button>1D</button>
-          <button className="icon-btn" aria-label="Refresh"><RefreshCw size={14} /></button>
+        <div className="time-controls"><RefreshButton/>
           <span className="source-tag">{breaches.length} breaches · {d.source || "—"}</span>
         </div>
       </section>

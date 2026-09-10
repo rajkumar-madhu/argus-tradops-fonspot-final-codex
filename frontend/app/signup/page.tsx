@@ -1,57 +1,118 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { UserPlus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowRight, Shield, UserPlus } from "lucide-react";
+import AuthModeTabs from "@/components/AuthModeTabs";
 import AuthShell from "@/components/AuthShell";
-import { fetchAuthConfig, registrationUrl } from "@/lib/oidc";
+import { fetchAuthConfig, login, registrationUrl, type AuthConfig } from "@/lib/oidc";
 
-/**
- * Registration is owned by Keycloak. This form only collects intent locally;
- * nothing typed here is posted anywhere. On submit we hand off to the realm's
- * registration page, or to /verify when auth is disabled or unreachable.
- */
 export default function SignUp() {
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [cfg, setCfg] = useState<AuthConfig | null>(null);
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    let target = "/verify";
+  const load = useCallback(async () => {
+    setChecking(true);
+    setError(null);
     try {
-      const cfg = await fetchAuthConfig();
-      target = registrationUrl(cfg) ?? "/verify";
-    } catch {
-      target = "/verify";
+      setCfg(await fetchAuthConfig());
+    } catch (err) {
+      setCfg(null);
+      setError(err instanceof Error ? err.message : "Cannot reach the API");
+    } finally {
+      setChecking(false);
     }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function startSso() {
+    setBusy(true);
+    setError(null);
+    try {
+      await login("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed");
+      setBusy(false);
+    }
+  }
+
+  async function startRegistration() {
+    if (!cfg) return;
+    const target = registrationUrl(cfg);
+    if (!target) {
+      setError("Self-registration is not enabled on this identity provider.");
+      return;
+    }
+    setBusy(true);
     window.location.href = target;
   }
 
+  const registrationOpen = Boolean(cfg && registrationUrl(cfg));
+  const ssoReady = cfg?.auth_disabled === false;
+
   return (
-    <AuthShell title="Create your workspace" subtitle="Join TradeOps and get full visibility across trading operations.">
-      <div className="auth-card">
-        <span className="auth-icon"><UserPlus size={22} /></span>
-        <h2>Get started free</h2>
-        <p>No card required. Your workspace is provisioned through your organisation&apos;s identity provider.</p>
-        <form onSubmit={submit}>
-          <div className="form-grid">
-            <label>Full Name<input required autoComplete="name" placeholder="Your full name" /></label>
-            <label>Work Email<input required type="email" autoComplete="email" placeholder="name@company.com" /></label>
-            <label>Company<input required autoComplete="organization" placeholder="Company name" /></label>
-            <label>Phone Number<input autoComplete="tel" placeholder="+91 ·····" /></label>
-            <label>Password<input required type="password" autoComplete="new-password" placeholder="Create password" /></label>
-            <label>Confirm Password<input required type="password" autoComplete="new-password" placeholder="Confirm password" /></label>
+    <AuthShell
+      title="Request a TradeOps workspace"
+      subtitle="Bring your operations team into one read-only view of orders, rejections, and exchange health."
+    >
+      <div className="auth-card auth-card-v2 compact">
+        <AuthModeTabs active="signup" />
+
+        <div className="auth-card-head">
+          <span className="auth-icon"><UserPlus size={22} /></span>
+          <div>
+            <h2>{registrationOpen ? "Create your access" : "Access is provisioned"}</h2>
+            <p>
+              {registrationOpen
+                ? "Finish account creation with your organisation’s identity provider."
+                : "TradeOps uses organisation SSO. This identity provider does not allow self-registration."}
+            </p>
           </div>
-          <label className="check"><input required type="checkbox" /> I agree to the <a href="#terms">Terms</a> and <a href="#privacy">Privacy Policy</a></label>
-          <button className="primary" disabled={busy}>{busy ? "Redirecting…" : "Create Account →"}</button>
-        </form>
-        <div className="auth-or"><span>what you get</span></div>
-        <div className="auth-perks">
-          <div><b>Live orders</b><span>Streamed from the Noren journal</span></div>
-          <div><b>Rejection RCA</b><span>Evidence-backed root cause</span></div>
-          <div><b>Exchange health</b><span>Latency and connectivity</span></div>
         </div>
-        <p className="auth-foot">Already have an account? <Link href="/signin">Sign in</Link></p>
+
+        {ssoReady && !registrationOpen && !checking && (
+          <div className="auth-chip sso">
+            <Shield size={14} />
+            Ask an administrator to grant you access, then sign in with SSO
+          </div>
+        )}
+
+        {error && <p className="form-error" role="alert">{error}</p>}
+
+        {cfg?.auth_disabled ? (
+          <button type="button" className="primary auth-cta" onClick={() => (window.location.href = "/dashboard")}>
+            Continue to dashboard
+            <ArrowRight size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="primary auth-cta"
+            disabled={busy || checking}
+            onClick={checking || !cfg ? load : registrationOpen ? startRegistration : startSso}
+          >
+            <Shield size={16} />
+            {busy
+              ? "Opening secure sign-in…"
+              : checking
+                ? "Checking access…"
+                : !cfg
+                  ? "Retry connection"
+                  : registrationOpen
+                    ? "Continue to registration"
+                    : "Sign in with SSO"}
+            {!busy && !checking && cfg && <ArrowRight size={16} />}
+          </button>
+        )}
+
+        <p className="auth-foot">
+          Already have access? <Link href="/signin">Sign in with SSO</Link>
+        </p>
       </div>
     </AuthShell>
   );
