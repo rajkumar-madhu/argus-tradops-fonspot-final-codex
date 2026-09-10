@@ -180,7 +180,7 @@ export function BarLineChart({ bars, line, labels, barLabel, lineLabel, height =
   );
 }
 
-export const SERIES_COLORS = ["#8a5a00", "#16a34a", "#8b5cf6", "#f59e0b", "#e5383b", "#db2777"];
+export const SERIES_COLORS = ["#1B6F80", "#16a34a", "#8b5cf6", "#f59e0b", "#e5383b", "#db2777"];
 
 /** Several unfilled lines on one axis (e.g. latency per exchange segment). */
 export function MultiLineChart({ series, labels, unit = "", height = 180 }: {

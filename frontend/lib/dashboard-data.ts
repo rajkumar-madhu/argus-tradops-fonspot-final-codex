@@ -80,7 +80,7 @@ export function statusDonutSlices(args: {
   return [
     { label: "Complete", value: complete, cls: "seg-green", pct: pct(complete) },
     { label: "Rejected", value: rejected, cls: "seg-red", pct: pct(rejected) },
-    { label: "Open", value: open, cls: "seg-neutral", pct: pct(open) },
+    { label: "Open", value: open, cls: "seg-open", pct: pct(open) },
     { label: "Pending", value: pending, cls: "seg-amber", pct: pct(pending) },
   ].filter((s) => s.value > 0);
 }
