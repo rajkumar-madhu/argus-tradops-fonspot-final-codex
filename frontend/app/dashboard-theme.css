@@ -1,43 +1,48 @@
-/* SILKS-inspired dark desk: forest rail, gold accents, clean surfaces. */
+/* Dark desk — same navy rail / blue primary as the light reference theme.
+   Applied when Shell adds .dashboard-theme (moon toggle). */
 .app-shell.dashboard-theme {
   color-scheme: dark;
-  --ground: #041512;
-  --surface: #0b221c;
-  --surface-2: #0f2b23;
-  --surface-muted: #0f2b23;
-  --surface-3: #14352b;
-  --rail: #001611;
-  --ink: #f4f7f5;
-  --ink-2: #c5d4cd;
-  --muted: #8ea79c;
+  --ground: #0b1220;
+  --surface: #121c2e;
+  --surface-2: #162338;
+  --surface-muted: #162338;
+  --surface-3: #1a2a42;
+  --rail: #0d1a28;
+  --rail-ink: #e6edf5;
+  --ink: #e8eef8;
+  --ink-2: #b7c3d6;
+  --muted: #8ea0b6;
   --text: var(--ink);
   --text-secondary: var(--ink-2);
   --text-muted: var(--muted);
   --text-soft: var(--muted);
-  --line: #1c3b31;
-  --line-soft: #153028;
+  --line: #24364f;
+  --line-soft: #1c2c42;
   --border: var(--line);
   --border-soft: var(--line-soft);
-  --brand: #c78924;
-  --brand-hover: #db9b2f;
-  --brand-strong: #e0ae55;
-  --brand-tint: #2a2412;
-  --brand-border: #5c4a1e;
-  --brand-soft: #1a1810;
-  --brand-focus: #c78924;
-  --signal: #147a62;
-  --signal-soft: #0f2b23;
-  --blue: #147a62;
+  --brand: #3b82f6;
+  --brand-hover: #60a5fa;
+  --brand-strong: #93c5fd;
+  --brand-tint: #16304f;
+  --brand-border: #2a4a78;
+  --brand-soft: #102038;
+  --brand-hero: #12243c;
+  --brand-gradient-end: #60a5fa;
+  --brand-shadow: rgba(59, 130, 246, 0.35);
+  --brand-focus: rgba(59, 130, 246, 0.45);
+  --signal: #3b82f6;
+  --signal-soft: #16304f;
+  --blue: #3b82f6;
   --blue-ui: var(--brand);
-  --blue-bright: #1c9a7a;
-  --coral: var(--brand);
-  --accent: #c78924;
-  --accent-soft: #2a2412;
+  --blue-bright: #60a5fa;
+  --coral: #ff6b35;
+  --accent: #f59e0b;
+  --accent-soft: #3a2e12;
   --amber: var(--accent);
-  --up: #1c9a7a;
+  --up: #22c55e;
   --green: var(--up);
-  --green-bright: #3ecf9a;
-  --down: #e07070;
+  --green-bright: #4ade80;
+  --down: #f87171;
   --red: var(--down);
   --shadow-sm: none;
   --shadow: none;
@@ -45,90 +50,95 @@
   background: var(--ground);
 }
 
-.dashboard-theme .sidebar {
+.app-shell.dashboard-theme .sidebar {
   background: var(--rail);
   border-right-color: var(--line-soft);
+  color: var(--rail-ink);
 }
 
-.dashboard-theme .nav {
-  color: #c5d6cf;
+.app-shell.dashboard-theme .nav {
+  color: #c3cedd;
 }
 
-.dashboard-theme .nav:hover {
-  background: rgba(199, 137, 36, 0.14);
+.app-shell.dashboard-theme .nav svg {
+  color: #9fb0c6;
+}
+
+.app-shell.dashboard-theme .nav:hover {
+  background: rgba(255, 255, 255, 0.07);
   color: #fff;
 }
 
-.dashboard-theme .nav.active {
-  background: #0a3d32;
+.app-shell.dashboard-theme .nav.active,
+.app-shell.dashboard-theme .nav-infra.active,
+.app-shell.dashboard-theme .nav-data-quality.active,
+.app-shell.dashboard-theme .nav-queue-monitor.active,
+.app-shell.dashboard-theme .nav-reports.active,
+.app-shell.dashboard-theme .nav-logs.active {
+  background: #0b5cff;
   color: #fff;
-  box-shadow: inset 3px 0 0 #c78924;
+  box-shadow: 0 6px 14px -8px rgba(11, 92, 255, 0.8);
 }
 
-.dashboard-theme .nav-infra.active,
-.dashboard-theme .nav-data-quality.active,
-.dashboard-theme .nav-queue-monitor.active,
-.dashboard-theme .nav-reports.active,
-.dashboard-theme .nav-logs.active {
-  background: #0a3d32;
-  box-shadow: inset 3px 0 0 #c78924;
+.app-shell.dashboard-theme .nav.active svg {
+  color: #fff;
 }
 
-.dashboard-theme .sidebar .brand span,
-.dashboard-theme .sidebar-foot {
+.app-shell.dashboard-theme .sidebar .brand span,
+.app-shell.dashboard-theme .sidebar-foot {
   color: var(--muted);
 }
 
-.dashboard-theme .marketbar {
-  background: rgba(4, 21, 18, 0.94);
+.app-shell.dashboard-theme .marketbar {
+  background: rgba(12, 20, 34, 0.96);
   border-bottom: 1px solid var(--line);
 }
 
-.dashboard-theme .panel,
-.dashboard-theme .kpi-card {
+.app-shell.dashboard-theme .panel,
+.app-shell.dashboard-theme .kpi-card {
   background: var(--surface);
   border-color: var(--line);
 }
 
-.dashboard-theme .primary,
-.dashboard-theme button.primary,
-.dashboard-theme .primary-btn {
-  background: #0a3d32;
+.app-shell.dashboard-theme .primary,
+.app-shell.dashboard-theme button.primary,
+.app-shell.dashboard-theme .primary-btn {
+  background: #0b5cff;
   color: #fff;
-  border-color: #c78924;
+  border-color: #0b5cff;
 }
 
-.dashboard-theme .mission-tabs button.active {
+.app-shell.dashboard-theme .mission-tabs button.active {
   color: var(--text);
-  border-color: #c78924;
-  background: rgba(199, 137, 36, 0.16);
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.16);
 }
 
-.dashboard-theme table thead th {
+.app-shell.dashboard-theme table thead th {
   background: var(--surface-2);
   color: var(--text-secondary);
 }
 
-.dashboard-theme table tbody tr:nth-child(even) {
-  background: #0d261f;
+.app-shell.dashboard-theme table tbody tr:nth-child(even) {
+  background: #0f1a2c;
 }
 
-.dashboard-theme table tbody tr:hover {
-  background: #14352b;
+.app-shell.dashboard-theme table tbody tr:hover {
+  background: #16304f;
 }
 
-.dashboard-theme :is(.status.good, .order-status.complete, .source-badge.live) {
-  background: #0f2b23;
-  color: #3ecf9a;
+.app-shell.dashboard-theme :is(.status.good, .order-status.complete, .source-badge.live) {
+  background: #123528;
+  color: #4ade80;
 }
 
-.dashboard-theme :is(.status.bad, .order-status.rejected) {
+.app-shell.dashboard-theme :is(.status.bad, .order-status.rejected) {
   background: #3a1a1a;
   color: #f0a8a8;
 }
 
-.dashboard-theme .source-badge.file-based,
-.dashboard-theme .source-badge.warn {
-  background: #2a2412;
-  color: #e0ae55;
+.app-shell.dashboard-theme .source-badge.file-based,
+.app-shell.dashboard-theme .source-badge.warn {
+  background: #3a2e12;
+  color: #fbbf24;
 }
