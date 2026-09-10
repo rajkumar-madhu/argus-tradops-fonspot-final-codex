@@ -80,7 +80,7 @@ function Tile({ label, tone, icon, value, detail, foot }: { label: string; tone:
 
 const NO_ACCESS = "Your role does not include this data. Ask an administrator for the permission.";
 
-function LatencyCard({ title, stats, trend, tone, unit, denied }: { title: string; stats?: Percentiles; trend: number[]; tone: "green" | "red"; unit: string; denied: boolean }) {
+function LatencyCard({ title, stats, trend, tone, unit, denied, error }: { title: string; stats?: Percentiles; trend: number[]; tone: "green" | "red"; unit: string; denied: boolean; error: string | null }) {
   return (
     <div className="panel cc-metric">
       <div className="cc-metric-head">
@@ -89,6 +89,10 @@ function LatencyCard({ title, stats, trend, tone, unit, denied }: { title: strin
       </div>
       {denied ? (
         <EmptyState title="Access limited" body={NO_ACCESS} />
+      ) : error ? (
+        // A timeout or server error is not "no file": the first summary after an
+        // API restart scans the whole CSV and can outlast the page's fetch.
+        <EmptyState title="Latency not loaded" body={`${error}. Refresh once the API has summarised the latency file.`} />
       ) : stats && stats.samples ? (
         <>
           <div className="cc-metric-value">
@@ -168,8 +172,8 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
           label="Bottleneck"
           tone={hop ? "warn" : "idle"}
           icon={<AlertTriangle size={22} />}
-          value={hop ? hop.name : latencyDenied ? "Access limited" : "No latency data"}
-          detail={hop ? "Largest p99 of the measured hops" : latencyDenied ? "Requires latency access" : "Needs an ORDERLATENCY file"}
+          value={hop ? hop.name : latencyDenied ? "Access limited" : latencyErr ? "Not loaded" : "No latency data"}
+          detail={hop ? "Largest p99 of the measured hops" : latencyDenied ? "Requires latency access" : latencyErr ? "Latency summary did not load; refresh" : "Needs an ORDERLATENCY file"}
           foot={hop ? `p99 ${num(hop.p99)} ${unit}` : "—"}
         />
         <Tile
@@ -244,6 +248,7 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
           tone="green"
           unit={unit}
           denied={latencyDenied}
+          error={latencyDenied ? null : latencyErr}
         />
         <LatencyCard
           title="Exchange confirmation"
@@ -252,6 +257,7 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
           tone="red"
           unit={unit}
           denied={latencyDenied}
+          error={latencyDenied ? null : latencyErr}
         />
         <div className="panel cc-metric">
           <div className="cc-metric-head">

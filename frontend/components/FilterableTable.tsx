@@ -12,7 +12,7 @@ const FACETS: Record<string, string> = {
   sector: 'Sector', type: 'Type', oms_status_label: 'OMS status', confirmed: 'Confirmed',
 };
 
-export default function FilterableTable({ rows, columns, className = 'orders-table', onSelect, selectedId, renderDetail }: {
+export default function FilterableTable({ rows, columns, className = 'orders-table', onSelect, selectedId, renderDetail, filtersOpen = true }: {
   rows: GridRow[];
   columns: {key: string; label: string}[];
   className?: string;
@@ -20,11 +20,13 @@ export default function FilterableTable({ rows, columns, className = 'orders-tab
   selectedId?: string;
   /** When set, the selected row expands in place to this content. */
   renderDetail?: (values: Record<string, any>) => ReactNode;
+  /** Initial state of the filter bar; pages with their own filters start it closed. */
+  filtersOpen?: boolean;
 }) {
   const id = useId();
   const [draft, setDraft] = useState<FilterState>({});
   const [applied, setApplied] = useState<FilterState>({});
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(filtersOpen);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(10);
   const [sort, setSort] = useState<{key: string; direction: 'asc'|'desc'}>({key:'',direction:'asc'});

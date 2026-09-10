@@ -348,6 +348,7 @@ export default function MissionControlTable({
           selectedId={openId}
           onRowClick={(r) => setOpenId((cur) => (cur === r.order_id ? undefined : r.order_id))}
           renderDetail={(r) => <OrderRecord order={r} />}
+          filtersOpen={false}
           columns={[
             { key: "time", label: "Time", render: (r) => r.time_label },
             {

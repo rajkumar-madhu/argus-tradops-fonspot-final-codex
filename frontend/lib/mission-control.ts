@@ -9,32 +9,14 @@ export const MISSION_TABS: { id: MissionTab; label: string }[] = [
   { id: "complete", label: "Complete" },
 ];
 
+/** The reference dashboard's six KPI tiles, each with the source it is computed from. */
 export const MISSION_KPI_DEFS = [
-  {
-    key: "total",
-    label: "Total orders",
-    definition: "Unique orders in the current observation set / lookback",
-  },
-  {
-    key: "complete",
-    label: "Complete",
-    definition: "Orders in complete status",
-  },
-  {
-    key: "rejected",
-    label: "Rejected",
-    definition: "Unique rejected orders",
-  },
-  {
-    key: "open_pending",
-    label: "Open / pending",
-    definition: "Open plus trigger-pending and pending counts",
-  },
-  {
-    key: "reject_rate",
-    label: "Reject rate",
-    definition: "Rejected ÷ total (0% when total is 0)",
-  },
+  { key: "total", label: "Total Orders", definition: "Unique orders in the current observation set / lookback" },
+  { key: "complete", label: "Executed", definition: "Orders in complete status, as a share of total" },
+  { key: "rejected", label: "Rejected", definition: "Unique rejected orders, as a share of total" },
+  { key: "pending", label: "Pending", definition: "Open, pending and trigger-pending orders" },
+  { key: "active_users", label: "Active Users", definition: "Users whose latest session event is a successful login" },
+  { key: "brokers", label: "Brokers Active", definition: "Brokers with a session, out of brokers seen in orders" },
 ] as const;
 
 const OPEN_STATUSES = new Set(["OPEN", "PENDING", "TRIGGER_PENDING"]);

@@ -18,7 +18,7 @@ export default async function DashboardPage({
 
   // limit=1: the Command Center only needs the summary, trend and per-source
   // rows these endpoints compute over the whole file, not the paged event list.
-  const [overview, orders, rejections, exchanges, yel, latency, queues, infra, ready] =
+  const [overview, orders, rejections, exchanges, yel, latency, queues, infra, ready, sessions, yelRecords] =
     await Promise.all([
       getJSON('/api/overview'),
       getJSON(`/api/orders?size=${orderSize}&lookback=${lookback}`),
@@ -29,6 +29,9 @@ export default async function DashboardPage({
       getJSON('/api/files/queues?limit=1'),
       getJSON('/api/infra'),
       getJSON('/health/ready'),
+      getJSON('/api/sessions'),
+      // Exchange connect events (masked projection); exchange:read, journal source.
+      getJSON('/api/journal/explore?msg_type=yel_connected&limit=8'),
     ]);
 
   return (
@@ -41,6 +44,10 @@ export default async function DashboardPage({
         exchanges={exchanges}
         yel={yel}
         fileSources={fileSources}
+        sessions={sessions}
+        infra={infra}
+        ready={ready}
+        yelRecords={yelRecords}
         detail={
           <CommandCenter
             overview={overview}

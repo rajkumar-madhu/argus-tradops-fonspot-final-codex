@@ -8282,3 +8282,21 @@ table tbody tr:hover { background: #e6f0ec; }
 .ref-grid.three .ref-table th, .ref-grid.three .ref-table td { padding: 7px 8px; }
 .ref-chart .vbar-chart { height: 180px; padding-bottom: 4px; }
 .ref-chart .vbar-col span { white-space: nowrap; }
+.ref-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ref-pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; }
+.ref-pill.ok { background: #dcf5e6; color: #138a3e; }
+.ref-pill.info { background: #e3edff; color: #0b5cff; }
+.ref-pill.warn { background: #fdefd5; color: #c77700; }
+.ref-pill.bad { background: #fde4e4; color: #d92d2f; }
+.ref-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #9aa6bb; vertical-align: middle; }
+.ref-dot.ok { background: #16a34a; }
+.ref-health { list-style: none; margin: 0; padding: 4px 16px 14px; }
+.ref-health li { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-top: 1px solid #eef2f8; font-size: 12.5px; color: #1f2a44; }
+.ref-health li:first-child { border-top: 0; }
+.ref-detail { margin-top: 6px; }
+.ref-page .dashboard-footnote { margin: 0; }
+@media (max-width: 1400px) { .ref-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .ref-grid.four { grid-template-columns: 1fr; } }
+.ref-kpis.six > div > .kpi-card { height: 100%; }
+.ref-grid.four .donut-legend span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ref-grid.four .ref-table th, .ref-grid.four .ref-table td { padding: 6px 7px; }

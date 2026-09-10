@@ -12,11 +12,11 @@ import {
   thirdChartPanel,
 } from '../lib/mission-control.ts';
 
-test('KPI defs cover the five Mission Control metrics with plain-language definitions', () => {
-  assert.equal(MISSION_KPI_DEFS.length, 5);
+test('KPI defs cover the six reference dashboard metrics with plain-language definitions', () => {
+  assert.equal(MISSION_KPI_DEFS.length, 6);
   assert.deepEqual(
     MISSION_KPI_DEFS.map((k) => k.key),
-    ['total', 'complete', 'rejected', 'open_pending', 'reject_rate'],
+    ['total', 'complete', 'rejected', 'pending', 'active_users', 'brokers'],
   );
   for (const kpi of MISSION_KPI_DEFS) {
     assert.ok(kpi.definition.length > 10, kpi.key);
