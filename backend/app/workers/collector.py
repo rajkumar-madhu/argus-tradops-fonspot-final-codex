@@ -1,16 +1,16 @@
 from __future__ import annotations
 import json
 import logging
-import time
 from typing import Any
 from prometheus_client import start_http_server
 from app.config import settings
 from app.event_bus import get_redis, publish
 from app.elastic.noren_service import live_orders, rejection_summary, yel_health
 from app.leader import RedisLeaderLease
+from app.logging_setup import configure_logging
 from app.metrics import COLLECTOR_LEADER, COLLECTOR_PUBLISHED, COLLECTOR_RUNS, COLLECTOR_RUN_SECONDS
+from app.workers.shutdown import GracefulShutdown
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s collector %(message)s")
 log = logging.getLogger("tradeops.collector")
 
 def _fingerprint(obj: Any) -> str:
@@ -61,13 +61,15 @@ def collect_once() -> dict[str, int]:
     return counts
 
 def main() -> None:
+    configure_logging("collector")
+    shutdown = GracefulShutdown().install()
     if settings.metrics_enabled:
         start_http_server(settings.worker_metrics_port)
     lease = RedisLeaderLease(settings.collector_leader_key, settings.collector_leader_ttl_seconds)
     is_leader = False
     log.info("starting collector interval=%ss lookback=%s", settings.collector_interval_seconds, settings.collector_lookback)
     try:
-        while True:
+        while not shutdown.requested:
             try:
                 if not is_leader:
                     is_leader = lease.acquire()
@@ -88,14 +90,15 @@ def main() -> None:
             except Exception:
                 COLLECTOR_RUNS.labels(result="error").inc()
                 log.exception("collector iteration failed")
-            time.sleep(settings.collector_interval_seconds)
+            shutdown.wait(settings.collector_interval_seconds)
     finally:
         COLLECTOR_LEADER.set(0)
         if is_leader:
             try:
                 lease.release()
+                log.info("released collector leader lease")
             except Exception:
-                pass
+                log.warning("lease release failed; standby takes over when the TTL expires")
 
 if __name__ == "__main__":
     main()

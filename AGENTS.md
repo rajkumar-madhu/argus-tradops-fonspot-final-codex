@@ -114,6 +114,7 @@ Operator-facing UI must never render the word "demo": `frontend/lib/data-source.
 - **collector**: polls `live_orders`, `rejection_summary`, `yel_health`, and publishes only when a JSON fingerprint stored at `tradeops:dedupe:*` changes — so republishing identical state is suppressed. Runs every `COLLECTOR_INTERVAL_SECONDS` while holding the lease.
 - **correlation_worker**: consumer group on `rejections` and `exchange` streams. Builds RCA **before** incident upsert (so retries don't inflate occurrence counts). P2 severity categories must match `normalizer.rejection_category()` output exactly.
 - **market_data_worker**: optional TrueData WebSocket feed (`truedata` PyPI package; `app/truedata/` holds the normalizer and symbol map). Leader-elected like the collector; writes a Redis snapshot (`tradeops:market:snapshot`) and publishes per-symbol ticks to `tradeops:market`. API `/api/market-data` reads the snapshot only — browsers never hit TrueData directly.
+- All three call `configure_logging()` (one JSON object per line) and loop on `GracefulShutdown` from `app/workers/shutdown.py`: sleep with `shutdown.wait()`, never `time.sleep()`, or SIGTERM waits out the full interval and the leader lease is left for its TTL to expire.
 
 ### Frontend (`frontend/`)
 

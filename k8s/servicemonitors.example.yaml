@@ -9,7 +9,22 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [tradeops-collector, tradeops-correlation]
+        values: [tradeops-collector, tradeops-correlation, tradeops-market]
   endpoints:
     - port: metrics
+      interval: 15s
+---
+# API metrics are served on the http port. ServiceMonitors select Services by
+# their own labels, hence the `app` label on the tradeops-api Service.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tradeops-api
+  namespace: tradeops
+spec:
+  selector:
+    matchLabels: {app: tradeops-api}
+  endpoints:
+    - port: http
+      path: /metrics
       interval: 15s

@@ -1,12 +1,17 @@
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-all
-  namespace: tradeops
-spec:
-  podSelector: {}
-  policyTypes: [Ingress, Egress]
----
+# NetworkPolicy set for the tradeops namespace. Not in k8s/kustomization.yaml:
+# every environment must fill in its own values first.
+#
+# Before applying, replace:
+#   ingress-nginx     namespace of your ingress controller
+#   monitoring        namespace Prometheus scrapes from
+#   192.0.2.10/32     Elasticsearch   (documentation range, routes nowhere)
+#   192.0.2.20/32     Keycloak
+#   192.0.2.30/32     TrueData        (only when TRUEDATA_ENABLED=true)
+# and the ports if yours differ. An unedited placeholder silently blocks that
+# dependency: the API reports ES unavailable and every login fails JWKS lookup.
+#
+# default-deny-all is last on purpose, so a partial apply leaves traffic open
+# rather than cutting the app off before its allow rules exist.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -24,20 +29,75 @@ spec:
         - {protocol: UDP, port: 53}
         - {protocol: TCP, port: 53}
 ---
+# Browsers load the UI through the ingress controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-ingress
+  namespace: tradeops
+spec:
+  podSelector: {matchLabels: {app: tradeops-web}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports: [{protocol: TCP, port: 3000}]
+---
+# The API is reached three ways: server components in the web pods, browsers
+# directly (API_URL is browser-facing, and SSE needs it), and Prometheus
+# scraping /metrics on the same port.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: api-ingress
   namespace: tradeops
 spec:
-  podSelector:
-    matchLabels: {app: tradeops-api}
+  podSelector: {matchLabels: {app: tradeops-api}}
   policyTypes: [Ingress]
   ingress:
     - from:
         - podSelector: {matchLabels: {app: tradeops-web}}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports: [{protocol: TCP, port: 8000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-metrics-ingress
+  namespace: tradeops
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [tradeops-collector, tradeops-correlation, tradeops-market]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
       ports:
-        - {protocol: TCP, port: 8000}
+        - {protocol: TCP, port: 9108}
+        - {protocol: TCP, port: 9109}
+        - {protocol: TCP, port: 9110}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-api-egress
+  namespace: tradeops
+spec:
+  podSelector: {matchLabels: {app: tradeops-web}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: tradeops-api}}}]
+      ports: [{protocol: TCP, port: 8000}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -58,48 +118,6 @@ spec:
     - to:
         - podSelector: {matchLabels: {app: tradeops-postgres}}
       ports: [{protocol: TCP, port: 5432}]
-    # Elasticsearch/Keycloak are usually external to this namespace.
-    # Add explicit namespaceSelector/ipBlock rules for your environment.
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: frontend-api-egress, namespace: tradeops}
-spec:
-  podSelector: {matchLabels: {app: tradeops-web}}
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - podSelector: {matchLabels: {app: tradeops-api}}
-      ports: [{protocol: TCP, port: 8000}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: data-ingress, namespace: tradeops}
-spec:
-  podSelector:
-    matchExpressions:
-      - {key: app, operator: In, values: [tradeops-redis, tradeops-postgres]}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector:
-            matchExpressions:
-              - {key: app, operator: In, values: [tradeops-api, tradeops-collector, tradeops-correlation, tradeops-market, tradeops-db-migrate]}
-      ports: [{protocol: TCP, port: 6379}, {protocol: TCP, port: 5432}]
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: web-api-egress
-  namespace: tradeops
-spec:
-  podSelector: {matchLabels: {app: tradeops-web}}
-  policyTypes: [Egress]
-  egress:
-    - to: [{podSelector: {matchLabels: {app: tradeops-api}}}]
-      ports: [{protocol: TCP, port: 8000}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -117,3 +135,53 @@ spec:
             matchExpressions:
               - {key: app, operator: In, values: [tradeops-api, tradeops-collector, tradeops-correlation, tradeops-market, tradeops-db-migrate]}
       ports: [{protocol: TCP, port: 5432}, {protocol: TCP, port: 6379}]
+---
+# Read-only Noren indices. The API queries on demand, the collector polls and the
+# correlation worker builds RCA; the market worker never touches ES.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: elasticsearch-egress
+  namespace: tradeops
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [tradeops-api, tradeops-collector, tradeops-correlation]}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 192.0.2.10/32}}]
+      ports: [{protocol: TCP, port: 9200}]
+---
+# JWT verification fetches the realm JWKS. Only the API verifies tokens; the
+# browser talks to Keycloak directly for the login flow.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-egress
+  namespace: tradeops
+spec:
+  podSelector: {matchLabels: {app: tradeops-api}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 192.0.2.20/32}}]
+      ports: [{protocol: TCP, port: 443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: truedata-egress
+  namespace: tradeops
+spec:
+  podSelector: {matchLabels: {app: tradeops-market}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 192.0.2.30/32}}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: tradeops
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]

@@ -7,10 +7,11 @@ from app.config import settings
 from app.db import init_db
 from app.event_bus import BLOCK_MS, STREAMS, dead_letter, decode_message, ensure_group, get_redis, publish
 from app.elastic.noren_service import rca as build_rca
+from app.logging_setup import configure_logging
 from app.metrics import REDIS_STREAM_LAG, WORKER_DLQ, WORKER_INCIDENTS, WORKER_MESSAGES, WORKER_RCA
 from app.repository import upsert_incident, upsert_rca
+from app.workers.shutdown import GracefulShutdown
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s correlation %(message)s")
 log = logging.getLogger("tradeops.correlation")
 GROUP = settings.redis_correlation_group
 CONSUMER = f"{socket.gethostname()}-{int(time.time())}"
@@ -127,6 +128,8 @@ def _update_pending_metrics(r, stream_name: str) -> None:
         pass
 
 def main() -> None:
+    configure_logging("correlation")
+    shutdown = GracefulShutdown().install()
     if settings.auto_create_schema:
         init_db()
     if settings.metrics_enabled:
@@ -136,18 +139,22 @@ def main() -> None:
         ensure_group(kind, GROUP)
     streams = {STREAMS["rejections"]: ">", STREAMS["exchange"]: ">"}
     log.info("starting consumer group=%s consumer=%s", GROUP, CONSUMER)
-    while True:
+    while not shutdown.requested:
         try:
             for stream_name in streams:
                 _reclaim_pending(r, stream_name)
                 _update_pending_metrics(r, stream_name)
             batches = r.xreadgroup(GROUP, CONSUMER, streams, count=100, block=BLOCK_MS)
+            # A batch already read is processed to the end even after SIGTERM:
+            # abandoning it would leave every message pending until another
+            # consumer reclaims it after `redis_retry_idle_ms`.
             for stream_name, messages in batches or []:
                 for msg_id, fields in messages:
                     _process(r, stream_name, msg_id, fields)
         except Exception:
             log.exception("consumer loop failed")
-            time.sleep(2)
+            shutdown.wait(2)
+    log.info("consumer stopped cleanly consumer=%s", CONSUMER)
 
 if __name__ == "__main__":
     main()

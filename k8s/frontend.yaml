@@ -18,6 +18,11 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
         seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: tradeops-web}}
       containers:
         - name: web
           image: your-registry/tradeops-frontend:RELEASE_REQUIRED
@@ -28,17 +33,28 @@ spec:
             # effect and the browser would keep calling the build-time host.
             # This must be the URL the *browser* can reach, not the in-cluster Service.
             - {name: API_URL, value: "https://tradeops-api.example.com"}
+            # Server components and the export routes call the API over the Service.
             - {name: INTERNAL_API_URL, value: "http://tradeops-api:8000"}
-            - {name: INTERNAL_API_URL, value: "http://tradeops-api:8000"}
-          ports: [{containerPort: 3000}]
+          ports: [{name: http, containerPort: 3000}]
+          # /healthz renders no page and calls no backend, so an API outage marks
+          # the API pods unready without restarting the web tier.
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 2
           readinessProbe:
-            httpGet: {path: /signin, port: 3000}
-            initialDelaySeconds: 5
+            httpGet: {path: /healthz, port: http}
             periodSeconds: 10
+            timeoutSeconds: 2
           livenessProbe:
-            httpGet: {path: /signin, port: 3000}
-            initialDelaySeconds: 15
+            httpGet: {path: /healthz, port: http}
             periodSeconds: 20
+            timeoutSeconds: 2
+          lifecycle:
+            # Give the Service endpoints time to drop this pod before SIGTERM, so
+            # in-flight and newly routed requests are not refused during rollouts.
+            preStop:
+              exec: {command: ["sleep", "5"]}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -63,4 +79,4 @@ metadata:
   namespace: tradeops
 spec:
   selector: {app: tradeops-web}
-  ports: [{port: 3000, targetPort: 3000}]
+  ports: [{name: http, port: 3000, targetPort: http}]

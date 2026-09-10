@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,12 +10,13 @@ from prometheus_client import start_http_server
 from app.config import settings
 from app.event_bus import publish
 from app.leader import RedisLeaderLease
+from app.logging_setup import configure_logging
 from app.market_cache import save_snapshot
 from app.metrics import MARKET_CONNECTED, MARKET_FLUSH_SECONDS, MARKET_LEADER, MARKET_PUBLISHED, MARKET_TICKS
 from app.truedata.normalizer import build_feed_health, normalize_tick, segment_key
 from app.truedata.symbols import parse_symbol_specs
+from app.workers.shutdown import GracefulShutdown
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s market %(message)s")
 log = logging.getLogger("tradeops.market")
 
 
@@ -124,29 +124,29 @@ def _publish_symbol_updates(snapshot: dict[str, Any], seen: dict[str, str]) -> i
     return published
 
 
+def _hold_idle(shutdown: GracefulShutdown) -> None:
+    """Keep the process up (so a restart policy does not thrash it) until SIGTERM."""
+    if settings.metrics_enabled:
+        start_http_server(settings.worker_metrics_port)
+    while not shutdown.wait(3600):
+        pass
+
+
 def main() -> None:
+    configure_logging("market")
+    shutdown = GracefulShutdown().install()
     if not settings.truedata_enabled:
         log.info("TRUEDATA_ENABLED=false — market worker idle (holding process)")
-        if settings.metrics_enabled:
-            start_http_server(settings.worker_metrics_port)
-        # Stay up so compose restart policy does not thrash the container.
-        while True:
-            time.sleep(3600)
+        _hold_idle(shutdown)
         return
     if not settings.truedata_username or not settings.truedata_password:
         log.error("TRUEDATA_USERNAME/TRUEDATA_PASSWORD required when TRUEDATA_ENABLED=true")
-        if settings.metrics_enabled:
-            start_http_server(settings.worker_metrics_port)
-        while True:
-            time.sleep(3600)
+        _hold_idle(shutdown)
         return
     specs = parse_symbol_specs(settings.truedata_symbols)
     if not specs:
         log.error("TRUEDATA_SYMBOLS is empty")
-        if settings.metrics_enabled:
-            start_http_server(settings.worker_metrics_port)
-        while True:
-            time.sleep(3600)
+        _hold_idle(shutdown)
         return
 
     if settings.metrics_enabled:
@@ -163,7 +163,7 @@ def main() -> None:
         settings.market_flush_interval_seconds,
     )
     try:
-        while True:
+        while not shutdown.requested:
             try:
                 if not is_leader:
                     is_leader = lease.acquire()
@@ -194,7 +194,7 @@ def main() -> None:
                 MARKET_CONNECTED.set(0)
                 session.disconnect()
                 log.exception("market worker iteration failed")
-            time.sleep(settings.market_flush_interval_seconds)
+            shutdown.wait(settings.market_flush_interval_seconds)
     finally:
         MARKET_LEADER.set(0)
         MARKET_CONNECTED.set(0)
@@ -202,8 +202,9 @@ def main() -> None:
         if is_leader:
             try:
                 lease.release()
+                log.info("released market-data leader lease")
             except Exception:
-                pass
+                log.warning("lease release failed; standby takes over when the TTL expires")
 
 
 if __name__ == "__main__":
