@@ -27,4 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t tradeops-backend-test backend
-      - run: docker run --rm -v "$PWD/backend/tests:/tests:ro" tradeops-backend-test python -m unittest discover -s /tests -v
+      # Mount the whole checkout, not just backend/tests: test_auth asserts role
+      # parity against frontend/lib/auth.ts and locates it relative to the repo.
+      # requirements-dev.txt (httpx, for FastAPI's TestClient) is test-only, so it
+      # is installed into this throwaway container rather than the production image.
+      - run: >-
+          docker run --rm -v "$PWD:/repo:ro" tradeops-backend-test
+          sh -c "pip install --user --no-cache-dir -r /repo/backend/requirements-dev.txt
+          && python -m unittest discover -s /repo/backend/tests -v"
