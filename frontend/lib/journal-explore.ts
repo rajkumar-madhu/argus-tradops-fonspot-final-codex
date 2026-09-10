@@ -196,3 +196,102 @@ export function cellText(value: unknown): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   return String(value);
 }
+
+/* ── IST presentation ────────────────────────────────────────────────────
+   The desk works in IST; the journal stores UTC ISO strings and UNIX seconds.
+   Raw values stay visible in the field grid; these helpers add the reading. */
+
+const IST_OFFSET_MS = 330 * 60_000;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Epoch ms from an ISO string or UNIX seconds/milliseconds; null otherwise. */
+export function toEpochMs(value: unknown): number | null {
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") return null;
+  const text = String(value).trim();
+  if (/^\d{9,10}(\.\d+)?$/.test(text)) return Number(text) * 1000;
+  if (/^\d{13}$/.test(text)) return Number(text);
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(text)) return null;
+  const ms = Date.parse(text);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function istParts(ms: number) {
+  const d = new Date(ms + IST_OFFSET_MS);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`,
+    date: `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+  };
+}
+
+/** "09:14:01" in IST, or "—". */
+export function istTime(value: unknown): string {
+  const ms = toEpochMs(value);
+  return ms === null ? "—" : istParts(ms).time;
+}
+
+/** "30 Jun 2026, 09:14:01 IST", or "—". */
+export function istStamp(value: unknown): string {
+  const ms = toEpochMs(value);
+  if (ms === null) return "—";
+  const p = istParts(ms);
+  return `${p.date}, ${p.time} IST`;
+}
+
+/** IST reading for a timestamp-shaped field, shown beside the raw value; null for anything else. */
+export function timeHint(field: string, value: unknown): string | null {
+  if (!/time|stamp/i.test(field) || /nsecs/i.test(field)) return null;
+  const ms = toEpochMs(value);
+  if (ms === null) return null;
+  const year = new Date(ms).getUTCFullYear();
+  return year >= 2000 && year <= 2100 ? istStamp(ms) : null;
+}
+
+/** Collapsed-row header: the event time column is presented in IST. */
+export function columnHeader(column: string): string {
+  return column === "Event Time (UTC)" ? "Event time (IST)" : column;
+}
+
+/** "+<1 ms", "+850 ms", "+12.3 s", "+4m 05s", "+2h 03m", "+1d 04h". */
+export function formatGap(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  if (ms < 1) return "+<1 ms";
+  if (ms < 1000) return `+${Math.round(ms)} ms`;
+  const s = ms / 1000;
+  if (s < 60) return `+${s.toFixed(1)} s`;
+  const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
+  if (s < 3600) return `+${Math.floor(s / 60)}m ${pad(s % 60)}s`;
+  if (s < 86400) return `+${Math.floor(s / 3600)}h ${pad((s % 3600) / 60)}m`;
+  return `+${Math.floor(s / 86400)}d ${pad((s % 86400) / 3600)}h`;
+}
+
+type LifecycleEvent = {
+  time?: string | null; status_code?: number | string | null; qty?: number | null;
+  filled_qty?: number | null; price?: number | null; fill_price?: number | null; exchange_order_id?: string | null;
+};
+
+/**
+ * Journal events for one order, oldest first, with the gap from the previous
+ * event. Reasons are deliberately not carried: the lifecycle route returns them
+ * unmasked, and the explorer shows only the masked RejReason from its own row.
+ */
+export function lifecycleSteps(events: LifecycleEvent[]) {
+  const sorted = [...events]
+    .map((e) => ({ e, ms: toEpochMs(e.time) }))
+    .sort((a, b) => (a.ms ?? Infinity) - (b.ms ?? Infinity));
+  return sorted.map(({ e, ms }, i) => {
+    const prev = i > 0 ? sorted[i - 1].ms : null;
+    const code = e.status_code === null || e.status_code === undefined ? "" : String(e.status_code);
+    return {
+      time: istTime(e.time),
+      status: code ? displayValue("OrdStatus", code) : "—",
+      tone: statusTone(code),
+      gap: ms !== null && prev !== null ? formatGap(ms - prev) : "",
+      qty: e.qty ?? null,
+      filled: e.filled_qty ?? null,
+      price: e.price ?? null,
+      fillPrice: e.fill_price ?? null,
+      exchangeOrderId: e.exchange_order_id || "",
+    };
+  });
+}

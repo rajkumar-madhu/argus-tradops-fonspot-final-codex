@@ -46,6 +46,39 @@ def mask_account(value: str) -> str:
     return mask_id(value, 2)
 
 
+# Rejection reasons are free text written by the RMS/OMS. They carry the
+# diagnosis (rule, circuit limits, freeze qty) but also client identity and
+# money. mask_reason keeps the former and masks the latter. Market figures
+# (Current/LowerCircuit/UpperCircuit prices, freeze Set/Current qty) and the
+# bracketed product group ("[RISK-CSB]") are not client data and stay readable.
+_REASON_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
+    # "for C-S476-KBC", "for C-99999ACH-CSB^EQT": client code, broker suffix kept.
+    (re.compile(r"\bC-[A-Z0-9]+(-[A-Z]{2,})(\^[A-Z]+)?"), r"C-***\1"),
+    # "clientid D999-BJT", "Account K999-VRD"
+    (re.compile(r"\b(clientid|Account)(\s+)[A-Z0-9]+(-[A-Z]{2,})", re.IGNORECASE), r"\1\2***\3"),
+    # "NON-COMPLIANT CLIENT CODE : G9999"
+    (re.compile(r"(CLIENT CODE\s*:\s*)\S+", re.IGNORECASE), r"\1***"),
+    # "Continuous Debit[ 9999999-ISB M ]": the account leads the bracket.
+    (re.compile(r"(\[\s*)[A-Z]*\d[A-Z0-9]*(-[A-Z]{2,})"), r"\1***\2"),
+    # Balances, shortfalls and margins. Circuit prices are market data.
+    (re.compile(r"(?<!Current:)(?<!LowerCircuit:)(?<!UpperCircuit:)\bINR\s*-?[\d,]+(?:\.\d+)?"), "INR ***"),
+    # A client's holding quantity.
+    (re.compile(r"(Eligible Sell\s*:\s*)\d+", re.IGNORECASE), r"\1***"),
+    # PAN, 10-digit phone numbers, IPv4 addresses.
+    (re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b"), "***"),
+    (re.compile(r"\b\d{10}\b"), "***"),
+    (re.compile(r"\b(\d{1,3}\.\d{1,3})\.\d{1,3}\.\d{1,3}\b"), r"\1.x.xxx"),
+)
+
+
+def mask_reason(value: Any) -> str:
+    """Rejection reason with client identity and money masked; empty stays empty."""
+    text = str(value or "")
+    for pattern, replacement in _REASON_RULES:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def _iso_from_unix(seconds: Any, nsecs: Any = 0) -> str:
     try:
         sec = int(seconds)

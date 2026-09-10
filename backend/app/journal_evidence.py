@@ -7,13 +7,17 @@ from functools import lru_cache
 from pathlib import Path
 from datetime import datetime, timezone
 from app.csv_store import safe_csv_cell
-from app.elastic.normalizer import mask_account, mask_id, mask_ip, normalize_session_event
+from app.elastic.normalizer import mask_account, mask_id, mask_ip, mask_reason, normalize_session_event
 
 SCHEMAS = json.loads(Path(__file__).with_name('journal_schema.json').read_text())
 PERMISSIONS = {'ordupd': 'orders:read', 'login': 'sessions:read', 'logout': 'sessions:read', 'yel_connected': 'exchange:read'}
 IDENTIFIERS = {'NorenOrdNum','ExchOrdNum','ExchSeqNum','ExchSeqNumS','FillId','Eref','StreamId','NorenKidId','InteropKey','ParticId'}
 MASKED_IDS = {'UserId','SrcUserId','ExchUserId','ExchUserInfo','FamilyId','PanNum','UiDevCode'}
-WITHHELD = {'RejReason','OrdRemarks','FixRemarks'}
+WITHHELD = {'OrdRemarks','FixRemarks'}
+# The rejection reason is the diagnosis on a rejected order, so it is shown, but
+# only through mask_reason (client codes, balances and holdings masked). Like
+# the withheld fields it stays out of SEARCH_FIELDS and FACET_FIELDS.
+MASKED_TEXT = {'RejReason'}
 
 
 def field_value(doc, field):
@@ -55,6 +59,8 @@ def project(doc, kind, record_number):
             value = mask_id(str(value), 4) if value is not None else None
         elif field == 'IpAddr':
             value = mask_ip(str(value)) if value is not None else None
+        elif field in MASKED_TEXT:
+            value = mask_reason(value) if value not in (None, '') else None
         elif field in WITHHELD:
             value = '[redacted]' if value not in (None, '') else None
         elif isinstance(value, (dict, list)):

@@ -93,9 +93,19 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(result["count"], 1)
 
     def test_search_cannot_reach_withheld_free_text(self):
-        path = write([dict(order(1), RejReason="MARGIN SHORTFALL")])
+        path = write([dict(order(1), RejReason="MARGIN SHORTFALL", OrdRemarks="private note")])
         self.assertEqual(explore(path, "ordupd", {}, q="MARGIN")["count"], 0)
-        self.assertEqual(explore(path, "ordupd", {})["items"][0]["fields"]["RejReason"], "[redacted]")
+        self.assertEqual(explore(path, "ordupd", {}, q="private")["count"], 0)
+        fields = explore(path, "ordupd", {})["items"][0]["fields"]
+        self.assertEqual(fields["OrdRemarks"], "[redacted]")
+
+    def test_rejection_reason_is_shown_with_client_data_masked(self):
+        reason = "RED:Margin Shortfall:INR 22.18 Available:INR 114280.07 for C-R1289-PSB [PSBDIRECT-PSB]"
+        path = write([dict(order(1), RejReason=reason)])
+        shown = explore(path, "ordupd", {})["items"][0]["fields"]["RejReason"]
+        self.assertEqual(shown, "RED:Margin Shortfall:INR *** Available:INR *** for C-***-PSB [PSBDIRECT-PSB]")
+        for secret in ("114280.07", "22.18", "R1289"):
+            self.assertNotIn(secret, shown)
 
 
 class PagingTests(unittest.TestCase):

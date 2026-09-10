@@ -152,3 +152,29 @@ test("uncoded fields show the label alone, undocumented codes show the raw code"
   assert.equal(displayValue("Product", "C"), "C");
   assert.equal(displayValue("ExchSeg", "NSE"), "NSE");
 });
+
+test("IST helpers read ISO strings and UNIX seconds the same way", async () => {
+  const { istTime, istStamp, timeHint, toEpochMs } = await import("../lib/journal-explore.ts");
+  assert.equal(istTime("2026-06-30T03:44:01.263279+00:00"), "09:14:01");
+  assert.equal(istTime(1782791041), istTime("2026-06-30T03:44:01Z"));
+  assert.equal(istStamp("2026-06-30T03:44:01Z"), "30 Jun 2026, 09:14:01 IST");
+  assert.equal(toEpochMs("5055"), null, "a price is not a timestamp");
+  assert.equal(timeHint("PriceToFill", 1782791041), null, "only time-named fields get a hint");
+  assert.equal(timeHint("NorenNsecs", 263279286), null);
+  assert.equal(timeHint("NorenTimeStamp", "1782791041"), "30 Jun 2026, 09:14:01 IST");
+});
+
+test("lifecycle steps are ordered oldest first with gaps and never carry reasons", async () => {
+  const { lifecycleSteps, formatGap } = await import("../lib/journal-explore.ts");
+  const steps = lifecycleSteps([
+    { time: "2026-06-30T03:44:02.500Z", status_code: 56, qty: 700, filled_qty: 0, price: 50.55, reason: "for C-X1-VFS" },
+    { time: "2026-06-30T03:44:01Z", status_code: 110, qty: 700, filled_qty: 0, price: 50.55 },
+  ]);
+  assert.deepEqual(steps.map((s) => s.status), ["Pending (110)", "Rejected (56)"]);
+  assert.deepEqual(steps.map((s) => s.gap), ["", "+1.5 s"]);
+  assert.equal(steps[1].tone, "rejected");
+  assert.ok(!JSON.stringify(steps).includes("C-X1"));
+  assert.equal(formatGap(58361724.7), "+16h 12m");
+  assert.equal(formatGap(90061000), "+1d 01h");
+  assert.equal(formatGap(0), "+<1 ms", "same-timestamp events are not a measured zero");
+});
