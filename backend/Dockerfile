@@ -13,4 +13,9 @@ COPY app ./app
 RUN chown -R 10001:10001 /app
 USER 10001:10001
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --no-access-log: uvicorn's access log prints the raw query string, and SSE
+# clients authenticate with ?access_token=<JWT>, so it would write bearer tokens
+# into pod logs. The API middleware already emits a JSON line per request keyed by
+# route template. --timeout-graceful-shutdown bounds the SIGTERM drain: open SSE
+# streams never finish on their own and would otherwise hold the pod until SIGKILL.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--timeout-graceful-shutdown", "20"]

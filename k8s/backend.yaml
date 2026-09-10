@@ -24,6 +24,11 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
         seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: tradeops-api}}
       containers:
         - name: api
           image: your-registry/tradeops-backend:RELEASE_REQUIRED
@@ -44,6 +49,12 @@ spec:
             httpGet: {path: /health, port: http}
             initialDelaySeconds: 15
             periodSeconds: 20
+          lifecycle:
+            # Let the Service endpoints drop this pod before uvicorn starts its
+            # SIGTERM drain; without it, requests routed in that window are refused.
+            # SSE clients reconnect to a surviving replica.
+            preStop:
+              exec: {command: ["sleep", "5"]}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -64,6 +75,7 @@ kind: Service
 metadata:
   name: tradeops-api
   namespace: tradeops
+  labels: {app: tradeops-api}
 spec:
   selector: {app: tradeops-api}
   ports: [{name: http, port: 8000, targetPort: http}]

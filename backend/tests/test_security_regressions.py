@@ -28,3 +28,11 @@ class SecurityRegressions(unittest.TestCase):
             result=main.infra()
         self.assertEqual(result['postgres']['status'],'Unavailable')
         self.assertNotIn('private-connection-details',str(result))
+
+    def test_image_does_not_log_query_strings(self):
+        # SSE authenticates with ?access_token=<JWT>; uvicorn's access log prints
+        # the raw query string, so leaving it on writes bearer tokens to pod logs.
+        from pathlib import Path
+        cmd=[line for line in (Path(__file__).resolve().parents[1]/'Dockerfile').read_text().splitlines() if line.startswith('CMD')]
+        self.assertEqual(len(cmd),1)
+        self.assertIn('--no-access-log',cmd[0])

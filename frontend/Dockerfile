@@ -24,4 +24,7 @@ COPY --from=build --chown=10001:10001 /app/node_modules ./node_modules
 COPY --from=build --chown=10001:10001 /app/package.json ./package.json
 USER 10001:10001
 EXPOSE 3000
-CMD ["npm","start"]
+# Run next directly rather than via `npm start`: npm adds an `sh -c` layer as
+# PID 1 that does not reliably forward SIGTERM, so pods sat out the full grace
+# period and were SIGKILLed mid-request. `next start` drains and exits on SIGTERM.
+CMD ["node","node_modules/next/dist/bin/next","start"]

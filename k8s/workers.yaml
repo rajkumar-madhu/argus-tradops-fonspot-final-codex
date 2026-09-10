@@ -17,6 +17,13 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
         seccompProfile: {type: RuntimeDefault}
+      # Leader and standby on different nodes, so a node loss hands the lease
+      # over instead of taking both replicas down together.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: tradeops-collector}}
       containers:
         - name: collector
           image: your-registry/tradeops-backend:RELEASE_REQUIRED
@@ -79,6 +86,11 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
         seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: tradeops-correlation}}
       containers:
         - name: worker
           image: your-registry/tradeops-backend:RELEASE_REQUIRED
@@ -141,6 +153,11 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
         seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: tradeops-market}}
       containers:
         - name: market
           image: your-registry/tradeops-backend:RELEASE_REQUIRED

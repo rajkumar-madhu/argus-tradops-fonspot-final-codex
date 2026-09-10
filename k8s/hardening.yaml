@@ -16,6 +16,35 @@ spec:
   minAvailable: 1
   selector: {matchLabels: {app: tradeops-correlation}}
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tradeops-web
+  namespace: tradeops
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: tradeops-web}}
+---
+# The leader-elected workers need one pod alive so a drain never evicts the
+# leader and the standby together, which would stop ES collection entirely.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tradeops-collector
+  namespace: tradeops
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: tradeops-collector}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tradeops-market
+  namespace: tradeops
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: tradeops-market}}
+---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
