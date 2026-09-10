@@ -3,7 +3,7 @@ import {
   Activity, ArrowRight, Award, BellRing, BookOpen, BrainCircuit, Briefcase, Building2, ChartLine,
   ChartPie, CheckCircle2, CircleHelp, Clock, Cloud, Cpu, Database, FileText, Gauge, Globe, Landmark,
   Layers3, LifeBuoy, Linkedin, Lock, Mail, MessageSquare, Newspaper, Phone, Plug, Radio, Search,
-  Server, Shield, ShieldCheck, SquareCode, Star, Table2, Ticket, TimerReset, TrendingUp, Twitter,
+  Server, Shield, ShieldCheck, SquareCode, Table2, Ticket, TimerReset, TrendingUp, Twitter,
   Users, UsersRound, Wallet, Youtube, Zap,
 } from "lucide-react";
 import MarketTicker from "@/components/MarketTicker";
@@ -71,7 +71,7 @@ const METRICS: [string, string][] = [
   ["Self-hosted", "Deployment model"],
 ];
 
-const VOICES: [string, string, string][] = [
+const WORKFLOWS: [string, string, string][] = [
   ["Inspect rejection evidence and follow an order lifecycle from the journal.", "Trading Operations", "Investigation workflow"],
   ["Review available risk observations with explicit source and coverage labels.", "Risk & Compliance", "Review workflow"],
   ["Inspect reported dependency state and identify missing infrastructure telemetry.", "Platform Engineering", "Observability workflow"],
@@ -344,24 +344,24 @@ export default function Landing() {
         <div className="why-badge"><Award size={17} /><span>Read-only architecture · No write path to any trading system</span></div>
       </section>
 
-      {/* Testimonials */}
-      <section id="customers" className="voices">
+      {/* Operational workflows. Deliberately NOT testimonials: no customer has
+          been quoted or named, so these must not be styled as quotes with an
+          attributed speaker. */}
+      <section id="workflows" className="voices">
         <div className="section-head center">
           <div>
             <span className="eyebrow">FROM THE DESK</span>
             <h2>Operational workflows</h2>
+            <p>What each team can do with journal evidence alone</p>
           </div>
         </div>
         <div className="voice-grid">
-          {VOICES.map(([quote, who, org]) => (
-            <blockquote key={who}>
-
-              <p>{quote}</p>
-              <footer>
-                <span className="avatar">{who.slice(0, 1)}</span>
-                <span><b>{who}</b><small>{org}</small></span>
-              </footer>
-            </blockquote>
+          {WORKFLOWS.map(([body, team, kind]) => (
+            <article key={team} className="workflow-card">
+              <span className="workflow-team">{team}</span>
+              <p>{body}</p>
+              <small>{kind}</small>
+            </article>
           ))}
         </div>
         <div className="stats">
@@ -445,7 +445,7 @@ export default function Landing() {
           <div><b>Platform</b><a href="#suite">Console</a><a href="#suite">RCA Studio</a><a href="#suite">Journal</a><a href="#platform">Exchange Health</a><a href="#platform">Infrastructure</a></div>
           <div><b>Modules</b><a href="#platform">Trading Operations</a><a href="#platform">Alerts &amp; Incidents</a><a href="#platform">Users &amp; Sessions</a><a href="#deployment">Deployment</a></div>
           <div><b>Developers</b><a href="#apis">Streaming events</a><a href="#apis">Metrics</a><a href="#apis">Incidents &amp; RCA</a><a href="#apis">Journal search</a></div>
-          <div><b>Resources</b><a href="#resources">Guides</a><a href="#faq">FAQ</a><a href="#why">Why Argus TradeOps</a><a href="#customers">Customers</a></div>
+          <div><b>Resources</b><a href="#resources">Guides</a><a href="#faq">FAQ</a><a href="#why">Why Argus TradeOps</a><a href="#workflows">Workflows</a></div>
           <div className="footer-contact">
             <b>Support</b>
             <a href="#support"><Mail size={13} />support@tradeops.example</a>

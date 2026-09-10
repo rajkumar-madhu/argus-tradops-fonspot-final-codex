@@ -8,7 +8,6 @@ import {
   BrainCircuit,
   CheckCircle2,
   Clock3,
-  Layers,
   ListChecks,
   RefreshCw,
   Users,
@@ -31,7 +30,7 @@ import {
 import { apiUrl } from "@/lib/runtime";
 import { authHeaders } from "@/lib/session";
 
-const RCA_TABS = ["Overview", "Order RCA", "System RCA", "Trend Analysis", "Insights"] as const;
+const RCA_TABS = ["Overview", "Order RCA", "System RCA", "Trend Analysis"] as const;
 
 function StatusBadge({ value }: { value: string }) {
   const v = value.toLowerCase();
@@ -52,6 +51,13 @@ export default function RcaView({
   initialOrderId?: string;
 }) {
   const [activeTab, setActiveTab] = useState<(typeof RCA_TABS)[number]>("Overview");
+  // Each tab is a real subset of the same journal evidence — no tab renders a
+  // panel the source cannot back.
+  const isOverview = activeTab === "Overview";
+  const showKpis = isOverview || activeTab === "System RCA" || activeTab === "Trend Analysis";
+  const showTrend = isOverview || activeTab === "Trend Analysis";
+  const showDonuts = isOverview || activeTab === "System RCA";
+  const showOrderEvidence = isOverview || activeTab === "Order RCA";
   // Seed the first case so the server render already shows RCA details.
   const [selectedId, setSelectedId] = useState(initialOrderId || rejections?.orders?.[0]?.order_id || "");
   const [rcaData, setRcaData] = useState<any>(null);
@@ -249,13 +255,12 @@ export default function RcaView({
         </div>
       </section>
 
+      {showKpis && (
       <section className="kpi-grid six rca-kpis">
         <KpiCard
           label="Incidents Analyzed"
           value={fmt(kpis.incidents)}
-          delta={isFileBased ? "Journal window" : "vs previous day"}
-          deltaTone="down"
-          sub={isFileBased ? undefined : "−18%"}
+          delta={isFileBased ? "Journal window" : "Lookback window"}
           tone="blue"
           icon={<ListChecks size={18} />}
         />
@@ -283,8 +288,7 @@ export default function RcaView({
         <KpiCard
           label="Repeat Issues"
           value={fmt(kpis.repeatIssues)}
-          delta="+2"
-          deltaTone="down"
+          delta="Categories seen more than once"
           tone="amber"
           icon={<AlertTriangle size={18} />}
         />
@@ -296,8 +300,15 @@ export default function RcaView({
           icon={<Users size={18} />}
         />
       </section>
+      )}
 
-      <section className="dashboard-charts-row three rca-charts-row">
+      {(showTrend || showDonuts) && (
+      <section
+        className={`dashboard-charts-row ${
+          showTrend && showDonuts ? "three" : showDonuts ? "two" : "one"
+        } rca-charts-row`}
+      >
+        {showTrend && (
         <div className="panel">
           <div className="panel-head">
             <div>
@@ -311,6 +322,9 @@ export default function RcaView({
           </div>
           <AreaChart series={trend.series} labels={trend.labels} height={160} />
         </div>
+        )}
+        {showDonuts && (
+        <>
         <div className="panel">
           <div className="panel-head">
             <div>
@@ -329,7 +343,10 @@ export default function RcaView({
           </div>
           <Donut centerLabel="Incidents" centerValue={fmt(kpis.incidents)} slices={resolutionSlices} />
         </div>
+        </>
+        )}
       </section>
+      )}
 
       <section className="rca-bottom-grid">
         <div className="panel rca-table-panel">
@@ -446,6 +463,7 @@ export default function RcaView({
         </div>
       </section>
 
+      {showOrderEvidence && (
       <section className="rca-evidence-row">
         <div className="panel rca-lifecycle-panel">
           <div className="panel-head">
@@ -528,12 +546,6 @@ export default function RcaView({
           </div>
         </div>
       </section>
-
-      {activeTab !== "Overview" && (
-        <p className="rca-footnote">
-          <Layers size={14} aria-hidden />
-          {activeTab} view uses the same underlying rejection dataset — dedicated panels coming in a later release.
-        </p>
       )}
     </div>
   );

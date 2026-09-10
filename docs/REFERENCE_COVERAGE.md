@@ -84,7 +84,7 @@ Sensitive raw fields include PAN, IP, session identifiers, mobile/email and nest
 
 | Route | Reference | Coverage | Current data source and evidence |
 |---|---|---|---|
-| `/` | Landing (`01_20_35`) | Close visually | Marketing-only. Testimonials and performance claims remain illustrative and need approval/evidence before publication. |
+| `/` | Landing (`01_20_35`) | Close visually | Marketing-only. No customer is quoted and the stat strip carries no invented numbers; the workflow cards describe supported workflows by team. |
 | `/dashboard` | Dashboard (`01_18_27`) | Close | Journal overview/orders/rejections/sessions/exchanges/infra; charts are binned from returned rows. |
 | `/orders` | Live Orders (`01_18_02`, `01_18_11`, `01_18_36`) | Close | Journal snapshot or ES API. Table, filters, selection, lifecycle and evidence exist. Historical market depth is explicitly unavailable. |
 | `/order-book` | Argus market workspace; sidebar-only in PNG set | Partial | Journal open/pending orders, not exchange level-2 depth. |
@@ -92,9 +92,9 @@ Sensitive raw fields include PAN, IP, session identifiers, mobile/email and nest
 | `/positions` | Positions (`01_18_45`) | Partial / data missing | API returns no rows in journal mode; RMS integration required. UI now stops before rendering synthetic MTM history. |
 | `/holdings` | Holdings (`01_18_51`) | Partial / data missing | API returns no rows in journal mode; back-office integration required. UI no longer invents history, cap or sector allocation. |
 | `/rejections` | Rejections (`01_18_56`) | Close | Journal rejected orders grouped by code/category with selected evidence. |
-| `/rca` | RCA (`01_19_01`) | Close layout, partial semantics | Rule-based classification from rejection/lifecycle evidence. SLA, customer impact, RCA duration and fallback confidence are no longer claimed. Non-overview tabs remain placeholders. |
+| `/rca` | RCA (`01_19_01`) | Close layout, partial semantics | Rule-based classification from rejection/lifecycle evidence. SLA, customer impact, RCA duration and fallback confidence are no longer claimed. The four tabs each select a real subset of that evidence; `Insights` was removed for lack of a source. |
 | `/market-data` | Market Data (`01_16_35`) and Argus workspace | Partial / data missing | Journal has no market ticks. TrueData/Redis snapshot is unconfigured; any journal-derived values must remain clearly indicative order evidence, not market prices. |
-| `/exchange` | Exchange Health (`01_19_13`) | Close layout, partial telemetry | Journal venue/order/YEL evidence. No measured uptime or reliable latency history; client×exchange matrix is derived, not adapter monitoring. |
+| `/exchange` | Exchange Health (`01_19_13`) | Close layout, partial telemetry | Journal venue/order/YEL evidence. No measured uptime or reliable latency history; client×exchange matrix is derived, not adapter monitoring — cells are `OBSERVED`/`REJECTION_HEAVY`, never success/failure. |
 | `/sessions` | Sessions (`01_19_20`, `01_20_18`) | Close | 149 login + 14 logout observations. History does not prove current activity. |
 | `/risk` | Risk (`01_19_28`) | Partial | Journal rejection groups can show possible breaches; exposure, margin, VaR, limits and stress tests require RMS/risk integration. |
 | `/infra` | Infrastructure (`01_16_53`) | Partial / data missing | Journal and dependency status only. Synthetic WAN chart removed; resource history/topology require Prometheus/Kubernetes integrations. |
@@ -119,9 +119,33 @@ Persisted RCA/incidents still return empty demo-labelled responses while `TRADEO
 
 ## Remaining gaps
 
+Blocked on data sources that do not exist yet:
+
 1. Add authoritative integrations before implementing positions, holdings, risk exposure/limits, market depth, infra history/topology, SLA/MTTR or report delivery.
 2. Add a dedicated Traders route only if a trusted trader-performance/position source exists.
-3. Replace or remove unverified landing-page testimonials and performance statistics before public release.
-4. Rename exchange matrix “success/failure” to “observed/rejection-heavy” unless real adapter health telemetry is added.
-5. Implement dedicated RCA tabs or remove inert tab controls.
-6. Restart the API and refresh matched route screenshots after concurrent journal-field work settles.
+3. Restart the API and refresh matched route screenshots after concurrent journal-field work settles. Needs a running stack, so it cannot be done from a sandboxed session.
+
+### Closed 2026-09-11
+
+- **Landing-page testimonials and performance statistics.** The stat strip already carried no
+  invented numbers. The remaining problem was presentational: three role-based workflow
+  descriptions were still rendered as `<blockquote>` with an avatar initial and a name under a
+  "Customers" nav anchor, which reads as customer quotes even though nobody is quoted. They are
+  now plain `.workflow-card` articles under a `#workflows` anchor labelled "Workflows", with the
+  quotation and avatar styling deleted.
+- **Exchange matrix “success/failure”.** The visible copy had already been corrected to
+  "rejection-heavy … this is order evidence, not adapter telemetry", but `lib/exchange-matrix.ts`
+  still modelled cells as `SUCCESS`/`FAILED` with `lastSuccess`/`lastFailure`, and computed a
+  `summary.successPct` — an adapter success rate no telemetry backs. Cell status is now
+  `OBSERVED` / `REJECTION_HEAVY` / `NONE` with `lastObserved`/`lastRejection`, and the
+  percentage is gone (nothing consumed it); the summary reports observed and rejection-heavy
+  counts only.
+- **Inert RCA tab controls.** `Insights` is removed — the journal establishes no insight source,
+  so the tab had nothing to render. `Overview`, `Order RCA`, `System RCA` and `Trend Analysis`
+  now each select a real subset of the same journal evidence instead of showing a "dedicated
+  panels coming in a later release" footnote: Order RCA shows the case table with the per-order
+  lifecycle, logs and actions; System RCA shows the KPIs with the category and resolution
+  donuts; Trend Analysis shows the KPIs with the RCA trend.
+- **Two fabricated RCA deltas.** The KPI grid hardcoded `−18%` ("vs previous day") on Incidents
+  Analyzed and `+2` on Repeat Issues. Neither was computed from any source; both are replaced by
+  labels describing what the number actually is.

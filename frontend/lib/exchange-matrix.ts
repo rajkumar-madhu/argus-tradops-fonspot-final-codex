@@ -4,9 +4,14 @@ export type MatrixCell = {
   orders: number;
   rejected: number;
   yelConnected: boolean;
-  status: "SUCCESS" | "FAILED" | "NONE";
-  lastSuccess?: string;
-  lastFailure?: string;
+  /**
+   * Order evidence only. OBSERVED means orders (or a YEL key) were seen for this
+   * client and venue; REJECTION_HEAVY means most of those orders were rejected.
+   * Neither establishes adapter health — the journal carries no adapter telemetry.
+   */
+  status: "OBSERVED" | "REJECTION_HEAVY" | "NONE";
+  lastObserved?: string;
+  lastRejection?: string;
 };
 
 const DEFAULT_EXCHANGES = ["NSE", "NFO", "CDS", "BSE", "BFO", "MCX"];
@@ -64,9 +69,9 @@ export function buildAdapterMatrix(orders: any[], yelKeys: string[] = []) {
       const yelConnected = yelPairs.has(k) || (yelKeys.length > 0 && yelKeys.some((key) => key.includes(exchange)));
       let status: MatrixCell["status"] = "NONE";
       if (ordersN > 0) {
-        status = rejected > ordersN * 0.5 ? "FAILED" : "SUCCESS";
+        status = rejected > ordersN * 0.5 ? "REJECTION_HEAVY" : "OBSERVED";
       } else if (yelConnected) {
-        status = "SUCCESS";
+        status = "OBSERVED";
       }
       cells.push({
         client,
@@ -75,25 +80,23 @@ export function buildAdapterMatrix(orders: any[], yelKeys: string[] = []) {
         rejected,
         yelConnected,
         status,
-        lastSuccess: ordersN && rejected < ordersN ? row?.lastTime : undefined,
-        lastFailure: rejected ? row?.lastTime : undefined,
+        lastObserved: ordersN && rejected < ordersN ? row?.lastTime : undefined,
+        lastRejection: rejected ? row?.lastTime : undefined,
       });
     }
   }
 
-  const successCells = cells.filter((c) => c.status === "SUCCESS").length;
-  const failedCells = cells.filter((c) => c.status === "FAILED").length;
-  const totalCells = cells.filter((c) => c.status !== "NONE").length;
+  const rejectionHeavy = cells.filter((c) => c.status === "REJECTION_HEAVY").length;
+  const observed = cells.filter((c) => c.status === "OBSERVED").length;
 
   return {
     clients,
     exchanges,
     cells,
     summary: {
-      totalAdapters: totalCells,
-      success: successCells,
-      failures: failedCells,
-      successPct: totalCells ? (successCells / totalCells) * 100 : 0,
+      observedPairs: observed + rejectionHeavy,
+      observed,
+      rejectionHeavy,
     },
   };
 }

@@ -4219,8 +4219,8 @@ td.ellipsis {
 /* Testimonials */
 .voices {
   padding: 60px 4%;
-  background: #f8fafd;
-  border-top: 1px solid #e7edf7;
+  background: var(--surface-muted);
+  border-top: 1px solid var(--border-soft);
 }
 .voice-grid {
   display: grid;
@@ -4228,58 +4228,34 @@ td.ellipsis {
   gap: 18px;
   margin-bottom: 40px;
 }
-.voice-grid blockquote {
+/* Workflow cards, not testimonials — no quotation styling and no attributed
+   speaker, because nothing here is quoted from a customer. */
+.voice-grid .workflow-card {
   margin: 0;
-  background: #fff;
-  border: 1px solid #e3ebf6;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 12px;
   padding: 24px;
   display: flex;
   flex-direction: column;
 }
-.stars {
-  display: flex;
-  gap: 2px;
-  color: #f5a623;
+.voice-grid .workflow-team {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand-strong);
 }
-.stars svg {
-  fill: currentColor;
-}
-.voice-grid blockquote p {
+.voice-grid .workflow-card p {
   font-size: 14.5px;
   line-height: 1.6;
   color: var(--text);
   margin: 12px 0 18px;
   flex: 1;
 }
-.voice-grid footer {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-.voice-grid footer b {
-  display: block;
-  font-size: 13px;
-}
-.voice-grid footer small {
+.voice-grid .workflow-card small {
   color: var(--text-muted);
   font-size: 12px;
-}
-/* Scoped to .landing: a bare `.avatar` here would override the app's top-bar
-   avatar (Shell.tsx), which is defined earlier in this file and must keep its
-   blue gradient, white initial and margins. */
-.landing .avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #e8f1ff;
-  color: var(--blue-ui);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 14px;
-  flex-shrink: 0;
-  margin: 0;
 }
 
 /* Guides / resources */
@@ -6083,6 +6059,12 @@ table.compact td {
 .dashboard-charts-row.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+.dashboard-charts-row.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dashboard-charts-row.one {
+  grid-template-columns: minmax(0, 1fr);
+}
 .dashboard-charts-row .panel.span-2 {
   grid-column: span 1;
 }
@@ -6185,6 +6167,7 @@ table.compact td {
   }
   .dashboard-charts-row,
   .dashboard-charts-row.three,
+  .dashboard-charts-row.two,
   .dashboard-detail-row,
   .dashboard-bottom-row {
     grid-template-columns: 1fr;
@@ -6588,18 +6571,6 @@ table.compact td {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-}
-.rca-footnote {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: var(--text-muted);
-  background: var(--surface-muted);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius);
 }
 @media (max-width: 1200px) {
   .rca-bottom-grid {

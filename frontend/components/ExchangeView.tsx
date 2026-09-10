@@ -261,7 +261,7 @@ export default function ExchangeView({ exchanges, yel, orders, rejections, laten
                           {matrix.exchanges.map((x) => {
                             const cell = row.find((c) => c.exchange === x);
                             return (
-                              <td key={x} className={`num ${cell?.status === "FAILED" ? "text-red" : ""}`} title={cell?.orders ? `${cell.orders} orders · ${cell.rejected} rejected` : "No orders"}>
+                              <td key={x} className={`num ${cell?.status === "REJECTION_HEAVY" ? "text-red" : ""}`} title={cell?.orders ? `${cell.orders} orders · ${cell.rejected} rejected` : "No orders"}>
                                 {cell?.orders ? fmt(cell.orders) : "—"}
                               </td>
                             );
