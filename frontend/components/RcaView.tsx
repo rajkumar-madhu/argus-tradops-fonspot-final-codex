@@ -52,7 +52,8 @@ export default function RcaView({
   initialOrderId?: string;
 }) {
   const [activeTab, setActiveTab] = useState<(typeof RCA_TABS)[number]>("Overview");
-  const [selectedId, setSelectedId] = useState(initialOrderId);
+  // Seed the first case so the server render already shows RCA details.
+  const [selectedId, setSelectedId] = useState(initialOrderId || rejections?.orders?.[0]?.order_id || "");
   const [rcaData, setRcaData] = useState<any>(null);
   const [lifecycle, setLifecycle] = useState<any[]>([]);
   const [logLines, setLogLines] = useState<any[]>([]);
@@ -348,6 +349,7 @@ export default function RcaView({
               selectedId={selectedId}
               rowKey={(r) => r.order_id}
               onRowClick={(r) => setSelectedId(r.order_id)}
+              filtersOpen={false}
               columns={[
                 { key: "time", label: "Time", render: (r) => time24(r.time) },
                 { key: "order_id", label: "Order No" },
@@ -441,88 +443,88 @@ export default function RcaView({
               </div>
             )}
           </div>
+        </div>
+      </section>
 
-          <div className="rca-evidence-row">
-            <div className="panel rca-lifecycle-panel">
-              <div className="panel-head">
-                <b>Order Lifecycle Trace</b>
-                <span>{lifecycle.length} events</span>
-              </div>
-              {!lifecycle.length ? (
-                <p className="evidence-note">Select a case to view lifecycle progression.</p>
-              ) : (
-                <div className="rca-lifecycle">
-                  {lifecycleSteps.map((step, index) => (
-                    <div key={step.key} className={step.state}>
-                      <i className={`rca-step-icon ${step.state}`} aria-hidden>
-                        {step.state === "failed" ? "✕" : step.state === "done" ? "✓" : "○"}
-                      </i>
-                      <span>{step.label}</span>
-                      {step.time && <small>{time24(step.time)}</small>}
-                      {index < lifecycleSteps.length - 1 && <em className={`rca-step-line ${step.state}`} />}
-                    </div>
-                  ))}
+      <section className="rca-evidence-row">
+        <div className="panel rca-lifecycle-panel">
+          <div className="panel-head">
+            <b>Order Lifecycle Trace</b>
+            <span>{lifecycle.length} events</span>
+          </div>
+          {!lifecycle.length ? (
+            <p className="evidence-note">Select a case to view lifecycle progression.</p>
+          ) : (
+            <div className="rca-lifecycle">
+              {lifecycleSteps.map((step, index) => (
+                <div key={step.key} className={step.state}>
+                  <i className={`rca-step-icon ${step.state}`} aria-hidden>
+                    {step.state === "failed" ? "✕" : step.state === "done" ? "✓" : "○"}
+                  </i>
+                  <span>{step.label}</span>
+                  {step.time && <small>{time24(step.time)}</small>}
+                  {index < lifecycleSteps.length - 1 && <em className={`rca-step-line ${step.state}`} />}
                 </div>
-              )}
+              ))}
             </div>
+          )}
+        </div>
 
-            <div className="panel rca-logs-panel">
-              <div className="panel-head">
-                <b>Related Logs (ELK)</b>
-                <span>{filteredLogs.length} lines</span>
-              </div>
-              <div className="rca-log-filters">
-                {["All", "OMS", "RMS", "Gateway", "Exchange"].map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    className={logFilter === f ? "active" : ""}
-                    onClick={() => setLogFilter(f)}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <div className="rca-log-scroll">
-                {filteredLogs.length === 0 ? (
-                  <p className="evidence-note">No log lines for this filter.</p>
-                ) : (
-                  filteredLogs.map((line, i) => (
-                    <div key={i} className={`rca-log-line level-${line.level.toLowerCase()}`}>
-                      <time>{line.time}</time>
-                      <b>{line.level}</b>
-                      <em>{line.source}</em>
-                      <p>{line.message}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-              {logsNote && <p className="rca-log-note">{logsNote}</p>}
-            </div>
+        <div className="panel rca-logs-panel">
+          <div className="panel-head">
+            <b>Related Logs (ELK)</b>
+            <span>{filteredLogs.length} lines</span>
+          </div>
+          <div className="rca-log-filters">
+            {["All", "OMS", "RMS", "Gateway", "Exchange"].map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={logFilter === f ? "active" : ""}
+                onClick={() => setLogFilter(f)}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <div className="rca-log-scroll">
+            {filteredLogs.length === 0 ? (
+              <p className="evidence-note">No log lines for this filter.</p>
+            ) : (
+              filteredLogs.map((line, i) => (
+                <div key={i} className={`rca-log-line level-${line.level.toLowerCase()}`}>
+                  <time>{line.time}</time>
+                  <b>{line.level}</b>
+                  <em>{line.source}</em>
+                  <p>{line.message}</p>
+                </div>
+              ))
+            )}
+          </div>
+          {logsNote && <p className="rca-log-note">{logsNote}</p>}
+        </div>
 
-            <div className="panel rca-actions-panel">
-              <div className="panel-head">
-                <b>Recommended Actions</b>
-                <span>{actions.length} items</span>
-              </div>
-              <ul className="rca-action-list">
-                {actions.map((action) => (
-                  <li key={action}>
-                    <CheckCircle2 size={14} aria-hidden />
-                    {action}
-                  </li>
-                ))}
-              </ul>
-              <div className="rca-action-footer">
-                <Link href={`/logs?q=${encodeURIComponent(selectedId || "")}`} className="secondary">
-                  Search service logs
-                </Link>
-                <button type="button" className="secondary" disabled title="Read-only observability — alerts are not configured">
-                  <Bell size={14} aria-hidden />
-                  Create Alert for Similar Issues
-                </button>
-              </div>
-            </div>
+        <div className="panel rca-actions-panel">
+          <div className="panel-head">
+            <b>Recommended Actions</b>
+            <span>{actions.length} items</span>
+          </div>
+          <ul className="rca-action-list">
+            {actions.map((action) => (
+              <li key={action}>
+                <CheckCircle2 size={14} aria-hidden />
+                {action}
+              </li>
+            ))}
+          </ul>
+          <div className="rca-action-footer">
+            <Link href={`/logs?q=${encodeURIComponent(selectedId || "")}`} className="secondary">
+              Search service logs
+            </Link>
+            <button type="button" className="secondary" disabled title="Read-only observability — alerts are not configured">
+              <Bell size={14} aria-hidden />
+              Create Alert for Similar Issues
+            </button>
           </div>
         </div>
       </section>

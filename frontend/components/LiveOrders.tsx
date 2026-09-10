@@ -356,7 +356,7 @@ export default function LiveOrders({
             <div className="lifecycle-reject">
               <div><span>Rejection Code</span><b>{selected.code || '—'}</b></div>
               <div><span>Category</span><span>{selected.rejection_category || '—'}</span></div>
-              <a href={`/rca?order_id=${encodeURIComponent(selectedId)}`}>Full reason in RCA ›</a>
+              <a href={`/rca?order_id=${encodeURIComponent(selectedId)}`}>Open RCA ›</a>
             </div>
           )}
         </section>

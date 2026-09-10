@@ -202,8 +202,11 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
         "price": _price(doc.get("PriceToFill")),
         "fill_price": _price(doc.get("FillAvgPrice") or doc.get("FillPrice")),
         "latency_ms": _latency_ms(doc),
+        # Code and category read the raw text; the reason itself is masked so no
+        # order payload (lists, lifecycle, RCA, event bus) carries client codes,
+        # balances or holdings. mask_reason is idempotent.
         "code": rejection_code(reason),
-        "reason": reason,
+        "reason": mask_reason(reason) if mask_sensitive else reason,
         "rejection_category": rejection_category(reason),
         "source": "noren-ordupd",
     }

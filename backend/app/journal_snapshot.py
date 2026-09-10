@@ -113,8 +113,7 @@ def _project_order_fields(
     projected["SrcUserId"] = mask_id(str(doc.get("SrcUserId") or ""), 4)
     projected["IpAddr"] = mask_ip(str(doc.get("IpAddr") or ""))
     projected["PanNum"] = mask_id(str(doc.get("PanNum") or ""), 4)
-    if normalized.get("status") != "REJECTED":
-        projected["RejReason"] = ""
+    projected["RejReason"] = mask_reason(doc.get("RejReason")) if normalized.get("status") == "REJECTED" else ""
     return projected
 
 

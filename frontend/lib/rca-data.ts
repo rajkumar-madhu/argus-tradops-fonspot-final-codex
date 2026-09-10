@@ -164,47 +164,7 @@ export type LifecycleStep = {
   time?: string;
 };
 
-export function buildLifecycleSteps(events: any[]): LifecycleStep[] {
-  const steps: LifecycleStep[] = [
-    { key: "placed", label: "Order Placed", state: "pending" },
-    { key: "validated", label: "Validated", state: "pending" },
-    { key: "rms", label: "RMS Check", state: "pending" },
-    { key: "exchange", label: "Exchange", state: "pending" },
-    { key: "final", label: "Rejected", state: "pending" },
-  ];
-  if (!events.length) return steps;
-
-  const first = events[0];
-  const last = events[events.length - 1];
-  const rejected = events.some((e) => String(e.status).toUpperCase() === "REJECTED");
-  const rmsHit =
-    events.some((e) => e.rejection_category?.includes("RMS") || String(e.code || "").startsWith("RED")) ||
-    String(last?.rejection_category || "").includes("RMS");
-
-  steps[0] = { ...steps[0], state: "done", time: first?.time };
-  steps[1] = {
-    ...steps[1],
-    state: events.length > 1 || first?.status ? "done" : "pending",
-    time: events[1]?.time || first?.time,
-  };
-  steps[2] = {
-    ...steps[2],
-    state: rmsHit ? (rejected ? "done" : "failed") : events.length > 1 ? "done" : "pending",
-    time: events.find((e) => e.rejection_category || e.code)?.time || last?.time,
-  };
-  steps[3] = {
-    ...steps[3],
-    state: rejected && String(last?.exchange_order_id || "").length > 0 ? "done" : rejected ? "failed" : "pending",
-    time: last?.time,
-  };
-  steps[4] = {
-    ...steps[4],
-    label: rejected ? "Rejected" : String(last?.status || "Complete"),
-    state: rejected ? "failed" : "done",
-    time: last?.time,
-  };
-  return steps;
-}
+export { buildLifecycleSteps } from "@/lib/lifecycle-steps";
 
 export type LogLine = { time: string; level: string; source: string; message: string };
 

@@ -50,3 +50,20 @@ test('top codes rank by count with shares; categories fold the tail into Others'
 test('recent rejections are newest first', () => {
   assert.deepEqual(recentRejections([rej(1), rej(3), rej(2)], 2).map((r) => r.order_id), ['R3', 'R2']);
 });
+
+test('RCA lifecycle steps come only from recorded events', async () => {
+  const { buildLifecycleSteps } = await import('../lib/lifecycle-steps.ts');
+  const steps = buildLifecycleSteps([
+    { time: '2026-06-30T03:53:38Z', status: 'REJECTED', status_code: 56 },
+    { time: '2026-06-30T03:53:35Z', status: 'PENDING', status_code: 110 },
+  ]);
+  assert.deepEqual(steps.map((s) => [s.label, s.state]), [['Pending (110)', 'done'], ['Rejected (56)', 'failed']]);
+  const fills = buildLifecycleSteps([
+    { time: '2026-06-30T03:51:13.029Z', status: 'PENDING', status_code: 110 },
+    { time: '2026-06-30T03:51:13.035Z', status: 'OPEN', status_code: 48 },
+    { time: '2026-06-30T03:51:13.100Z', status: 'OPEN', status_code: 48 },
+    { time: '2026-06-30T03:51:13.246Z', status: 'COMPLETE', status_code: 50 },
+  ]);
+  assert.deepEqual(fills.map((s) => s.label), ['Pending (110)', 'Open (48) ×2', 'Complete (50)']);
+  assert.deepEqual(buildLifecycleSteps([]), []);
+});

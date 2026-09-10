@@ -57,3 +57,16 @@ class RejectionReasonMasking(unittest.TestCase):
         raw = "RED:RULE:{Check circuit limit including square off order}Current:INR 261.00 LowerCircuit:INR 261.65 UpperCircuit:INR 319.75:NSE.ITC-EQ for C-S476-KBC [PMS-KBC]"
         self.assertEqual(mask_reason(raw), raw.replace("C-S476-KBC", "C-***-KBC"))
         self.assertEqual(mask_reason(None), "")
+
+
+class OrderReasonMasking(unittest.TestCase):
+    def test_every_normalized_order_carries_a_masked_reason(self):
+        # normalize_order feeds lists, the lifecycle route, RCA and the event bus.
+        from app.elastic.normalizer import normalize_order
+        doc = {"NorenOrdNum": "1", "OrdStatus": 56,
+               "RejReason": "RED:Margin Shortfall:INR 22.18 Available:INR 114280.07 for C-R1289-PSB [PSBDIRECT-PSB]"}
+        order = normalize_order(doc)
+        self.assertNotIn("114280.07", order["reason"])
+        self.assertNotIn("R1289", order["reason"])
+        self.assertEqual(order["code"], "RED")
+        self.assertEqual(order["rejection_category"], "RMS / Margin")
