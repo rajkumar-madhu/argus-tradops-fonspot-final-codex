@@ -229,8 +229,8 @@ function showTick(i: number, n: number, every: number) {
 }
 
 /** Stacked vertical bars, one colour per series (e.g. orders per bin by exchange). */
-export function StackedBars({ bins, series, height = 170 }: {
-  bins: { label: string; values: number[] }[]; series: string[]; height?: number;
+export function StackedBars({ bins, series, height = 170, colors = SERIES_COLORS }: {
+  bins: { label: string; values: number[] }[]; series: string[]; height?: number; colors?: string[];
 }) {
   const w = 460;
   const pad = { l: 34, r: 8, t: 8, b: 20 };
@@ -256,7 +256,7 @@ export function StackedBars({ bins, series, height = 170 }: {
               const yTop = pad.t + plotH - acc - h;
               acc += h;
               return v ? (
-                <rect key={si} x={pad.l + slot * i + slot * 0.18} width={slot * 0.64} y={yTop} height={h} fill={SERIES_COLORS[si % SERIES_COLORS.length]}>
+                <rect key={si} x={pad.l + slot * i + slot * 0.18} width={slot * 0.64} y={yTop} height={h} fill={colors[si % colors.length]}>
                   <title>{`${b.label} · ${series[si]}: ${v}`}</title>
                 </rect>
               ) : null;

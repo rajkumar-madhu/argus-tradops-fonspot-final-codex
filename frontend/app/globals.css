@@ -8366,3 +8366,14 @@ table tbody tr:hover { background: #e6f0ec; }
 .sev-dot.sev-major { background: #f59e0b; }
 .sev-dot.sev-minor { background: #0b5cff; }
 @media (max-width: 1300px) { .ref-grid.ex-row, .ref-grid.ex-row2, .ref-grid.ex-row3 { grid-template-columns: 1fr; } }
+
+/* Alerts & Incidents (mockup 01_17_00): four-up chart row, full-width alert
+   table, then Recent Incidents / Timeline / AI Insights as a three-up row. */
+.app-shell .incidents-charts-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.app-shell .incidents-main-row { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.app-shell .incidents-side-stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.app-shell .incidents-table-panel .orders-table td { white-space: nowrap; }
+@media (max-width: 1300px) {
+  .app-shell .incidents-charts-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell .incidents-side-stack { grid-template-columns: 1fr; }
+}

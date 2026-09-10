@@ -15,7 +15,10 @@ import {
   Timer,
 } from "lucide-react";
 import RefreshButton from "@/components/RefreshButton";
-import { AreaChart, Donut, HBarList } from "@/components/Charts";
+import { Donut, HBarList, StackedBars } from "@/components/Charts";
+
+// Matches alertsTrendSeries order: Critical, Major, Minor, Info.
+const SEVERITY_COLORS = ["#e5383b", "#f59e0b", "#0b5cff", "#9aa6bb"];
 import { EmptyState, KpiCard, Severity } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import {
@@ -170,20 +173,30 @@ export default function IncidentsView({ persisted, derived, rejections, yel }: I
           </section>
 
           <section className="incidents-charts-row">
-            <div className="panel span-2">
+            <div className="panel">
               <div className="panel-head">
                 <div>
                   <b>Alerts Trend</b>
                   <p className="sub">Severity mix over snapshot window</p>
                 </div>
                 <span className="legend">
-                  <i className="lg s-rejected" /> Critical{" "}
-                  <i className="lg s-pending" /> Major{" "}
-                  <i className="lg s-total" /> Minor
+                  {["Critical", "Major", "Minor", "Info"].map((name, i) => (
+                    <span key={name}><i className="lg" style={{ background: SEVERITY_COLORS[i] }} /> {name}</span>
+                  ))}
                 </span>
               </div>
               {alerts.length ? (
-                <AreaChart series={trend.series} labels={trend.labels} height={150} />
+                <div className="ref-chart">
+                  <StackedBars
+                    series={trend.series.map((x) => x.name)}
+                    bins={trend.labels.map((label, i) => ({ label, values: trend.series.map((x) => x.points[i] ?? 0) }))}
+                    height={150}
+                    colors={SEVERITY_COLORS}
+                  />
+                  {trend.labels.length < 2 && (
+                    <p className="ref-note">All {fmt(alerts.length)} derived alerts share the snapshot time; a trend needs persisted incidents over time.</p>
+                  )}
+                </div>
               ) : (
                 <EmptyState title="No alerts" body="No operational alerts derived from the current data source." />
               )}
@@ -214,20 +227,19 @@ export default function IncidentsView({ persisted, derived, rejections, yel }: I
                 <EmptyState title="No persisted incidents" body="Correlation worker incidents appear when Postgres is connected." />
               )}
             </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <b>Top Alert Sources</b>
-                <p className="sub">Grouped by originating system</p>
+            <div className="panel">
+              <div className="panel-head">
+                <div>
+                  <b>Top Alert Sources</b>
+                  <p className="sub">Grouped by originating system</p>
+                </div>
               </div>
+              {sourceBars.length ? (
+                <HBarList rows={sourceBars} />
+              ) : (
+                <EmptyState title="No sources" body="Alert sources will populate when incidents are detected." />
+              )}
             </div>
-            {sourceBars.length ? (
-              <HBarList rows={sourceBars} />
-            ) : (
-              <EmptyState title="No sources" body="Alert sources will populate when incidents are detected." />
-            )}
           </section>
 
           <section className="incidents-main-row">
