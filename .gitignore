@@ -56,3 +56,7 @@ management console.zip
 .playwright-cli/
 
 .playwright-cli/
+
+# Raw local runtime data (3.5 GB journal, adapter logs) — never commit
+/Journal.log
+/adapter/
