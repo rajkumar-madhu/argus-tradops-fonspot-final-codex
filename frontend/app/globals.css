@@ -8434,3 +8434,37 @@ table tbody tr:hover { background: #e6f0ec; }
 .cfg-rows { padding: 6px 16px 10px; }
 @media (max-width: 1300px) { .cfg-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } .cfg-main { grid-template-columns: 1fr; } }
 .cfg-text em.zero { color: #8a96ad; }
+
+/* ── Landing, reference palette (mockup 01_20_35): blue accent, bold sans
+   headline, two-column hero with a dark product frame. Overrides the warm
+   "Landing v5" tokens above. ── */
+.landing {
+  --accent: #0b5cff;
+  --accent-hover: #0047d9;
+  --accent-strong: #0b5cff;
+  --accent-tint: #e8f0ff;
+  --accent-border: #b9cdfc;
+}
+.landing .primary { box-shadow: 0 6px 18px rgba(11, 92, 255, 0.28); }
+.landing .hero { background: linear-gradient(180deg, #f3f7ff 0%, #ffffff 80%); padding: 56px 4% 44px; gap: 40px; }
+.landing .hero h1 { font-family: var(--f-body); font-weight: 800; font-size: clamp(38px, 4.2vw, 56px); letter-spacing: -0.03em; color: #0a1433; line-height: 1.05; }
+.landing .hero h1 span { font-family: inherit; font-style: normal; color: #0b5cff; }
+.landing .eyebrow { color: #0b5cff; }
+.landing .hero-tiles > div { text-align: left; }
+.landing .cta-band { background: linear-gradient(90deg, #0b5cff, #2f7bff); }
+.landing .hero-visual .preview { transform: none; background: #0f1f33; border-color: #1f3649; box-shadow: 0 24px 60px rgba(8, 20, 45, 0.35); }
+.landing .hero-visual .preview-side { background: #162a3b; border-color: #1f3649; }
+.landing .hero-visual .preview-side span { color: #b8c6d8; }
+.landing .hero-visual .preview-side span.active { background: #0b5cff; color: #fff; }
+.landing .hero-visual .preview-brand b { color: #fff; }
+.landing .hero-visual .preview-main { background: #0f1f33; }
+.landing .hero-visual .preview-top b { color: #fff; }
+.landing .hero-visual .preview-top span { color: #8ea0b6; }
+.landing .hero-visual .preview-kpis > div, .landing .hero-visual .preview-card { background: #15283d; border-color: #22384f; color: #cfd9e6; }
+.landing .hero-visual .preview-kpis span, .landing .hero-visual .preview-card b { color: #cfd9e6; }
+.landing .hero-visual .preview-skel { background: rgba(255, 255, 255, 0.14); }
+.landing .hero-visual .preview-skel-line, .landing .hero-visual .preview-skel-cell { background: rgba(255, 255, 255, 0.08); }
+.landing .hero-visual .preview-table th { color: #8ea0b6; background: transparent; }
+@media (max-width: 1100px) { .landing .hero { grid-template-columns: 1fr; } }
+.landing .skeleton-bars i { background: #dbe3ef; }
+.landing .preview-skel { background: #e3e9f2; }

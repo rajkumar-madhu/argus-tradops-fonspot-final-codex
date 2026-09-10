@@ -133,14 +133,14 @@ export default function Landing() {
       {/* Ticker sits directly under the nav, matching the reference layout */}
       <MarketTicker variant="strip" />
 
-      <section className="hero centered">
+      <section className="hero">
         <div className="hero-copy">
           <div className="eyebrow">OBSERVE · ANALYZE · RESOLVE · STAY AHEAD</div>
           <h1>Complete Observability<br />for <span>Trading Operations</span></h1>
           <p>Unify orders, trades, risk, infrastructure and logs in one platform. Detect issues faster, resolve with AI-powered insights, and keep your trading systems always on.</p>
           <div className="hero-actions">
             <Link className="primary" href="/signup">Start Free Trial →</Link>
-            <Link className="secondary" href="/signin">Get started</Link>
+            <Link className="secondary" href="/signin">Sign in</Link>
           </div>
           <div className="hero-tiles">
             <div><span className="tile-blue"><Zap size={16} /></span><b>Real-time visibility</b><small>Across your trading stack</small></div>
