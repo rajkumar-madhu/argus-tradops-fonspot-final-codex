@@ -8468,3 +8468,20 @@ table tbody tr:hover { background: #e6f0ec; }
 @media (max-width: 1100px) { .landing .hero { grid-template-columns: 1fr; } }
 .landing .skeleton-bars i { background: #dbe3ef; }
 .landing .preview-skel { background: #e3e9f2; }
+
+/* Market Monitor in the reference theme (was a warm gold/serif block). */
+.app-shell .monitor-console { --monitor-gold: #0b5cff; --monitor-paper: #ffffff; --monitor-ink: #1f2a44; border-color: #e3e9f2; border-radius: 8px; margin: 0; background: #fff; box-shadow: 0 1px 2px rgba(15, 27, 61, 0.04); }
+.app-shell .monitor-banner { background: #fff; border-bottom-color: #eef2f8; padding: 14px 18px; }
+.app-shell .monitor-banner h2 { font-family: var(--f-body); font-weight: 700; font-size: 16px; color: #0a1433; margin: 0 0 2px; }
+.app-shell .monitor-emblem { background: #e8f0ff; color: #0b5cff; width: 36px; height: 36px; border-radius: 8px; }
+.app-shell .monitor-health { border-bottom-color: #eef2f8; padding: 14px 18px; }
+.app-shell .monitor-health svg { color: #0b5cff; }
+.app-shell .monitor-plot { padding: 16px 18px; }
+.app-shell .monitor-detail { background: #f8fafd; border-left-color: #eef2f8; }
+.app-shell .monitor-detail dl > div, .app-shell .monitor-links { border-color: #eef2f8; }
+.app-shell .monitor-activity > div > div { background: #eef2f8; }
+.app-shell .monitor-activity i { background: #0b5cff; }
+.app-shell .monitor-links a, .app-shell .monitor-empty a { color: #0b5cff; }
+.app-shell .monitor-banner p, .app-shell .monitor-chart-head p, .app-shell .monitor-detail > p, .app-shell .monitor-health span, .app-shell .monitor-activity small, .app-shell .monitor-caption { color: #5b6782 !important; }
+.app-shell .monitor-windows button[aria-pressed=true] { background: #0b5cff; border-color: #0b5cff; }
+.app-shell .market-page .dashboard-head, .app-shell .market-hero { margin-bottom: 14px; }
