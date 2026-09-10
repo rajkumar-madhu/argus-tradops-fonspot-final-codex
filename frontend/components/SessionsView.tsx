@@ -27,7 +27,7 @@ function sessionResult(row: Record<string, unknown>): string {
   return status;
 }
 
-export default function SessionsView({ data, summary }: { data: any; summary?: any }) {
+export default function SessionsView({ data, summary, embedded = false }: { data: any; summary?: any; embedded?: boolean }) {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -108,6 +108,9 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
 
   return (
     <div className="sessions-page">
+      {/* The Overview tab owns the page header and KPIs when embedded. */}
+      {!embedded && (
+        <>
       <section className="dashboard-head sessions-head">
         <div>
           <div className="sessions-title-row">
@@ -159,6 +162,8 @@ export default function SessionsView({ data, summary }: { data: any; summary?: a
           icon={<Users size={18} />}
         />
       </section>
+        </>
+      )}
 
       <section className="panel sessions-toolbar-panel">
         <div className="sessions-toolbar">
