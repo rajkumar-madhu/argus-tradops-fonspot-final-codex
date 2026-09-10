@@ -1,40 +1,41 @@
-/* Dark desk — same navy rail / blue primary as the light reference theme.
-   Applied when Shell adds .dashboard-theme (moon toggle). */
+/* Dark desk — forest rail and gold actions, the same palette as the light theme.
+   No blue anywhere (Raj, 2026-09-11): follow the reference mockups' layout, not
+   their navy/blue. Applied when Shell adds .dashboard-theme (moon toggle). */
 .app-shell.dashboard-theme {
   color-scheme: dark;
-  --ground: #0b1220;
-  --surface: #121c2e;
-  --surface-2: #162338;
-  --surface-muted: #162338;
-  --surface-3: #1a2a42;
-  --rail: #0d1a28;
-  --rail-ink: #e6edf5;
-  --ink: #e8eef8;
-  --ink-2: #b7c3d6;
-  --muted: #8ea0b6;
+  --ground: #091511;
+  --surface: #0d1f19;
+  --surface-2: #10261f;
+  --surface-muted: #10261f;
+  --surface-3: #142f26;
+  --rail: #0c1c17;
+  --rail-ink: #edecea;
+  --ink: #eeeeeb;
+  --ink-2: #c5c2b8;
+  --muted: #a49e8f;
   --text: var(--ink);
   --text-secondary: var(--ink-2);
   --text-muted: var(--muted);
   --text-soft: var(--muted);
-  --line: #24364f;
-  --line-soft: #1c2c42;
+  --line: #38352d;
+  --line-soft: #153127;
   --border: var(--line);
   --border-soft: var(--line-soft);
-  --brand: #3b82f6;
-  --brand-hover: #60a5fa;
-  --brand-strong: #93c5fd;
-  --brand-tint: #16304f;
-  --brand-border: #2a4a78;
-  --brand-soft: #102038;
-  --brand-hero: #12243c;
-  --brand-gradient-end: #60a5fa;
-  --brand-shadow: rgba(59, 130, 246, 0.35);
-  --brand-focus: rgba(59, 130, 246, 0.45);
-  --signal: #3b82f6;
-  --signal-soft: #16304f;
-  --blue: #3b82f6;
+  --brand: #b7780a;
+  --brand-hover: #e0920c;
+  --brand-strong: #f5b647;
+  --brand-tint: #16342a;
+  --brand-border: #5b4620;
+  --brand-soft: #0f231d;
+  --brand-hero: #112820;
+  --brand-gradient-end: #e0920c;
+  --brand-shadow: rgba(183, 120, 10, 0.35);
+  --brand-focus: rgba(183, 120, 10, 0.45);
+  --signal: #b7780a;
+  --signal-soft: #16342a;
+  --blue: #b7780a;
   --blue-ui: var(--brand);
-  --blue-bright: #60a5fa;
+  --blue-bright: #e0920c;
   --coral: #ff6b35;
   --accent: #f59e0b;
   --accent-soft: #3a2e12;
@@ -57,11 +58,11 @@
 }
 
 .app-shell.dashboard-theme .nav {
-  color: #c3cedd;
+  color: #cfcdc5;
 }
 
 .app-shell.dashboard-theme .nav svg {
-  color: #9fb0c6;
+  color: #b3afa2;
 }
 
 .app-shell.dashboard-theme .nav:hover {
@@ -75,9 +76,9 @@
 .app-shell.dashboard-theme .nav-queue-monitor.active,
 .app-shell.dashboard-theme .nav-reports.active,
 .app-shell.dashboard-theme .nav-logs.active {
-  background: #0b5cff;
+  background: #946108;
   color: #fff;
-  box-shadow: 0 6px 14px -8px rgba(11, 92, 255, 0.8);
+  box-shadow: 0 6px 14px -8px rgba(148, 97, 8, 0.8);
 }
 
 .app-shell.dashboard-theme .nav.active svg {
@@ -90,7 +91,7 @@
 }
 
 .app-shell.dashboard-theme .marketbar {
-  background: rgba(12, 20, 34, 0.96);
+  background: rgba(10, 23, 18, 0.96);
   border-bottom: 1px solid var(--line);
 }
 
@@ -103,15 +104,15 @@
 .app-shell.dashboard-theme .primary,
 .app-shell.dashboard-theme button.primary,
 .app-shell.dashboard-theme .primary-btn {
-  background: #0b5cff;
+  background: #946108;
   color: #fff;
-  border-color: #0b5cff;
+  border-color: #946108;
 }
 
 .app-shell.dashboard-theme .mission-tabs button.active {
   color: var(--text);
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.16);
+  border-color: #b7780a;
+  background: rgba(183, 120, 10, 0.16);
 }
 
 .app-shell.dashboard-theme table thead th {
@@ -120,11 +121,11 @@
 }
 
 .app-shell.dashboard-theme table tbody tr:nth-child(even) {
-  background: #0f1a2c;
+  background: #0c1d17;
 }
 
 .app-shell.dashboard-theme table tbody tr:hover {
-  background: #16304f;
+  background: #16342a;
 }
 
 .app-shell.dashboard-theme :is(.status.good, .order-status.complete, .source-badge.live) {
