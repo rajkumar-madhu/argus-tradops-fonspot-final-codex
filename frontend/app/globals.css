@@ -10,36 +10,36 @@
  * would stay light while the tokens flipped. Dark mode needs those converted
  * first — see NOTES. */
 :root {
-  /* ── CSM Silks storefront palette (user reference screenshot) ── */
-  --ground: #f8f9fa;
+  /* ── Reference palette (design/mockups, 2026-09-07 set): navy rail, blue
+     primary, near-white workspace, dark-navy ink, green/red/amber status. ── */
+  --ground: #f5f8fc;
   --surface: #ffffff;
-  --surface-2: #f3f5f6;
-  --surface-muted: #f3f5f6;
-  --rail: #00211a;
-  --rail-ink: #e8f0ec;
-  --ink: #1a1f1c;
-  --ink-2: #3d4741;
-  --muted: #6b736e;
-  --line: #e4e8e5;
-  --line-soft: #eef1ef;
-  --accent: #c78924;
-  --accent-soft: #f7efd9;
-  --signal: #0a3d32;
-  --signal-soft: #e6f0ec;
-  /* Primary CTA = forest green; secondary CTA = gold */
-  --brand: #0a3d32;
-  --brand-hover: #00211a;
-  --brand-strong: #00211a;
-  --brand-tint: #e6f0ec;
-  --brand-border: #b7cfc6;
-  --brand-soft: #f2f7f4;
-  --brand-hero: #e6f0ec;
-  --brand-gradient-end: #0f5a48;
-  --brand-shadow: rgba(10, 61, 50, 0.28);
-  --brand-focus: rgba(10, 61, 50, 0.28);
-  --up: #0a3d32;
-  --down: #b42318;
-  --shadow: 0 1px 2px rgba(0, 33, 26, 0.05), 0 10px 28px -18px rgba(0, 33, 26, 0.22);
+  --surface-2: #f4f7fb;
+  --surface-muted: #f4f7fb;
+  --rail: #162a3b;
+  --rail-ink: #e6edf5;
+  --ink: #0f1b3d;
+  --ink-2: #3b4863;
+  --muted: #6b778f;
+  --line: #e3e9f2;
+  --line-soft: #eef2f8;
+  --accent: #f59e0b;
+  --accent-soft: #fef3c7;
+  --signal: #0b5cff;
+  --signal-soft: #e8f0ff;
+  --brand: #0b5cff;
+  --brand-hover: #0047d9;
+  --brand-strong: #0038b0;
+  --brand-tint: #e8f0ff;
+  --brand-border: #b9cdfc;
+  --brand-soft: #f3f7ff;
+  --brand-hero: #eaf1ff;
+  --brand-gradient-end: #3b82f6;
+  --brand-shadow: rgba(11, 92, 255, 0.28);
+  --brand-focus: rgba(11, 92, 255, 0.3);
+  --up: #16a34a;
+  --down: #e5383b;
+  --shadow: 0 1px 2px rgba(15, 27, 61, 0.05), 0 8px 24px -16px rgba(15, 27, 61, 0.18);
   --measure: 1160px;
 
   /* Type families. The three next/font faces are bound in app/layout.tsx and
@@ -49,8 +49,8 @@
   --f-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* ── Legacy TradeOps names ── */
-  --ink-soft: #0f1a16;
-  --ink-muted: #3d4741;
+  --ink-soft: #0a1433;
+  --ink-muted: #3b4863;
   --surface-3: var(--ground);
   --border: var(--line);
   --border-soft: var(--line-soft);
@@ -59,17 +59,17 @@
   --text-muted: var(--muted);
   --text-soft: var(--muted);
   --blue: var(--signal);
-  --blue-bright: #147a62;
+  --blue-bright: #3b82f6;
   --blue-ui: var(--brand);
-  --coral: var(--accent);
+  --coral: #ff6b35;
   --green: var(--up);
-  --green-bright: #147a62;
+  --green-bright: #22c55e;
   --red: var(--down);
   --amber: var(--accent);
   --radius-sm: 4px;
   --radius: 8px;
   --radius-lg: 10px;
-  --shadow-sm: 0 1px 2px rgba(0, 33, 26, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 27, 61, 0.05);
   --shadow-md: var(--shadow);
   --font-mono: var(--f-mono);
 }
@@ -108,8 +108,8 @@ select {
 
 .sidebar {
   /* SILKS forest rail */
-  background: #00211a;
-  border-right: 1px solid #0a2e26;
+  background: var(--rail);
+  border-right: 1px solid #1f3649;
   height: 100vh;
   position: sticky;
   top: 0;
@@ -125,7 +125,7 @@ select {
   gap: 12px;
   height: 64px;
   padding: 0 16px;
-  border-bottom: 1px solid #0a2e26;
+  border-bottom: 1px solid #1f3649;
 }
 
 .brand-bars {
@@ -197,9 +197,9 @@ select {
 }
 
 .nav.active {
-  background: #0a3d32;
+  background: var(--brand);
   color: #ffffff;
-  box-shadow: inset 3px 0 0 #c78924;
+  box-shadow: none;
 }
 
 .nav-infra.active,
@@ -207,8 +207,8 @@ select {
 .nav-queue-monitor.active,
 .nav-reports.active,
 .nav-logs.active {
-  background: #0a3d32;
-  box-shadow: inset 3px 0 0 #c78924;
+  background: var(--brand);
+  box-shadow: none;
 }
 
 .market-feed-strip {
@@ -334,7 +334,7 @@ select {
 
 .sidebar-foot {
   margin-top: auto;
-  border-top: 1px solid #0a2e26;
+  border-top: 1px solid #1f3649;
   padding: 14px 16px;
   font-size: 12px;
   color: #9bb5ab;
@@ -4759,51 +4759,36 @@ table.compact td {
   font-variant-numeric: tabular-nums;
 }
 
-/* CSM Silks color combination across the ops shell. */
+/* Reference palette across the ops shell (mirrors :root; kept so the shell
+   wins over the older layered rules above). */
 .app-shell {
-  --ground: #f8f9fa;
+  --ground: #f5f8fc;
   --surface: #ffffff;
-  --surface-2: #f3f5f6;
-  --rail: #00211a;
-  --signal: #0a3d32;
-  --signal-soft: #e6f0ec;
-  --brand: #0a3d32;
-  --brand-hover: #00211a;
-  --brand-strong: #00211a;
-  --brand-tint: #e6f0ec;
-  --brand-border: #b7cfc6;
-  --brand-soft: #f2f7f4;
-  --accent: #c78924;
-  --accent-soft: #f7efd9;
-  --line: #e4e8e5;
-  --line-soft: #eef1ef;
-  --blue: #0a3d32;
-  --blue-ui: #0a3d32;
-  --blue-bright: #147a62;
-  --amber: #c78924;
-  --up: #0a3d32;
-  --green: #0a3d32;
-  --down: #b42318;
-  --red: #b42318;
-  --shadow: 0 1px 2px rgba(0, 33, 26, 0.05), 0 10px 28px -18px rgba(0, 33, 26, 0.2);
+  --surface-2: #f4f7fb;
+  --rail: #162a3b;
+  --signal: #0b5cff;
+  --signal-soft: #e8f0ff;
+  --brand: #0b5cff;
+  --brand-hover: #0047d9;
+  --brand-strong: #0038b0;
+  --brand-tint: #e8f0ff;
+  --brand-border: #b9cdfc;
+  --brand-soft: #f3f7ff;
+  --accent: #f59e0b;
+  --accent-soft: #fef3c7;
+  --line: #e3e9f2;
+  --line-soft: #eef2f8;
+  --blue: #0b5cff;
+  --blue-ui: #0b5cff;
+  --blue-bright: #3b82f6;
+  --amber: #f59e0b;
+  --up: #16a34a;
+  --green: #16a34a;
+  --down: #e5383b;
+  --red: #e5383b;
+  --shadow: 0 1px 2px rgba(15, 27, 61, 0.05), 0 8px 24px -16px rgba(15, 27, 61, 0.18);
   background: var(--ground);
   color: var(--ink);
-}
-.app-shell .sidebar {
-  background: var(--rail);
-  border-right-color: #0a2e26;
-}
-.app-shell .nav.active {
-  background: #0a3d32;
-  color: #fff;
-  border-color: transparent;
-  box-shadow: inset 3px 0 0 #c78924;
-}
-.app-shell .brand-bars i {
-  background: #c78924;
-}
-.app-shell .brand-bars i:nth-child(2) {
-  background: #0a3d32;
 }
 .app-shell .panel {
   background: var(--surface);
@@ -4825,13 +4810,13 @@ table.compact td {
 .app-shell .primary,
 .app-shell button.primary,
 .app-shell .primary-btn {
-  background: #0a3d32;
+  background: var(--brand);
   color: #fff;
-  border-color: #0a3d32;
+  border-color: var(--brand);
 }
 .app-shell .primary:hover,
 .app-shell button.primary:hover {
-  background: #00211a;
+  background: var(--brand-hover);
 }
 .app-shell .secondary {
   border-color: var(--line);
@@ -7326,7 +7311,7 @@ table.compact td {
 
 .nav-list { padding: 14px 10px 18px; }
 .nav-group { padding: 0 0 11px; }
-.nav-group + .nav-group { border-top: 1px solid #0a2e26; padding-top: 12px; }
+.nav-group + .nav-group { border-top: 1px solid #1f3649; padding-top: 12px; }
 .nav-group-label {
   margin: 0 10px 5px;
   color: rgba(203, 216, 255, 0.48);
@@ -7394,12 +7379,12 @@ table.compact td {
 .dashboard-meta, .page-head p { max-width: 850px; color: var(--muted); }
 
 table thead th {
-  background: #f3f5f6;
-  color: #6b736e;
+  background: #f6f8fc;
+  color: #5b6782;
   font-size: 10px;
   letter-spacing: 0.065em;
 }
-table tbody tr:hover { background: #e6f0ec; }
+table tbody tr:hover { background: #f3f7ff; }
 .table-scroll { border-radius: 0 0 var(--radius) var(--radius); }
 .source-badge, .source-tag, .pill { border-radius: 999px; letter-spacing: 0.055em; }
 
@@ -7416,8 +7401,8 @@ button, .btn, .primary-btn, .secondary-btn, .primary, .secondary {
 .dashboard-theme .page-head, .dashboard-theme .dashboard-head { border-color: var(--line); }
 .dashboard-theme .page-head h1::before, .dashboard-theme .dashboard-head h1::before { background: var(--accent, #c78924); }
 .dashboard-theme .nav.active {
-  background: #0a3d32;
-  box-shadow: inset 3px 0 0 #c78924;
+  background: var(--brand);
+  box-shadow: none;
 }
 
 @media (max-width: 1000px) {
@@ -8138,3 +8123,162 @@ table tbody tr:hover { background: #e6f0ec; }
 .jx-lifecycle-note { margin: 4px 0 0; font-size: 11px; color: var(--muted); }
 .jx-lifecycle li.jx-lifecycle-more i { background: transparent; border: 2px dotted var(--line); }
 .jx-lifecycle-more button { grid-column: 2 / -1; justify-self: start; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Reference theme — design/mockups (2026-09-07 set). Last in the file and
+   scoped under .app-shell so it settles the layered shell rules above.
+   Navy rail with a blue active pill, flat nav, white workspace, plain panel
+   headers, sentence-case table headers and tinted status pills.
+   ════════════════════════════════════════════════════════════════════════ */
+.app-shell { grid-template-columns: 212px minmax(0, 1fr); font-family: var(--f-body); }
+.app-shell .sidebar { background: #162a3b; border-right: 1px solid #1f3649; color: #e6edf5; }
+.app-shell .sidebar .brand { height: 64px; padding: 0 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); gap: 10px; }
+.app-shell .brand-bars { width: 26px; height: 24px; gap: 3px; }
+.app-shell .brand-bars i { width: 6px; background: #3b82f6; border-radius: 1px; }
+.app-shell .brand-bars i:nth-child(1) { height: 13px; background: #60a5fa; }
+.app-shell .brand-bars i:nth-child(2) { height: 24px; background: #0b5cff; }
+.app-shell .brand-bars i:nth-child(3) { height: 18px; background: #3b82f6; }
+.app-shell .sidebar .brand strong { font-family: var(--f-body); font-size: 19px; font-weight: 750; letter-spacing: -0.02em; color: #fff; }
+.app-shell .sidebar .brand span { color: #9fb0c4; font-size: 10.5px; letter-spacing: 0; }
+.app-shell .nav-list { padding: 12px 10px; }
+.app-shell .nav-group { padding: 0; }
+.app-shell .nav-group + .nav-group { border-top: 0; padding-top: 0; }
+.app-shell .nav-group-label { display: none; }
+.app-shell .nav {
+  height: 39px; border-radius: 7px; padding: 0 12px; gap: 12px;
+  color: #d6e0ec; font-size: 13.5px; font-weight: 500; letter-spacing: 0;
+}
+.app-shell .nav svg { color: #b8c6d8; }
+.app-shell .nav:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.app-shell .nav.active,
+.app-shell .nav-infra.active, .app-shell .nav-data-quality.active, .app-shell .nav-queue-monitor.active,
+.app-shell .nav-reports.active, .app-shell .nav-logs.active {
+  background: #0b5cff; color: #fff; box-shadow: 0 6px 14px -8px rgba(11, 92, 255, 0.8);
+}
+.app-shell .nav.active svg { color: #fff; }
+.app-shell .nav-badge { background: #e5383b; color: #fff; min-width: 20px; height: 20px; font-size: 11px; }
+.app-shell .nav-pin { opacity: 0; }
+.app-shell .nav-row:hover .nav-pin, .app-shell .nav-pin:focus-visible, .app-shell .nav-pin.is-pinned { opacity: 1; }
+.app-shell .sidebar-foot { border-top: 1px solid rgba(255, 255, 255, 0.06); color: #c9d5e3; padding: 14px 18px 16px; }
+.app-shell .sidebar-foot div { color: #8ea0b6; }
+
+.app-shell .marketbar { min-height: 54px; background: #fff; border-bottom: 1px solid var(--line); box-shadow: none; backdrop-filter: none; padding: 0 22px; }
+.app-shell .env-pill { color: #0b5cff; background: #e8f0ff; border-color: #b9cdfc; }
+.app-shell .page { padding: 20px 22px 36px; }
+
+.app-shell .page-head, .app-shell .dashboard-head { padding: 2px 0 14px; border-bottom: 0; }
+.app-shell .page-head h1, .app-shell .dashboard-head h1 {
+  font-family: var(--f-body); font-size: 26px; font-weight: 750; letter-spacing: -0.02em; color: #0a1433; line-height: 1.15;
+}
+.app-shell .page-head h1::before, .app-shell .dashboard-head h1::before { content: none; }
+.app-shell .page-head p, .app-shell .dashboard-head p { color: #5b6782; font-size: 14px; }
+
+.app-shell .panel, .app-shell .kpi-card { border: 1px solid #e3e9f2; border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 27, 61, 0.04); }
+.app-shell .kpi-card:hover { transform: none; border-color: #cfdaf0; }
+.app-shell .kpi-card-label { color: #1f2a44; font-size: 13px; font-weight: 500; }
+.app-shell .kpi-card-value { color: #0a1433; font-size: 26px; font-weight: 750; letter-spacing: -0.02em; }
+.app-shell .kpi-tile { border-radius: 8px; width: 40px; height: 40px; }
+.app-shell .panel-head { background: transparent; border-bottom: 0; min-height: 44px; padding: 13px 16px 6px; }
+.app-shell .panel-head b { font-size: 15px; font-weight: 700; color: #0a1433; }
+.app-shell .panel-head a { color: #0b5cff; font-size: 12.5px; font-weight: 600; }
+
+.app-shell table thead th { background: #f6f8fc; color: #5b6782; font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.app-shell table tbody td { font-size: 12.5px; color: #1f2a44; }
+.app-shell table tbody tr:hover { background: #f3f7ff; }
+
+.app-shell .order-status, .app-shell .status-pill {
+  display: inline-block; min-width: 74px; text-align: center; padding: 2px 8px; border-radius: 4px;
+  font-size: 11.5px; font-weight: 600; text-transform: none; letter-spacing: 0; border: 0;
+}
+.app-shell .order-status.rejected { background: #fde4e4; color: #d92d2f; }
+.app-shell .order-status.complete, .app-shell .order-status.completed { background: #dcf5e6; color: #138a3e; }
+.app-shell .order-status.pending, .app-shell .order-status.trigger_pending { background: #fdefd5; color: #c77700; }
+.app-shell .order-status.open { background: #e3edff; color: #0b5cff; }
+.app-shell .order-status.cancelled { background: #eef1f6; color: #5b6782; }
+.app-shell .order-side.buy { color: #0b5cff; font-weight: 700; }
+.app-shell .order-side.sell { color: #e5383b; font-weight: 700; }
+
+.app-shell .primary, .app-shell button.primary, .app-shell .primary-btn { background: #0b5cff; border-color: #0b5cff; color: #fff; border-radius: 6px; }
+.app-shell .primary:hover, .app-shell button.primary:hover, .app-shell .primary-btn:hover { background: #0047d9; }
+.app-shell .source-badge.file-based { color: #0b5cff; background: #e8f0ff; border-color: #b9cdfc; }
+.app-shell .sidebar-help { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; color: #c9d5e3; font-size: 12.5px; text-decoration: none; }
+.app-shell .sidebar-help:hover { color: #fff; }
+.app-shell { grid-template-columns: 224px minmax(0, 1fr); }
+.app-shell .sidebar .brand .brand-name { min-width: 0; flex: 1; }
+.app-shell .sidebar .brand strong { font-size: 17px; white-space: nowrap; }
+.app-shell .sidebar .brand span { white-space: nowrap; font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; }
+.app-shell .rail-toggle { width: 24px; height: 24px; flex: none; background: rgba(255, 255, 255, 0.06); border: 0; color: #9fb0c4; }
+.app-shell .theme-toggle { border: 0; background: transparent; color: #5b6782; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; }
+.app-shell .theme-toggle:hover { background: #f3f7ff; color: #0b5cff; }
+.app-shell .avatar { background: #0b5cff; }
+
+/* ── Reference page scaffolding (mockup layouts: head + controls, KPI row,
+   three-up panels, wide table + side panel). Shared by rebuilt screens. ── */
+.ref-page { display: grid; gap: 14px; }
+.ref-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.ref-head h1 { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -0.02em; color: #0a1433; }
+.ref-head p { margin: 4px 0 0; color: #5b6782; font-size: 13.5px; }
+.ref-title-row { display: flex; align-items: center; gap: 10px; }
+.ref-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ref-controls select, .ref-date input, .ref-search input {
+  height: 36px; border: 1px solid #dbe3ef; border-radius: 6px; background: #fff; color: #1f2a44; font: inherit; font-size: 13px; padding: 0 10px;
+}
+.ref-date { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5b6782; }
+.ref-arrow { color: #8a96ad; }
+.ref-search { display: inline-flex; align-items: center; gap: 6px; height: 36px; border: 1px solid #dbe3ef; border-radius: 6px; background: #fff; padding: 0 10px; color: #8a96ad; }
+.ref-search input { border: 0; height: 32px; padding: 0; width: 170px; outline: none; }
+.ref-kpis.six { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.ref-kpi-reason { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 11.5px; color: #5b6782; }
+.ref-grid { display: grid; gap: 14px; }
+.ref-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ref-grid.recent { grid-template-columns: minmax(0, 2.1fr) minmax(280px, 1fr); }
+.ref-chart { padding: 4px 14px 12px; }
+.ref-donut { padding: 6px 14px 14px; }
+.ref-table { width: 100%; }
+.ref-table th, .ref-table td { padding: 7px 10px; white-space: nowrap; }
+.ref-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ref-table tbody tr { cursor: default; }
+.ref-grid.recent .ref-table tbody tr { cursor: pointer; }
+.ref-table tr.row-selected td { background: #eef4ff; }
+.ref-reason { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.ref-footnote { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 11.5px; color: #6b778f; }
+.text-amber { color: #d97706; }
+.legend .lg.s-line { background: #0b5cff; border-radius: 2px; width: 12px; height: 3px; }
+
+.barline { width: 100%; height: auto; display: block; }
+.barline .barline-bar { fill: #f26b6d; }
+.barline .barline-bar:hover { fill: #e5383b; }
+.barline .barline-line { fill: none; stroke: #0b5cff; stroke-width: 2; stroke-linejoin: round; }
+.barline .axis-text { font-size: 10px; fill: #8a96ad; font-family: var(--f-body); }
+
+.ref-rca .ref-rca-body { padding: 4px 16px 16px; display: grid; gap: 10px; }
+.ref-rca-order { margin: 0; font-size: 12.5px; color: #3b4863; }
+.ref-rca-note { margin: 0; font-size: 12px; color: #6b778f; }
+.ref-timeline { list-style: none; margin: 0; padding: 0; display: grid; }
+.ref-timeline li { display: grid; grid-template-columns: 14px 64px 1fr auto; gap: 10px; align-items: center; padding: 6px 0; font-size: 12.5px; position: relative; }
+.ref-timeline li + li::before { content: ""; position: absolute; left: 5px; top: -9px; height: 16px; border-left: 2px solid #dbe3ef; }
+.ref-timeline li i { width: 11px; height: 11px; border-radius: 50%; background: #1f3649; }
+.ref-timeline li.tone-rejected i { background: #e5383b; }
+.ref-timeline li.tone-complete i { background: #16a34a; }
+.ref-timeline li.tone-open i { background: #0b5cff; }
+.ref-timeline li small { color: #8a96ad; }
+.ref-rca-reason { background: #fdeeee; border-radius: 6px; padding: 10px 12px; display: grid; gap: 4px; font-size: 12.5px; }
+.ref-rca-reason div { display: grid; grid-template-columns: 58px 1fr; gap: 6px; }
+.ref-rca-reason span:first-child { color: #5b6782; }
+.ref-rca-reason span:last-child { overflow-wrap: anywhere; color: #1f2a44; }
+
+@media (max-width: 1400px) {
+  .ref-kpis.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .ref-grid.three, .ref-grid.recent { grid-template-columns: 1fr; }
+}
+.ref-controls > button:not(.secondary):not(.primary) {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px;
+  border: 1px solid #dbe3ef; border-radius: 6px; background: #fff; color: #1f2a44; font: inherit; font-size: 13px;
+}
+.ref-controls > button:not(.secondary):not(.primary):hover { border-color: #b9cdfc; color: #0b5cff; }
+.ref-grid.three .ref-reason { max-width: 170px; }
+.ref-grid.three .ref-table th, .ref-grid.three .ref-table td { padding: 7px 8px; }
+.ref-chart .vbar-chart { height: 180px; padding-bottom: 4px; }
+.ref-chart .vbar-col span { white-space: nowrap; }

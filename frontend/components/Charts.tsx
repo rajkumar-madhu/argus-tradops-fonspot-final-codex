@@ -139,6 +139,48 @@ export function MiniBars({ values, cls = "bar-blue" }: { values: number[]; cls?:
 }
 
 /**
+ * Bars (count, left axis) with a line (percentage, right axis) over the same
+ * bins — the reference "Rejections Trend" panel.
+ */
+export function BarLineChart({ bars, line, labels, barLabel, lineLabel, height = 170 }: {
+  bars: number[]; line: number[]; labels: string[]; barLabel: string; lineLabel: string; height?: number;
+}) {
+  const w = 460;
+  const pad = { l: 34, r: 34, t: 8, b: 20 };
+  const plotW = w - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  const barMax = Math.max(1, ...bars);
+  const lineMax = Math.max(1, ...line);
+  const n = Math.max(1, bars.length);
+  const slot = plotW / n;
+  const x = (i: number) => pad.l + slot * i + slot / 2;
+  const yBar = (v: number) => pad.t + plotH - (v / barMax) * plotH;
+  const yLine = (v: number) => pad.t + plotH - (v / lineMax) * plotH;
+  const ticks = [0, 0.5, 1];
+  const every = Math.max(1, Math.ceil(n / 7));
+  return (
+    <svg className="barline" viewBox={`0 0 ${w} ${height}`} role="img" aria-label={`${barLabel} and ${lineLabel}`}>
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={pad.l} x2={w - pad.r} y1={pad.t + plotH * (1 - t)} y2={pad.t + plotH * (1 - t)} className="grid-line" />
+          <text x={pad.l - 6} y={pad.t + plotH * (1 - t) + 3} textAnchor="end" className="axis-text">{Math.round(barMax * t)}</text>
+          <text x={w - pad.r + 6} y={pad.t + plotH * (1 - t) + 3} className="axis-text">{(lineMax * t).toFixed(lineMax < 10 ? 1 : 0)}%</text>
+        </g>
+      ))}
+      {bars.map((v, i) => (
+        <rect key={i} x={x(i) - slot * 0.32} width={slot * 0.64} y={yBar(v)} height={Math.max(0, pad.t + plotH - yBar(v))} className="barline-bar" rx="1.5">
+          <title>{`${labels[i] ?? ""} · ${v} ${barLabel.toLowerCase()} · ${line[i]?.toFixed(1) ?? "0"}%`}</title>
+        </rect>
+      ))}
+      <polyline points={line.map((v, i) => `${x(i).toFixed(1)},${yLine(v).toFixed(1)}`).join(" ")} className="barline-line" />
+      {labels.map((l, i) => (i % every === 0 || i === n - 1) && (
+        <text key={`l${i}`} x={x(i)} y={height - 5} textAnchor="middle" className="axis-text">{l}</text>
+      ))}
+    </svg>
+  );
+}
+
+/**
  * Placeholder bars for marketing and pre-sign-in illustrations. Uniform height
  * on purpose: a rising series would read as a real trend.
  */

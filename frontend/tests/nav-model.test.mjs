@@ -14,7 +14,7 @@ test('every route carries an icon and a unique href', () => {
 test('role filtering hides routes the token cannot see', () => {
   const r = buildNav({ visible: href => href === '/dashboard' || href === '/rejections' });
   assert.deepEqual(names(r), ['Desk', 'Investigate']);
-  assert.deepEqual(labels(r, 'Desk'), ['Mission Control']);
+  assert.deepEqual(labels(r, 'Desk'), ['Overview']);
 });
 
 test('filtering matches case-insensitively and reports per-group hit counts', () => {
@@ -49,8 +49,8 @@ test('pinned leads the rail and marks its rows in place', () => {
   assert.equal(r.groups[0].label, 'Pinned');
   assert.equal(r.groups[0].isPinned, true);
   // Pinned follows NAV_GROUPS order, not the order routes were pinned in.
-  assert.deepEqual(r.groups[0].items.map(i => i.label), ['Mission Control', 'Rejections']);
-  assert.equal(labels(r, 'Desk').includes('Mission Control'), true);
+  assert.deepEqual(r.groups[0].items.map(i => i.label), ['Overview', 'Rejections']);
+  assert.equal(labels(r, 'Desk').includes('Overview'), true);
   assert.equal(r.groups.find(g => g.label === 'Desk').items[0].pinned, true);
 });
 

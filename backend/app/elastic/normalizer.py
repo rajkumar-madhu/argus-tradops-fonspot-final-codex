@@ -117,13 +117,19 @@ def rejection_category(reason: str) -> str:
     text = str(reason or "").strip().lower()
     if not text:
         return ""
-    if "margin shortfall" in text:
+    if "margin shortfall" in text or "peak margin" in text or "shortfall:" in text:
         return "RMS / Margin"
+    # Price-band and quantity-freeze rules. Deliberately new categories, not
+    # members of the correlation worker's P2 set.
+    if "circuit limit" in text:
+        return "RMS / Circuit Limit"
+    if "freeze qty" in text:
+        return "RMS / Freeze Qty"
     if "nonsq" in text or "block type" in text:
         return "RMS / Risk Block"
     if "holding" in text:
         return "RMS / Holdings"
-    if "mwpl" in text or "regulatory" in text or "collateral" in text:
+    if "mwpl" in text or "regulatory" in text or "collateral" in text or "rrm mode" in text or "non-compliant client" in text:
         return "RMS / Regulatory"
     if "market" in text and ("not open" in text or "opened" in text):
         return "Market State"
