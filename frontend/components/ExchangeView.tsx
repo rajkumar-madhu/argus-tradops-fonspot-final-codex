@@ -1,26 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  FileText,
-  Gauge,
-  RefreshCw,
-  Server,
-  XCircle,
-} from "lucide-react";
 import RefreshButton from "@/components/RefreshButton";
-import { EmptyState, KpiCard, Status } from "@/components/UI";
+import { HBarList, MultiLineChart, SERIES_COLORS, StackedBars } from "@/components/Charts";
+import { EmptyState } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
-import {
-  buildAdapterMatrix,
-  buildExecutionLogs,
-  infraAsProcesses,
-  type MatrixCell,
-} from "@/lib/exchange-matrix";
+import { buildAdapterMatrix } from "@/lib/exchange-matrix";
+import { flowByExchange, sessionAt, venueCards } from "@/lib/exchange-health";
 import { fmt, journalWindowLabel } from "@/lib/format";
+import { buildAlerts } from "@/lib/incidents-data";
+import { istTime } from "@/lib/journal-explore";
 
 export type ExchangePayload = {
   exchanges: any;
@@ -28,349 +17,264 @@ export type ExchangePayload = {
   infra: any;
   orders: any;
   rejections: any;
+  /** /api/files/latency summary (by_segment) — OMS latency in source units. */
+  latency?: any;
+  /** Per-segment /api/files/latency responses, for the latency trend lines. */
+  segmentTrends?: { segment: string; data: any }[];
 };
 
-function cellKey(c: MatrixCell) {
-  return `${c.client}::${c.exchange}`;
-}
+const num = (v: unknown, digits = 1) => {
+  const n = Number(v);
+  return v === null || v === undefined || !Number.isFinite(n) ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: digits });
+};
 
-export default function ExchangeView({ exchanges, yel, infra, orders, rejections }: ExchangePayload) {
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+export default function ExchangeView({ exchanges, yel, orders, rejections, latency, segmentTrends = [] }: ExchangePayload) {
+  const [venue, setVenue] = useState("");
+  const [matrixOpen, setMatrixOpen] = useState(false);
 
-  const source = exchanges?.source || orders?.source || "—";
+  const source = String(exchanges?.source || orders?.source || "");
   const isJournal = source === "journal snapshot";
-  const isFileBased = isJournal;
+  const orderItems: any[] = orders?.items || [];
+  const exchangeRows: any[] = exchanges?.items || [];
+  const latencyErr = apiError(latency);
+  const segments: any[] = latencyErr ? [] : latency?.by_segment || [];
+  const unit = latency?.unit && latency.unit !== "source units" ? latency.unit : "source units";
 
-  const rows = exchanges?.items || [];
-  const orderItems = orders?.items || [];
-  const yelKeys: string[] = yel?.keys || [];
-  const matrix = useMemo(
-    () => buildAdapterMatrix(orderItems, yelKeys),
-    [orderItems, yelKeys],
-  );
+  const cards = venueCards(exchangeRows, segments, orderItems);
+  const shownCards = venue ? cards.filter((c) => c.name === venue) : cards;
+  const scopedOrders = venue ? orderItems.filter((o) => o.exchange === venue) : orderItems;
+  const flow = flowByExchange(scopedOrders);
+  const lastEvent = orderItems.reduce((l: string, o: any) => (o.time && (!l || Date.parse(o.time) > Date.parse(l)) ? o.time : l), "");
+  const session = sessionAt(lastEvent || orders?.to);
+  const alerts = buildAlerts({ persisted: null, derived: null, rejections: apiError(rejections) ? null : rejections, yel: apiError(yel) ? null : yel });
+  const matrix = useMemo(() => buildAdapterMatrix(orderItems, yel?.keys || []), [orderItems, yel]);
 
-  const selected: MatrixCell | null =
-    matrix.cells.find((c) => cellKey(c) === selectedKey) ||
-    matrix.cells.find((c) => c.status === "FAILED") ||
-    matrix.cells.find((c) => c.status === "SUCCESS") ||
-    null;
-
-  const processes = infraAsProcesses(infra || {});
-  const logs = buildExecutionLogs(rejections?.orders || [], infra || {});
-
-  const healthy = matrix.summary.failures === 0 && matrix.summary.totalAdapters > 0;
-  const overallStatus = healthy ? "Healthy" : matrix.summary.failures ? "Degraded" : "No Data";
-
-  const metaLine = isFileBased
-    ? `Adapter matrix derived from ${fmt(orderItems.length)} journal orders and ${fmt(yelKeys.length)} YEL keys · ${journalWindowLabel(orders?.from, orders?.to)}`
-    : `${fmt(rows.length)} exchange segments monitored · ${source}`;
-
-  const err = apiError(exchanges);
+  // Latency trend: align every segment on the first segment's bucket times.
+  const trends = segmentTrends.filter((t) => !apiError(t.data) && Array.isArray(t.data?.trend) && t.data.trend.length);
+  const baseTimes: string[] = trends[0]?.data.trend.map((b: any) => b.time) || [];
+  const trendSeries = trends.map((t) => {
+    const byTime = new Map<string, number | null>(t.data.trend.map((b: any) => [b.time, b.oms == null ? null : Number(b.oms)]));
+    return { name: t.segment, points: baseTimes.map((time) => byTime.get(time) ?? null) };
+  });
+  const maxReject = Math.max(1, ...cards.map((c) => c.rejectRate ?? 0));
 
   return (
-    <div className="exchange-apm-page">
-      <section className="dashboard-head exchange-hero">
+    <div className="exchange-page ref-page">
+      <section className="ref-head">
         <div>
-          <div className="exchange-title-row">
-            <h1>Exchange Health &amp; Adapter Status</h1>
-            {isFileBased ? (
-              <span className="source-badge file-based">FILE-BASED</span>
-            ) : (
-              <span className="source-badge live">LIVE</span>
-            )}
+          <div className="ref-title-row">
+            <h1>Exchange Health</h1>
+            <span className={`source-badge ${isJournal ? "file-based" : "live"}`}>{isJournal ? "FILE-BASED" : "LIVE"}</span>
           </div>
-          <p>Real-time exchange connectivity, adapter matrix and process execution visibility.</p>
-          <p className="exchange-meta">{metaLine}</p>
+          <p>Status, order flow, latency and trading session across exchanges{isJournal ? ` · ${journalWindowLabel(orders?.from, orders?.to)} · uploaded history` : ""}</p>
         </div>
-        <div className="time-controls exchange-controls">
-          <label className="exchange-auto-refresh">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-            />
-            Auto Refresh
-          </label>
+        <div className="ref-controls">
+          <select value={venue} onChange={(e) => setVenue(e.target.value)} aria-label="Exchange">
+            <option value="">All Exchanges</option>
+            {cards.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+          </select>
           <RefreshButton />
+          <span className="ref-updated">Last observed: <b>{lastEvent ? istTime(lastEvent) : "—"}</b></span>
+          <span className="ref-updated"><i className="ref-dot ok" />{isJournal ? "Historical observations" : "Live read path"}</span>
         </div>
       </section>
 
-      {err ? (
-        <EmptyState title="Unable to load exchange health" body={err} />
+      {apiError(exchanges) ? (
+        <EmptyState title="Unable to load exchange health" body={String(apiError(exchanges))} />
       ) : (
         <>
-          <div className={`exchange-status-banner ${healthy ? "healthy" : "warn"}`}>
-            <CheckCircle2 size={20} aria-hidden />
-            <div>
-              <b>{overallStatus}</b>
-              <span>
-                {matrix.summary.totalAdapters
-                  ? `${fmt(matrix.summary.success)} success · ${fmt(matrix.summary.failures)} failure(s) across client × exchange matrix`
-                  : "No adapter cells derived — upload journal with user/broker and exchange fields"}
-              </span>
-            </div>
-          </div>
-
-          <section className="kpi-grid five exchange-kpis">
-            <KpiCard
-              label="Total Adapters"
-              value={fmt(matrix.summary.totalAdapters)}
-              delta={`${fmt(matrix.clients.length)} clients × ${fmt(matrix.exchanges.length)} exchanges`}
-              tone="blue"
-              icon={<Server size={18} />}
-            />
-            <KpiCard
-              label="Success"
-              value={fmt(matrix.summary.success)}
-              delta={`${matrix.summary.successPct.toFixed(1)}%`}
-              deltaTone="up"
-              tone="green"
-              icon={<CheckCircle2 size={18} />}
-            />
-            <KpiCard
-              label="Failures"
-              value={fmt(matrix.summary.failures)}
-              delta="High rejection share"
-              deltaTone={matrix.summary.failures ? "down" : "up"}
-              tone="red"
-              icon={<XCircle size={18} />}
-            />
-            <KpiCard
-              label="Avg Response Time"
-              value={
-                rows.some((r: any) => r.latency_ms != null && Number.isFinite(r.latency_ms))
-                  ? `${(rows.filter((r: any) => r.latency_ms != null && Number.isFinite(r.latency_ms)).reduce((s: number, r: any) => s + r.latency_ms, 0) / rows.filter((r: any) => r.latency_ms != null && Number.isFinite(r.latency_ms)).length).toFixed(2)} ms`
-                  : "—"
-              }
-              delta="Exchange event latency"
-              tone="purple"
-              icon={<Gauge size={18} />}
-            />
-            <KpiCard
-              label="Last Execution"
-              value={orders?.to ? String(orders.to).slice(11, 19) : "—"}
-              delta={orders?.to ? String(orders.to).slice(0, 10) : "Journal window end"}
-              tone="amber"
-              icon={<RefreshCw size={18} />}
-            />
+          <section className="ex-cards">
+            {shownCards.map((c) => (
+              <div key={c.name} className="panel ex-card">
+                <div className="ex-card-head">
+                  <b>{c.name}</b>
+                  <span className="ex-status"><i className="ref-dot ok" />{isJournal ? "Observed" : c.status || "—"}</span>
+                </div>
+                <div className="ex-card-metrics">
+                  <div><b className={c.rejectRate != null && c.rejectRate >= 10 ? "text-red" : "text-green"}>{c.rejectRate == null ? "—" : `${num(c.rejectRate, 2)}%`}</b><span>Reject rate</span></div>
+                  <div><b>{c.omsP50 == null ? "—" : num(c.omsP50)}</b><span>OMS p50{c.omsP50 == null ? "" : ` (${unit})`}</span></div>
+                </div>
+                <span className="ex-card-foot">{fmt(c.orders)} orders · last {c.lastEvent || "—"}</span>
+              </div>
+            ))}
           </section>
 
-          <section className="exchange-main-row">
-            <div className="panel exchange-matrix-panel">
-              <div className="panel-head">
-                <div>
-                  <b>Adapter Status Matrix</b>
-                  <p className="sub">Client IDs × exchange segments — click a cell for details</p>
-                </div>
-                <span className="exchange-legend">
-                  <i className="cell-success" /> Success{" "}
-                  <i className="cell-failed" /> Failed{" "}
-                  <i className="cell-none" /> No data
-                </span>
-              </div>
-              {matrix.clients.length === 0 ? (
-                <EmptyState
-                  title="No adapter matrix"
-                  body="Journal orders need user/broker and exchange fields to populate the client × exchange grid."
-                />
-              ) : (
-                <div className="table-scroll">
-                  <table className="adapter-matrix">
-                    <thead>
-                      <tr>
-                        <th>Client ID</th>
-                        {matrix.exchanges.map((ex) => (
-                          <th key={ex}>{ex}</th>
-                        ))}
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {matrix.clients.map((client) => {
-                        const rowCells = matrix.cells.filter((c) => c.client === client);
-                        const failed = rowCells.some((c) => c.status === "FAILED");
-                        const any = rowCells.some((c) => c.status !== "NONE");
-                        return (
-                          <tr key={client}>
-                            <td><b>{client}</b></td>
-                            {matrix.exchanges.map((ex) => {
-                              const cell = rowCells.find((c) => c.exchange === ex)!;
-                              const key = cellKey(cell);
-                              const selectedCls = selectedKey === key ? "selected" : "";
-                              return (
-                                <td
-                                  key={ex}
-                                  className={`matrix-cell ${cell.status.toLowerCase()} ${selectedCls}`}
-                                  onClick={() => setSelectedKey(key)}
-                                  title={
-                                    cell.orders
-                                      ? `${cell.orders} orders · ${cell.rejected} rejected`
-                                      : "No orders"
-                                  }
-                                >
-                                  {cell.orders ? fmt(cell.orders) : "—"}
-                                </td>
-                              );
-                            })}
-                            <td>
-                              <span className={`matrix-row-status ${failed ? "failed" : any ? "success" : "none"}`}>
-                                {failed ? "FAILED" : any ? "SUCCESS" : "—"}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <aside className="panel exchange-detail-sidebar">
-              <div className="panel-head">
-                <div>
-                  <b>Adapter Details</b>
-                  <p className="sub">
-                    {selected ? `${selected.client} · ${selected.exchange}` : "Select a matrix cell"}
-                  </p>
-                </div>
-                {selected && (
-                  <span className={`matrix-row-status ${selected.status === "FAILED" ? "failed" : selected.status === "SUCCESS" ? "success" : "none"}`}>
-                    {selected.status}
-                  </span>
-                )}
-              </div>
-              {!selected ? (
-                <EmptyState title="No cell selected" body="Click a matrix cell to inspect adapter details." />
-              ) : (
-                <>
-                  <ul className="config-list exchange-detail-list">
-                    <li><span>Client ID</span><b>{selected.client}</b></li>
-                    <li><span>Exchange</span><b>{selected.exchange}</b></li>
-                    <li><span>Orders</span><b>{fmt(selected.orders)}</b></li>
-                    <li><span>Rejected</span><b>{fmt(selected.rejected)}</b></li>
-                    <li><span>YEL Key</span><b>{selected.yelConnected ? "Present" : "Not in snapshot"}</b></li>
-                    <li><span>Last Success</span><b className="mono">{selected.lastSuccess?.slice(11, 19) || "—"}</b></li>
-                    <li><span>Last Failure</span><b className="mono">{selected.lastFailure?.slice(11, 19) || "—"}</b></li>
-                  </ul>
-                  {selected.status === "FAILED" && (
-                    <div className="exchange-failure-box">
-                      <AlertTriangle size={14} aria-hidden />
-                      <div>
-                        <b>Failure Summary</b>
-                        <p>
-                          {selected.rejected} of {selected.orders} orders rejected on {selected.exchange} for{" "}
-                          {selected.client}.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="exchange-detail-actions">
-                    <RefreshButton />
-                    <Link className="link-btn" href="/rejections">View Logs</Link>
-                    <Link className="link-btn" href={`/rca`}>Generate RCA</Link>
-                  </div>
-                </>
-              )}
-            </aside>
-          </section>
-
-          <section className="exchange-bottom-row">
+          <section className="ref-grid ex-row">
             <div className="panel">
               <div className="panel-head">
-                <div>
-                  <b>Process Status</b>
-                  <p className="sub">Argus TradeOps workers and data plane</p>
-                </div>
+                <b>OMS Latency by Segment</b>
+                <span className="legend">
+                  {trendSeries.map((s, i) => <span key={s.name}><i className="lg" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} /> {s.name}</span>)}
+                </span>
               </div>
+              {trendSeries.length ? (
+                <div className="ref-chart">
+                  <MultiLineChart series={trendSeries} labels={baseTimes.map((t) => istTime(t).slice(0, 5))} />
+                  <p className="ref-note">Mean per bucket from the ORDERLATENCY file ({unit}); the file may cover a different date than the journal.</p>
+                </div>
+              ) : (
+                <EmptyState title="No latency trend" body={latencyErr ? `${latencyErr}.` : "No ORDERLATENCY file with segment data is ingested."} />
+              )}
+            </div>
+            <div className="panel">
+              <div className="panel-head"><b>Rejection Rate by Exchange</b></div>
+              {cards.length ? (
+                <div className="ref-chart">
+                  <HBarList
+                    rows={cards.map((c) => ({
+                      label: c.name,
+                      value: c.rejectRate == null ? "—" : `${num(c.rejectRate, 2)}%`,
+                      pct: ((c.rejectRate ?? 0) / maxReject) * 100,
+                      cls: (c.rejectRate ?? 0) >= 10 ? "bar-red" : "bar-green",
+                    }))}
+                  />
+                  <p className="ref-note">No uptime source is connected; rejected ÷ orders per venue stands in the reference's uptime slot.</p>
+                </div>
+              ) : (
+                <EmptyState title="No exchanges" body="No venue observations in this source." />
+              )}
+            </div>
+            <div className="panel">
+              <div className="panel-head">
+                <b>Current Trading Session</b>
+                {session && <span className={`ref-pill ${session.open ? "ok" : "info"}`}>{session.open ? "MARKET OPEN" : session.phase.toUpperCase()}</span>}
+              </div>
+              {session ? (
+                <dl className="ex-session">
+                  <div><dt>Market Status</dt><dd className={session.open ? "text-green" : ""}>{session.open ? "Open" : session.phase}</dd></div>
+                  <div><dt>Session</dt><dd>{session.phase}</dd></div>
+                  <div><dt>Start Time</dt><dd>{session.start}</dd></div>
+                  <div><dt>End Time</dt><dd>{session.end}</dd></div>
+                  <div><dt>Time to Close</dt><dd>{session.toClose}</dd></div>
+                  <div><dt>{isJournal ? "Last Event Time" : "Exchange Time"}</dt><dd>{session.clock}</dd></div>
+                  <div><dt>Date</dt><dd>{session.date}</dd></div>
+                </dl>
+              ) : (
+                <EmptyState title="No session time" body="No timestamped order event in scope." />
+              )}
+              {isJournal && session && <p className="ref-note">As of the last journal event, not the current clock.</p>}
+            </div>
+          </section>
+
+          <section className="ref-grid ex-row2">
+            <div className="panel">
+              <div className="panel-head"><b>Exchange Connectivity</b></div>
               <div className="table-scroll">
-                <table className="compact tight">
-                  <thead>
-                    <tr>
-                      <th>Process</th>
-                      <th>Host</th>
-                      <th>Status</th>
-                      <th>Exit</th>
-                      <th>Remarks</th>
-                    </tr>
-                  </thead>
+                <table className="compact ref-table">
+                  <thead><tr><th>#</th><th>Exchange</th><th>Status</th><th className="num">Orders</th><th className="num">Events</th><th className="num">Reject %</th><th className="num">OMS p50</th><th>Last Event</th></tr></thead>
                   <tbody>
-                    {processes.map((p) => (
-                      <tr key={p.name}>
-                        <td className="mono">{p.name}</td>
-                        <td>{p.host}</td>
-                        <td><Status value={p.status} /></td>
-                        <td>{p.exit_code}</td>
-                        <td>{p.remarks}</td>
+                    {cards.map((c, i) => (
+                      <tr key={c.name}>
+                        <td>{i + 1}</td>
+                        <td><b>{c.name}</b></td>
+                        <td><i className="ref-dot ok" />{isJournal ? "Observed" : c.status || "—"}</td>
+                        <td className="num">{fmt(c.orders)}</td>
+                        <td className="num">{fmt(c.events)}</td>
+                        <td className="num">{c.rejectRate == null ? "—" : `${num(c.rejectRate, 2)}%`}</td>
+                        <td className="num">{c.omsP50 == null ? "—" : num(c.omsP50)}</td>
+                        <td className="mono">{c.lastEvent || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
             <div className="panel">
-              <div className="panel-head">
-                <div>
-                  <b>Execution Logs</b>
-                  <p className="sub">Rejection errors and infra status</p>
-                </div>
-                <Link href="/logs">View Full Log</Link>
-              </div>
-              <div className="exchange-log-scroll">
-                {logs.length === 0 ? (
-                  <EmptyState title="No logs" body="Rejection and infra events will appear here." />
-                ) : (
-                  logs.map((line, i) => (
-                    <div key={i} className={`exchange-log-line level-${line.level.toLowerCase()}`}>
-                      <time>{line.time}</time>
-                      <b>{line.level}</b>
-                      <em>{line.process}</em>
-                      <p>{line.message}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-head">
-                <div>
-                  <b>Exchange Segments</b>
-                  <p className="sub">Venue health from API</p>
-                </div>
-                <Link href="/rejections">Rejections ›</Link>
-              </div>
-              <table className="compact tight">
-                <thead>
-                  <tr>
-                    <th>Exchange</th>
-                    <th>Status</th>
-                    <th>Events</th>
-                    <th>Rej %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((x: any) => (
-                    <tr key={x.name}>
-                      <td><b>{x.name}</b></td>
-                      <td><Status value={x.status || "—"} /></td>
-                      <td>{fmt(x.events ?? 0)}</td>
-                      <td>{x.reject_rate == null ? 'Unavailable' : `${Number(x.reject_rate).toFixed(2)}%`}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="panel-head"><b>Exchange Alerts</b><a href="/incidents">View all ›</a></div>
+              {alerts.length ? (
+                <table className="compact ref-table">
+                  <thead><tr><th>Source</th><th>Severity</th><th>Alert</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {alerts.slice(0, 5).map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.source}</td>
+                        <td><span className={`sev-dot sev-${a.severity.toLowerCase()}`} />{a.severity}</td>
+                        <td className="ref-reason" title={a.name}>{a.name}</td>
+                        <td><span className="ref-pill warn">{a.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <EmptyState title="No alerts" body="No rejection group or connectivity signal crosses an alert rule." />
+              )}
             </div>
           </section>
 
-          {isFileBased && (
-            <p className="exchange-footnote">
-              <FileText size={13} aria-hidden />
-              Journal mode — matrix cells show order counts per client × exchange. Empty cells have no orders in the uploaded file; not fabricated adapter health.
-            </p>
-          )}
+          <section className="ref-grid ex-row3">
+            <div className="panel">
+              <div className="panel-head">
+                <b>Order Flow by Exchange</b>
+                {flow && (
+                  <span className="legend">
+                    {flow.series.map((s, i) => <span key={s}><i className="lg" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} /> {s}</span>)}
+                  </span>
+                )}
+              </div>
+              {flow ? (
+                <div className="ref-chart"><StackedBars bins={flow.bins} series={flow.series} /></div>
+              ) : (
+                <EmptyState title="No order flow" body="No timestamped order in scope." />
+              )}
+            </div>
+            <div className="panel">
+              <div className="panel-head"><b>OMS Latency Percentiles</b><span className="sub">{unit}</span></div>
+              {segments.length ? (
+                <table className="compact ref-table">
+                  <thead><tr><th>Segment</th><th className="num">p50</th><th className="num">p95</th><th className="num">p99</th><th className="num">Samples</th></tr></thead>
+                  <tbody>
+                    {segments.map((s: any) => (
+                      <tr key={s.segment}>
+                        <td><b>{s.segment}</b></td>
+                        <td className="num">{num(s.p50)}</td>
+                        <td className="num">{num(s.p95)}</td>
+                        <td className="num">{num(s.p99)}</td>
+                        <td className="num">{fmt(s.samples ?? s.count)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <EmptyState title="No latency file" body={latencyErr ? `${latencyErr}.` : "No ORDERLATENCY file is ingested."} />
+              )}
+            </div>
+            <div className="panel">
+              <div className="panel-head"><b>Exchange Announcements</b></div>
+              <EmptyState title="No announcement feed" body="Exchange circulars are not connected to this console." />
+            </div>
+          </section>
+
+          <details className="panel ex-matrix" open={matrixOpen} onToggle={(e) => setMatrixOpen((e.target as HTMLDetailsElement).open)}>
+            <summary>Client × exchange matrix · derived from {fmt(orderItems.length)} orders</summary>
+            {matrix.clients.length === 0 ? (
+              <EmptyState title="No matrix" body="Orders need user/broker and exchange fields to populate the grid." />
+            ) : (
+              <div className="table-scroll">
+                <table className="compact ref-table">
+                  <thead><tr><th>Client</th>{matrix.exchanges.map((x) => <th key={x} className="num">{x}</th>)}</tr></thead>
+                  <tbody>
+                    {matrix.clients.slice(0, 40).map((client) => {
+                      const row = matrix.cells.filter((c) => c.client === client);
+                      return (
+                        <tr key={client}>
+                          <td><b>{client}</b></td>
+                          {matrix.exchanges.map((x) => {
+                            const cell = row.find((c) => c.exchange === x);
+                            return (
+                              <td key={x} className={`num ${cell?.status === "FAILED" ? "text-red" : ""}`} title={cell?.orders ? `${cell.orders} orders · ${cell.rejected} rejected` : "No orders"}>
+                                {cell?.orders ? fmt(cell.orders) : "—"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="ref-note">Order counts per client and venue. Red marks rejection-heavy cells (more than half rejected); this is order evidence, not adapter telemetry.</p>
+              </div>
+            )}
+          </details>
         </>
       )}
     </div>

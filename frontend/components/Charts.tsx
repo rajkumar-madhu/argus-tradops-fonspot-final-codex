@@ -180,6 +180,97 @@ export function BarLineChart({ bars, line, labels, barLabel, lineLabel, height =
   );
 }
 
+export const SERIES_COLORS = ["#0b5cff", "#16a34a", "#8b5cf6", "#f59e0b", "#e5383b", "#06b6d4"];
+
+/** Several unfilled lines on one axis (e.g. latency per exchange segment). */
+export function MultiLineChart({ series, labels, unit = "", height = 180 }: {
+  series: { name: string; points: (number | null)[] }[]; labels: string[]; unit?: string; height?: number;
+}) {
+  const w = 460;
+  const pad = { l: 40, r: 22, t: 8, b: 20 };
+  const plotW = w - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  const values = series.flatMap((s) => s.points.filter((v): v is number => v !== null));
+  const max = Math.max(1, ...values);
+  const n = Math.max(2, labels.length);
+  const x = (i: number) => pad.l + (plotW * i) / (n - 1);
+  const y = (v: number) => pad.t + plotH - (v / max) * plotH;
+  const every = Math.max(1, Math.ceil(n / 6));
+  return (
+    <svg className="multiline" viewBox={`0 0 ${w} ${height}`} role="img" aria-label="Trend by series">
+      {[0, 0.5, 1].map((t) => (
+        <g key={t}>
+          <line x1={pad.l} x2={w - pad.r} y1={pad.t + plotH * (1 - t)} y2={pad.t + plotH * (1 - t)} className="grid-line" />
+          <text x={pad.l - 6} y={pad.t + plotH * (1 - t) + 3} textAnchor="end" className="axis-text">{Math.round(max * t)}{unit}</text>
+        </g>
+      ))}
+      {series.map((s, si) => {
+        // A missing bucket breaks the line rather than dropping to zero.
+        const segments: string[][] = [[]];
+        s.points.forEach((v, i) => {
+          if (v === null) { if (segments[segments.length - 1].length) segments.push([]); return; }
+          segments[segments.length - 1].push(`${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+        });
+        return segments.filter((p) => p.length > 1).map((p, pi) => (
+          <polyline key={`${s.name}-${pi}`} points={p.join(" ")} fill="none" stroke={SERIES_COLORS[si % SERIES_COLORS.length]} strokeWidth="1.6" strokeLinejoin="round" />
+        ));
+      })}
+      {labels.map((l, i) => showTick(i, n, every) && (
+        <text key={`l${i}`} x={x(i)} y={height - 5} textAnchor="middle" className="axis-text">{l}</text>
+      ))}
+    </svg>
+  );
+}
+
+/** Every `every`-th tick plus the last one, unless the last would crowd its neighbour. */
+function showTick(i: number, n: number, every: number) {
+  if (i === n - 1) return (n - 1) % every >= Math.ceil(every / 2) || (n - 1) % every === 0;
+  return i % every === 0;
+}
+
+/** Stacked vertical bars, one colour per series (e.g. orders per bin by exchange). */
+export function StackedBars({ bins, series, height = 170 }: {
+  bins: { label: string; values: number[] }[]; series: string[]; height?: number;
+}) {
+  const w = 460;
+  const pad = { l: 34, r: 8, t: 8, b: 20 };
+  const plotW = w - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  const max = Math.max(1, ...bins.map((b) => b.values.reduce((a, v) => a + v, 0)));
+  const slot = plotW / Math.max(1, bins.length);
+  const every = Math.max(1, Math.ceil(bins.length / 7));
+  return (
+    <svg className="stackedbars" viewBox={`0 0 ${w} ${height}`} role="img" aria-label="Stacked bars">
+      {[0, 0.5, 1].map((t) => (
+        <g key={t}>
+          <line x1={pad.l} x2={w - pad.r} y1={pad.t + plotH * (1 - t)} y2={pad.t + plotH * (1 - t)} className="grid-line" />
+          <text x={pad.l - 6} y={pad.t + plotH * (1 - t) + 3} textAnchor="end" className="axis-text">{Math.round(max * t)}</text>
+        </g>
+      ))}
+      {bins.map((b, i) => {
+        let acc = 0;
+        return (
+          <g key={i}>
+            {b.values.map((v, si) => {
+              const h = (v / max) * plotH;
+              const yTop = pad.t + plotH - acc - h;
+              acc += h;
+              return v ? (
+                <rect key={si} x={pad.l + slot * i + slot * 0.18} width={slot * 0.64} y={yTop} height={h} fill={SERIES_COLORS[si % SERIES_COLORS.length]}>
+                  <title>{`${b.label} · ${series[si]}: ${v}`}</title>
+                </rect>
+              ) : null;
+            })}
+            {showTick(i, bins.length, every) && (
+              <text x={pad.l + slot * i + slot / 2} y={height - 5} textAnchor="middle" className="axis-text">{b.label}</text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 /**
  * Placeholder bars for marketing and pre-sign-in illustrations. Uniform height
  * on purpose: a rising series would read as a real trend.
