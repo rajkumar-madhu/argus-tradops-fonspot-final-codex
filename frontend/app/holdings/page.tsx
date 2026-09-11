@@ -7,7 +7,7 @@ import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { mtmDistribution } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
 import { fmt } from "@/lib/format";
-import { SEGMENTS, allocation, cash, holding, movers, signedCash, signedPct, summary, tone, type Holding } from "@/lib/holdings";
+import { SEGMENTS, allocation, cash, holding, movers, pickSegment, signedCash, signedPct, summary, tone, type Holding } from "@/lib/holdings";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +39,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
   const d: any = await getJSON("/api/holdings");
   const err = apiError(d);
   const params = await searchParams;
-  const segment = SEGMENTS.find((s) => s === params.segment) ?? "Equity";
   const all: Holding[] = (d.items || []).map(holding);
+  const segment = pickSegment(params.segment, all);
   const inSegment = all.filter((r) => r.segment === segment);
   const rows = inSegment.filter((r) =>
     (!params.exchange || r.exchange === params.exchange) &&
@@ -48,8 +48,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
     (!params.trader || r.trader === params.trader));
   const s = summary(rows);
   const has = rows.length > 0;
-  const missing = has ? "Not supplied by source" : "No holdings source";
-  const bySegment = allocation(rows, "segment").length > 1 ? allocation(rows, "segment") : allocation(rows, "exchange");
+  // "No holdings source" only when the source is empty; an empty tab or filter is not that.
+  const missing = has ? "Not supplied by source" : all.length ? "No holdings in view" : "No holdings source";
+  // Rows are already one segment, so allocation is by exchange within it.
+  const byExchange = allocation(rows, "exchange");
   const sectors = allocation(rows, "sector");
   const { gainers, losers } = movers(rows);
   const tabHref = (seg: string) => `/holdings?${new URLSearchParams({ ...Object.fromEntries(Object.entries(params).filter(([, v]) => v)), segment: seg })}`;
@@ -81,7 +83,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
             {(params.exchange || params.account || params.trader) && <a className="link-btn" href={`/holdings?segment=${encodeURIComponent(segment)}`}>Clear filters</a>}
           </form>
 
-          {!has && <div className="notice-strip" role="status"><b>Holdings snapshot unavailable.</b> {noSource}</div>}
+          {!all.length && <div className="notice-strip" role="status"><b>Holdings snapshot unavailable.</b> {noSource}</div>}
 
           <section className="kpi-grid six">
             <KpiCard label="Total Investment" value={cash(s.investment)} delta={s.investment === null ? missing : "Cost basis"} tone="blue" icon={<Wallet size={18} />} />
@@ -99,8 +101,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
             </div>
             <div className="panel">
               <div className="panel-head"><b>Holdings Allocation</b><span>Current value</span></div>
-              {bySegment.length
-                ? <Donut centerLabel="Current Value" centerValue={cash(s.value)} slices={bySegment.map((a, i) => ({ label: a.label, value: Math.abs(a.value), cls: SLICE_CLS[i % SLICE_CLS.length], pct: `${a.pct.toFixed(1)}%` }))} />
+              {byExchange.length
+                ? <Donut centerLabel="Current Value" centerValue={cash(s.value)} slices={byExchange.map((a, i) => ({ label: a.label, value: Math.abs(a.value), cls: SLICE_CLS[i % SLICE_CLS.length], pct: `${a.pct.toFixed(1)}%` }))} />
                 : <EmptyState title="No allocation" body={has ? "Holdings carry no current value." : "No holdings to allocate."} />}
             </div>
             <div className="panel">

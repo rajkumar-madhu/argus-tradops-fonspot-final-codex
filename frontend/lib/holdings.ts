@@ -16,6 +16,16 @@ export function holdingSegment(exchange: unknown): Segment {
   return SEGMENT_BY_EXCHANGE[String(exchange ?? '').trim().toUpperCase()] ?? 'Equity';
 }
 
+/**
+ * The tab to show: the requested segment when valid, else the first segment that has
+ * holdings, so a source carrying only F&O never opens on an empty Equity tab.
+ */
+export function pickSegment(requested: unknown, rows: { segment: Segment }[]): Segment {
+  const valid = SEGMENTS.find((s) => s === requested);
+  if (valid) return valid;
+  return SEGMENTS.find((s) => rows.some((r) => r.segment === s)) ?? 'Equity';
+}
+
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);

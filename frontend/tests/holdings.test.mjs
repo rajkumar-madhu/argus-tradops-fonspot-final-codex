@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {holding,holdingSegment,summary,allocation,movers,cash,signedCash,signedPct,tone} from '../lib/holdings.ts';
+import {holding,holdingSegment,pickSegment,summary,allocation,movers,cash,signedCash,signedPct,tone} from '../lib/holdings.ts';
 
 const ALPHA={symbol:'ALPHA-EQ',exchange:'NSE',qty:500,avg_price:118.2,ltp:126.2,value:63100,pnl_pct:6.8};
 const GAMMA={symbol:'GAMMA-EQ',exchange:'NSE',qty:200,avg_price:412,ltp:405.5,value:81100,pnl_pct:-1.6};
@@ -11,6 +11,14 @@ test('segments come from the exchange code',()=>{
  assert.equal(holdingSegment('CDS'),'Currency');
  assert.equal(holdingSegment('MCX'),'Commodity');
  assert.equal(holdingSegment(undefined),'Equity');
+});
+
+test('the tab opens on a segment that has holdings unless one is requested',()=>{
+ const fno=[holding({symbol:'F',exchange:'NFO',qty:1})];
+ assert.equal(pickSegment(undefined,fno),'F&O','an F&O-only source must not open on an empty Equity tab');
+ assert.equal(pickSegment('Currency',fno),'Currency','a valid requested tab is honoured');
+ assert.equal(pickSegment('bogus',fno),'F&O');
+ assert.equal(pickSegment(undefined,[]),'Equity');
 });
 
 test('derived figures exist only when every input exists',()=>{
