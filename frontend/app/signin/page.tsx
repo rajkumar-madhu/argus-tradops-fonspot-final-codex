@@ -42,7 +42,7 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      await login("/dashboard");
+      await login("/dashboard", email);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
       setBusy(false);
