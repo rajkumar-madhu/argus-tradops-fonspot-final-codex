@@ -10,7 +10,15 @@ class FileAnalytics(CsvStore):
     def ingest(self):
         data=super().ingest()
         self._cached_latency.cache_clear()
+        self._cached_hops.cache_clear()
         return data
+
+    def hops_summary(self,**filters):
+        return self._cached_hops(tuple(sorted(filters.items())))
+
+    @lru_cache(maxsize=32)
+    def _cached_hops(self,filters):
+        return super().hops_summary(**dict(filters))
 
     def sources(self):
         data=self.catalog()

@@ -8709,3 +8709,27 @@ table tbody tr:hover { background: #e6f0ec; }
 .app-shell .kpi-card-value { font-family: var(--f-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
 .app-shell .kpi-card-label { font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); }
 .app-shell table thead th { font-family: var(--f-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ── Order latency stage timing (ORDERLATENCYSORTED) ───────────────────────────
+   Teal is data (--signal); amber marks the stage that dominates an order's span. */
+.stage-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+.stage-filters label { display: flex; flex-direction: column; gap: 4px; font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.stage-filters select { height: 30px; min-width: 120px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 12px; }
+/* .orders-table forces min-width: 1000px for wide event grids; these tables are compact. */
+.orders-table.stage-table { min-width: 0; }
+.stage-table td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.stage-table .stage-bar-col { width: 30%; }
+.stage-bar { display: block; height: 8px; min-width: 2px; border-radius: 2px; background: var(--signal); }
+.stage-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; margin-bottom: 12px; }
+.stage-grid > .panel { margin: 0; }
+.stage-table tr.row-selected td { background: var(--surface-2); }
+.stage-table tr.row-selected a { font-weight: 600; }
+.trace { display: grid; gap: 7px; padding: 12px 16px 16px; }
+.trace-meta { margin: 0 0 4px; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.trace-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 84px; gap: 10px; align-items: center; font-size: 12px; }
+.trace-row .num { font-family: var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.trace-track { position: relative; height: 12px; border-radius: 2px; background: var(--surface-2); }
+.trace-bar { position: absolute; top: 0; bottom: 0; border-radius: 2px; background: var(--signal); }
+.trace-bar.dominant { background: var(--amber); }
+.trace-note { margin: 6px 0 0; font-size: 12px; color: var(--ink-2); }
+@media (max-width: 1100px) { .stage-grid { grid-template-columns: 1fr; } }

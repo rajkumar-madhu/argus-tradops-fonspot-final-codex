@@ -2,7 +2,7 @@
 from datetime import datetime
 import logging
 from typing import Literal
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path as ApiPath, Query
 from fastapi.responses import StreamingResponse
 from app.auth import require
 from app.config import settings
@@ -72,6 +72,18 @@ def export(f=Depends(filters),sort: Literal['time','oms','confirmation','order_i
 @router.get('/queues')
 def queues(instance: str=Query('',max_length=128),f=Depends(filters),user=Depends(require('latency:read'))):
     return store().queues(instance=instance,start=f['start'],end=f['end'])
+
+
+@router.get('/hops')
+def hops(segment: str=Query('',max_length=16),instance: str=Query('',max_length=64),user=Depends(require('latency:read'))):
+    return store().hops_summary(segment=segment,instance=instance)
+
+
+@router.get('/hops/{order_id}')
+def hop_order(order_id: str=ApiPath(...,max_length=32,pattern=r'^[A-Za-z0-9._-]+$'),user=Depends(require('latency:read'))):
+    trace=store().hop_order(order_id)
+    if trace is None:raise HTTPException(404,'No stage timings for this order')
+    return trace
 
 
 @router.get('/queues/export')
