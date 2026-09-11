@@ -8733,3 +8733,8 @@ table tbody tr:hover { background: #e6f0ec; }
 .trace-bar.dominant { background: var(--amber); }
 .trace-note { margin: 6px 0 0; font-size: 12px; color: var(--ink-2); }
 @media (max-width: 1100px) { .stage-grid { grid-template-columns: 1fr; } }
+
+/* ── Holdings (reference layout) ──────────────────────────────────────────────
+   Shown when no holdings source is configured: the layout stays, tiles read "—". */
+.notice-strip { margin: 0 0 12px; padding: 9px 14px; border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 6px; background: var(--surface); color: var(--ink-2); font-size: 12px; }
+.notice-strip b { color: var(--ink); font-weight: 600; }
