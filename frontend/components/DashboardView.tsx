@@ -5,7 +5,7 @@ import RefreshButton from "@/components/RefreshButton";
 import QueryWindow from "@/components/QueryWindow";
 import MissionControlTable from "@/components/MissionControlTable";
 import { AreaChart, Donut, HBarList } from "@/components/Charts";
-import { EmptyState, KpiCard } from "@/components/UI";
+import { ApiErrorState, EmptyState, KpiCard } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import { platformHealth } from "@/lib/command-center";
 import { orderTrendFromRows, statusDonutSlices } from "@/lib/dashboard-data";
@@ -87,13 +87,16 @@ export default function DashboardView({
   const sessionRows: any[] = (sessions?.items || []).filter((s: any) => s.event === "login").slice(0, 5);
   const yelRows: any[] = (yelRecords?.items || []).slice(0, 5);
 
-  const metaLine = isJournal
-    ? `${fmt(Number(ov.journal_events || 0))} journal events · ${journalWindowLabel(ov.from, ov.to)} · uploaded history, not a live feed`
-    : isDemo
-      ? "Elasticsearch not connected"
-      : `${fmt(total)} orders in the ${lookback} window · live Elasticsearch read path`;
-
   const ovErr = apiError(ov);
+  // A failed overview has no source, which the badge helpers would otherwise read as
+  // LIVE, and `total` falls back to 0: never present that as "0 orders ... live".
+  const metaLine = ovErr
+    ? "no data loaded"
+    : isJournal
+      ? `${fmt(Number(ov.journal_events || 0))} journal events · ${journalWindowLabel(ov.from, ov.to)} · uploaded history, not a live feed`
+      : isDemo
+        ? "Elasticsearch not connected"
+        : `${fmt(total)} orders in the ${lookback} window · live Elasticsearch read path`;
   const fileStrip = fileSourceStripMeta(fileSources);
 
   const kpiValues: Record<string, { value: string; delta: string; deltaTone?: "up" | "down" | "warn" | ""; tone: "blue" | "green" | "red" | "amber" | "purple" | "teal"; icon: ReactNode }> = {
@@ -121,7 +124,7 @@ export default function DashboardView({
         <div>
           <div className="ref-title-row">
             <h1>Trading Operations Dashboard</h1>
-            <span className={`source-badge ${isJournal ? "file-based" : sourceBadgeTone(source)}`}>{sourceBadgeText(source)}</span>
+            <span className={`source-badge ${isJournal ? "file-based" : sourceBadgeTone(source, !ovErr)}`}>{sourceBadgeText(source, !ovErr)}</span>
           </div>
           <p>Monitoring for Noren Trader / OMS / RMS / Exchange / Infrastructure · {metaLine}</p>
         </div>
@@ -132,7 +135,7 @@ export default function DashboardView({
       </section>
 
       {ovErr ? (
-        <EmptyState title="Unable to load overview" body={`${ovErr}. Confirm the API is running and reachable.`} />
+        <ApiErrorState title="Unable to load overview" data={ov} />
       ) : (
         <>
           <section className="kpi-grid ref-kpis six mission-kpis" aria-label="Dashboard KPIs">
