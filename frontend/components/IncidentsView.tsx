@@ -34,6 +34,7 @@ import {
   type IncidentRow,
 } from "@/lib/incidents-data";
 import { fmt, journalWindowLabel, timeIstStamp } from "@/lib/format";
+import { sourceDisplayName } from "@/lib/data-source";
 
 export type IncidentsPayload = {
   persisted: any;
@@ -94,7 +95,7 @@ export default function IncidentsView({ persisted, derived, rejections, yel }: I
 
   const metaLine = isFileBased
     ? `${fmt(rejections?.journal_events || 0)} journal events · ${journalWindowLabel(rejections?.from, rejections?.to)} · Alerts derived from rejection evidence`
-    : `${fmt(alerts.length)} active alerts · ${persisted?.source || "postgresql"} + ${derived?.source || "derived"}`;
+    : `${fmt(alerts.length)} active alerts · ${sourceDisplayName(persisted?.source || "postgresql")} + ${sourceDisplayName(derived?.source || "derived")}`;
 
   const err = apiError(persisted) && apiError(rejections);
 

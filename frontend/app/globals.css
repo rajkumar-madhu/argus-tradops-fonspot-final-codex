@@ -7978,7 +7978,7 @@ table tbody tr:hover { background: #e6f0ec; }
 .cc-section-head h2 { margin: 0; font-size: 18px; color: var(--text); }
 .cc-section-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-muted); }
 .command-center .cc-ok { --cc: var(--green); }
-.command-center .cc-warn { --cc: var(--amber); }
+.command-center .cc-warn { --cc: var(--amber); --cc-text: #8a5300; }
 .command-center .cc-bad { --cc: var(--red); }
 .command-center .cc-idle { --cc: var(--muted); }
 
@@ -7991,7 +7991,7 @@ table tbody tr:hover { background: #e6f0ec; }
 .cc-tile-label { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); }
 .cc-tile-main { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .cc-tile-icon { color: var(--cc); flex: none; display: inline-flex; }
-.cc-tile-main b { display: block; font-size: 17px; line-height: 1.15; color: var(--cc); overflow-wrap: anywhere; }
+.cc-tile-main b { display: block; font-size: 17px; line-height: 1.15; color: var(--cc-text, var(--cc)); overflow-wrap: anywhere; }
 .cc-tile-main small { display: block; font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
 .cc-tile-foot { font-size: 11.5px; color: var(--text-muted); border-top: 1px solid var(--border-soft); padding-top: 7px; }
 
@@ -8209,13 +8209,13 @@ table tbody tr:hover { background: #e6f0ec; }
   display: inline-block; min-width: 74px; text-align: center; padding: 2px 8px; border-radius: 4px;
   font-size: 11.5px; font-weight: 600; text-transform: none; letter-spacing: 0; border: 0;
 }
-.app-shell .order-status.rejected { background: #fde4e4; color: #d92d2f; }
-.app-shell .order-status.complete, .app-shell .order-status.completed { background: #dcf5e6; color: #138a3e; }
-.app-shell .order-status.pending, .app-shell .order-status.trigger_pending { background: #fdefd5; color: #c77700; }
+.app-shell .order-status.rejected { background: #fde4e4; color: #b71f22; }
+.app-shell .order-status.complete, .app-shell .order-status.completed { background: #dcf5e6; color: #0f6b31; }
+.app-shell .order-status.pending, .app-shell .order-status.trigger_pending { background: #fdefd5; color: #8a5300; }
 .app-shell .order-status.open { background: #f5ebdd; color: #976008; }
 .app-shell .order-status.cancelled { background: #eff1f4; color: #56697b; }
 .app-shell .order-side.buy { color: #976008; font-weight: 700; }
-.app-shell .order-side.sell { color: #e5383b; font-weight: 700; }
+.app-shell .order-side.sell { color: #c8262a; font-weight: 700; }
 
 .app-shell .primary, .app-shell button.primary, .app-shell .primary-btn { background: #976008; border-color: #976008; color: #fff; border-radius: 6px; }
 .app-shell .primary:hover, .app-shell button.primary:hover, .app-shell .primary-btn:hover { background: #7a4d06; }
@@ -8307,10 +8307,10 @@ table tbody tr:hover { background: #e6f0ec; }
 .ref-chart .vbar-col span { white-space: nowrap; }
 .ref-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ref-pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; }
-.ref-pill.ok { background: #dcf5e6; color: #138a3e; }
+.ref-pill.ok { background: #dcf5e6; color: #0f6b31; }
 .ref-pill.info { background: #f5ebdd; color: #976008; }
-.ref-pill.warn { background: #fdefd5; color: #c77700; }
-.ref-pill.bad { background: #fde4e4; color: #d92d2f; }
+.ref-pill.warn { background: #fdefd5; color: #8a5300; }
+.ref-pill.bad { background: #fde4e4; color: #b71f22; }
 .ref-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #96a8b9; vertical-align: middle; }
 .ref-dot.ok { background: #16a34a; }
 .ref-health { list-style: none; margin: 0; padding: 4px 16px 14px; }
@@ -8426,7 +8426,7 @@ table tbody tr:hover { background: #e6f0ec; }
 .infra-topology li span { color: #67788a; font-size: 11.5px; }
 /* Tone variables usable outside the Command Center (pills, dots, topology). */
 .cc-ok { --cc: var(--green); }
-.cc-warn { --cc: var(--amber); }
+.cc-warn { --cc: var(--amber); --cc-text: #8a5300; }
 .cc-bad { --cc: var(--red); }
 .cc-idle { --cc: var(--muted); }
 .infra-page .ref-table td { white-space: normal; }
@@ -8903,4 +8903,20 @@ table tbody tr:hover { background: #e6f0ec; }
   .oi-head { grid-template-columns: auto 1fr; }
   .oi-when, .oi-actions { grid-column: 1 / -1; }
   .oi-grid { grid-template-columns: 1fr; }
+}
+
+/* Small-text AA: brand gold on the tinted row ground is 4.27:1; one notch darker. */
+.app-shell .mission-row-actions a { color: #8a5f1c; }
+
+/* ── Small screens: KPI tiles ────────────────────────────────────────────────
+   `.ref-kpis.six` only had a <=1200px rule (3 columns), and being later in the
+   file it beat the generic `.kpi-grid.six` two-column rule at <=600px. At 390px
+   that clipped every tile label ("TOTAL ORDER…", "BROKE… ACTI…") and broke the
+   delta line one word per line. */
+@media (max-width: 600px) {
+  .ref-kpis.six,
+  .app-shell .live-orders-kpis.ref-kpis.six,
+  .app-shell .ref-kpis.six { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell .kpi-card-label { white-space: normal; overflow-wrap: anywhere; }
+  .app-shell .ref-kpis.six .kpi-card-value { font-size: 20px; }
 }
