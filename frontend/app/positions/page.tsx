@@ -6,6 +6,7 @@ import PositionsFlow from "@/components/PositionsFlow";
 import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
+import { sourceDisplayName } from "@/lib/data-source";
 import { dateShort, fmt, money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function Page() {
           <p>Positions and filled flow across segments and exchanges</p>
         </div>
         <div className="time-controls"><RefreshButton/>
-          <span className="source-tag">{d.count || rows.length} positions · {d.source || "—"}</span>
+          <span className="source-tag">{err ? "Unavailable" : `${fmt(d.count ?? rows.length)} positions · ${sourceDisplayName(d.source)}`}</span>
         </div>
       </section>
 

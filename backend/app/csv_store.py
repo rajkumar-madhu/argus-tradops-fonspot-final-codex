@@ -373,6 +373,39 @@ class CsvStore:
                 'by_segment':segments,'trend':trend,'bucket_seconds':width,'choices':choices,'limit':limit,'offset':offset,
                 'note':'Events, not unique orders. Timing samples include valid zero values. Missing status is unavailable; duration units require a confirmed feed contract.'}
 
+    @staticmethod
+    def backlog_episodes(rows):
+        """Group (event_time, queue) rows into backlog episodes.
+
+        A QueSize file is not a sampled time series: the OMS writes one row per
+        message it processes, carrying the pending depth at that moment
+        (~140 rows/second). Depth counts down while it drains and rises when
+        new messages arrive mid-drain. An episode runs from the first pending
+        message until the queue is empty again (depth <= 1); that is the unit
+        an operator cares about ("a 4,470-deep backlog took 32 s to clear"),
+        and the mean of the raw column says nothing.
+        """
+        episodes=[];current=None;drained=True
+        def fresh(stamp,depth):return {'start':stamp,'end':stamp,'start_depth':depth,'peak_depth':depth,'rows':0,'_seconds':set()}
+        for stamp,depth in rows:
+            if depth is None:continue
+            if drained and depth>1:
+                if current:episodes.append(current)
+                current=fresh(stamp,depth)
+            if current is None:current=fresh(stamp,depth)
+            current['end']=stamp;current['rows']+=1;current['peak_depth']=max(current['peak_depth'],depth)
+            if stamp is not None:current['_seconds'].add(int(stamp))
+            drained=depth<=1
+        if current:episodes.append(current)
+        for e in episodes:
+            span=max(0.0,(e['end'] or 0)-(e['start'] or 0));e['seconds']=round(span,1)
+            # Rows land in bursts (2,064 rows on 14 distinct seconds across three
+            # hours in NSE), so throughput is rows per second that had rows.
+            busy=len(e.pop('_seconds')) or 1;e['busy_seconds']=busy
+            e['rows_per_second']=round(e['rows']/busy,1)
+            e['start']=iso(e['start']);e['end']=iso(e['end'])
+        return episodes
+
     def queues(self,**filters):
         where,args=self._where('queue',**filters)
         sources=[]
@@ -380,20 +413,24 @@ class CsvStore:
             for f in self.catalog()['files']:
                 if f['kind']!='queue' or (filters.get('instance') and f['instance']!=filters['instance']):continue
                 scoped=where+' AND file=?';params=args+[f['name']]
-                row=db.execute(f'SELECT count(*) AS samples,max(queue) AS peak,avg(queue) AS average,min(event_time) AS first,max(event_time) AS last FROM events WHERE {scoped}',params).fetchone()
+                row=db.execute(f'SELECT count(*) AS samples,max(queue) AS peak,min(event_time) AS first,max(event_time) AS last FROM events WHERE {scoped}',params).fetchone()
                 latest=db.execute(f'SELECT queue FROM events WHERE {scoped} ORDER BY event_time DESC,rowid DESC LIMIT 1',params).fetchone()
                 width=max(60,math.ceil(((row['last'] or 0)-(row['first'] or 0))/180))
                 trend=[{'time':iso(r[0]),'peak':r[1]} for r in db.execute(f'SELECT cast(event_time/? AS INTEGER)*?,max(queue) FROM events WHERE {scoped} GROUP BY 1 ORDER BY 1',[width,width]+params)]
-                distribution=db.execute(f'SELECT distribution(queue) FROM events WHERE {scoped}',params).fetchone()[0]
-                p99=json.loads(distribution)['p99'] if distribution else None
-                anomalies=db.execute(f'SELECT count(*) FROM events WHERE {scoped} AND queue>?',params+[p99]).fetchone()[0] if p99 is not None else 0
-                sources.append({'instance':f['instance'],'file':f['name'],'samples':row['samples'],'latest':latest[0] if latest else None,'peak':row['peak'],'average':row['average'],
+                episodes=self.backlog_episodes(db.execute(f'SELECT event_time,queue FROM events WHERE {scoped} ORDER BY event_time,row_number,rowid',params).fetchall())
+                peaks=sorted(e['peak_depth'] for e in episodes);busy=sum(e['busy_seconds'] for e in episodes)
+                sources.append({'instance':f['instance'],'file':f['name'],'samples':row['samples'],'latest':latest[0] if latest else None,'peak':row['peak'],
+                                'episodes':len(episodes),'max_depth':peaks[-1] if peaks else None,'median_depth':peaks[len(peaks)//2] if peaks else None,
+                                'longest_episode_seconds':max((e['seconds'] for e in episodes),default=None),
+                                'rows_per_second':round(sum(e['rows'] for e in episodes)/busy,1) if busy>0 else None,
+                                'backlogs':episodes[-50:],
                                 'last_observed':iso(row['last']),'age_seconds':max(0,time.time()-row['last']) if row['last'] else None,
                                 'state':f['state'] if row['samples'] or not f['accepted'] else 'No matching rows',
-                                'freshness':'Stale snapshot' if row['last'] and time.time()-row['last']>300 else ('Recent observation' if row['last'] else 'No data received'),
-                                'anomalies':anomalies,'anomaly_rule':'Strictly above this filtered source p99; not a configured operational alert',
+                                # A daily batch file is never "stale" by wall clock; its day is its freshness.
+                                'freshness':'Daily batch' if row['last'] else 'No data received',
                                 'trend':trend,'bucket_seconds':width,'identical_content_to':f.get('identical_content_to')})
-        return {'source':'csv snapshot','sources':sources,'count':sum(s['samples'] for s in sources),'unit':'messages','note':'Instance aliases remain separate. Do not sum depths across potentially duplicated source files.'}
+        return {'source':'csv snapshot','sources':sources,'count':sum(s['samples'] for s in sources),'unit':'messages',
+                'note':'One row per processed message carrying the pending depth at that moment. A backlog episode runs from the first pending message until the queue empties (depth <= 1); rises inside an episode are arrivals during the drain. Reported depths are episode peaks, never averages. Instance aliases remain separate; do not sum across possibly duplicated files.'}
 
     def export_rows(self,kind,sort='event_time',direction='asc',**filters):
         sort='event_time' if sort=='time' else sort

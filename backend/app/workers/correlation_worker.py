@@ -63,7 +63,9 @@ def _handle_rejection(payload: dict) -> None:
     publish("incidents", incident)
 
 def _handle_exchange(payload: dict) -> None:
-    if payload.get("connected"):
+    # connected is None when the index has no yel_connected evidence at all;
+    # that is a data gap the API reports, not a P1 gateway incident.
+    if payload.get("connected") is not False:
         return
     incident = upsert_incident(
         incident_type="YEL_CONNECTIVITY",
@@ -133,7 +135,7 @@ def main() -> None:
     if settings.auto_create_schema:
         init_db()
     if settings.metrics_enabled:
-        start_http_server(settings.worker_metrics_port)
+        start_http_server(settings.metrics_port("correlation"))
     r = get_redis()
     for kind in ("rejections", "exchange"):
         ensure_group(kind, GROUP)

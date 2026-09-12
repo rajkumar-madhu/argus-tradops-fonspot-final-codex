@@ -19,8 +19,10 @@ const NSE_SESSION: Row[] = [["Pre-open", "09:00 – 09:15"], ["Normal market", "
  * value is the running configuration or observed status. There are no save,
  * add or test-connection controls — the console never writes to any system.
  */
-export default function ConfigurationView({ config, bus, elk, exchanges, infra, market, files, apiUrl }: {
+export default function ConfigurationView({ config, bus, elk, exchanges, infra, market, files, apiUrl, priceDivisors }: {
   config: any; bus: any; elk: any; exchanges: any; infra: any; market: any; files: any; apiUrl: string;
+  /** Per-segment divisors ("NSE, BSE ÷100 · NFO ÷100"); falls back to the single value. */
+  priceDivisors?: string;
 }) {
   const venues: any[] = exchanges?.items || [];
   const csv: any[] = Array.isArray(files?.items) ? files.items : [];
@@ -38,7 +40,7 @@ export default function ConfigurationView({ config, bus, elk, exchanges, infra, 
   const sections: Section[] = [
     { key: "exchanges", title: "Exchanges", blurb: "Exchange segments seen in the source", icon: Building2, count: `${fmt(venues.length)} Observed`, rows: venues.map((v) => [v.name, `${fmt(v.events ?? 0)} events`] as Row) },
     { key: "market", title: "Market Data", blurb: "Market data feed and symbols", icon: BarChart3, count: `${fmt(market?.symbols?.length ?? 0)} Symbols`, rows: [["Feed", Array.isArray(market?.symbols) && market.symbols.length ? "TrueData via Redis snapshot" : "Not configured"], ["Note", market?.note || "—"]] },
-    { key: "oms", title: "Trading & OMS", blurb: "Noren journal read path", icon: SlidersHorizontal, count: `${Object.keys(config?.indices || {}).length} Indices`, rows: [["Data source", sourceDisplayName(source)], ...Object.entries(config?.indices || {}).map(([k, v]) => [`Index · ${k}`, String(v)] as Row), ["Event time field", String(config?.timestamp_field || "—")], ["Price divisor", String(config?.price_divisor ?? "—")], ["Schema", String(config?.schema || "—")]] },
+    { key: "oms", title: "Trading & OMS", blurb: "Noren journal read path", icon: SlidersHorizontal, count: `${Object.keys(config?.indices || {}).length} Indices`, rows: [["Data source", sourceDisplayName(source)], ...Object.entries(config?.indices || {}).map(([k, v]) => [`Index · ${k}`, String(v)] as Row), ["Event time field", String(config?.timestamp_field || "—")], ["Price divisor", priceDivisors || String(config?.price_divisor ?? "—")], ["Schema", String(config?.schema || "—")]] },
     { key: "risk", title: "Risk & Limits", blurb: "RMS limit and margin feeds", icon: ShieldCheck, count: "0 Feeds", rows: [["Limit feed", "Not connected"], ["Margin / VaR", "Not connected"], ["Breach evidence", "RMS rejections from the journal"]] },
     { key: "users", title: "Users & Access", blurb: "Authentication and roles", icon: Users, count: "5 Roles", rows: [["Authentication", config?.auth_disabled ? "Disabled — local access" : "Keycloak (OIDC, PKCE)"], ["Roles", "super_admin, trading_ops, risk, infra_sre, auditor"], ["Self-registration", "Off unless explicitly enabled"]] },
     { key: "infra", title: "Infrastructure", blurb: "Core services the API reports", icon: Server, count: `${integrations.length} Components`, rows: integrations },

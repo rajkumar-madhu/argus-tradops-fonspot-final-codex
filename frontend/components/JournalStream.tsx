@@ -7,6 +7,7 @@ import {
   cellText, columnHeader, columnTracks, displayValue, isUntranslated, istStamp, istTime, lifecycleSteps,
   statusTone, summaryColumns, timeHint,
 } from "@/lib/journal-explore";
+import { priceText, UNVERIFIED_PRICE_SCALE } from "@/lib/format";
 import { apiUrl } from "@/lib/runtime";
 import { authHeaders } from "@/lib/session";
 
@@ -159,7 +160,7 @@ function OrderOverview({ fields }: { fields: Record<string, unknown> }) {
           </span>
         </div>
         <span className="jx-order-links">
-          {orderId && <Link href={`/orders?order=${encodeURIComponent(orderId)}`}>Lifecycle view ›</Link>}
+          {orderId && <Link href={`/orders/${encodeURIComponent(orderId)}`}>Investigate ›</Link>}
           {orderId && <Link href={`/rca?order_id=${encodeURIComponent(orderId)}`}>RCA ›</Link>}
         </span>
       </div>
@@ -171,7 +172,7 @@ function OrderOverview({ fields }: { fields: Record<string, unknown> }) {
         <div>
           <dt>Price</dt>
           <dd>
-            {price !== null ? `₹${Number(price).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : `${cellText(fields.PriceToFill)} (raw)`}
+            {price !== null ? `₹${priceText(price)}` : `${cellText(fields.PriceToFill)} (raw${last?.unverifiedScale ? ` · ${UNVERIFIED_PRICE_SCALE}` : ""})`}
           </dd>
         </div>
         <div><dt>Filled</dt><dd>{cellText(filled ?? 0)} / {qty}</dd></div>
@@ -211,8 +212,8 @@ function OrderOverview({ fields }: { fields: Record<string, unknown> }) {
                 <b>{s.status}</b>
                 <span>
                   {s.filled ?? 0}/{s.qty ?? "—"} filled
-                  {s.price !== null ? ` · ₹${Number(s.price).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : ""}
-                  {s.fillPrice !== null ? ` · fill ₹${Number(s.fillPrice).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : ""}
+                  {s.price !== null ? ` · ₹${priceText(s.price)}` : s.unverifiedScale && s.priceRaw !== null ? ` · ${s.priceRaw} raw, ${UNVERIFIED_PRICE_SCALE}` : ""}
+                  {s.fillPrice !== null ? ` · fill ₹${priceText(s.fillPrice)}` : ""}
                 </span>
                 <small>{s.gap}</small>
               </li>

@@ -18,13 +18,15 @@ def initialize():
     global _store
     if settings.csv_dir:
         _store=FileAnalytics(settings.csv_cache_path,settings.csv_dir,max_bytes=settings.csv_max_bytes,unit=settings.csv_latency_unit,max_rows=settings.csv_max_rows)
+        from app.metrics import CSV_LAST_IMPORT, CSV_QUEUE_LAST_EVENT, CSV_QUEUE_HAS_DATA
         try:
             _store.ingest()
+            # Only a successful import advances freshness: a failed one must not look recent.
+            CSV_LAST_IMPORT.set(datetime.now().timestamp())
         except Exception:
             # Keep the API up: a progress-handler interrupt or corrupt cache must
             # not take down journal/ES routes. Operators restart after fixing sources.
             LOG.exception('CSV ingest failed during startup; serving existing cache if any')
-        from app.metrics import CSV_QUEUE_LAST_EVENT, CSV_QUEUE_HAS_DATA
         try:
             latest = {}
             for item in _store.queues()["items"]:

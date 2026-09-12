@@ -44,7 +44,7 @@ class FileAnalytics(CsvStore):
 
     def queues(self,**filters):
         data=super().queues(**filters)
-        items=[{**r,'last_event':r['last_observed'],'state':r['freshness'] if r['samples'] and r['freshness']=='Stale snapshot' else r['state']} for r in data['sources']]
+        items=[{**r,'last_event':r['last_observed']} for r in data['sources']]
         return {**data,'items':items,'trend':[{'instance':r['instance'],'file':r['file'],**p} for r in data['sources'] for p in r['trend']]}
 
     def export_latency(self,**filters):

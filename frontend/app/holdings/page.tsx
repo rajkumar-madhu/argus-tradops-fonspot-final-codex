@@ -7,6 +7,7 @@ import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { mtmDistribution } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
 import { fmt } from "@/lib/format";
+import { sourceDisplayName } from "@/lib/data-source";
 import { SEGMENTS, allocation, cash, holding, movers, pickSegment, signedCash, signedPct, summary, tone, type Holding } from "@/lib/holdings";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
           <p>Holdings, MTM and portfolio view across traders and accounts</p>
         </div>
         <div className="time-controls"><RefreshButton/>
-          <span className="source-tag">{rows.length}{rows.length !== all.length ? ` of ${all.length}` : ""} holdings · {d.source || "—"}</span>
+          <span className="source-tag">{err ? "Unavailable" : `${fmt(rows.length)}${rows.length !== all.length ? ` of ${fmt(all.length)}` : ""} holdings · ${sourceDisplayName(d.source)}`}</span>
         </div>
       </section>
 

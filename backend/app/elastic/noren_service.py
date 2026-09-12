@@ -3,6 +3,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
+from app.cache import ttl_cache
 from app.config import settings
 from app.elastic.client import get_es
 from app.elastic.normalizer import mask_reason, normalize_order, normalize_session_event, rejection_category, rejection_code
@@ -73,6 +74,27 @@ def _status_codes(status: str | None) -> list[int] | None:
     }.get(s)
 
 
+# Free-text order search is restricted to these fields. The previous
+# `query_string` with `UserId*`-style patterns let an `orders:read` caller write
+# `_exists_:PanNum` or `PanNum:ABC*` and confirm excluded values by hit count.
+# `simple_query_string` has no field syntax that can escape this list, and the
+# concrete names stop `RejReason*` from matching every `.keyword` sub-field.
+ORDER_SEARCH_FIELDS = [
+    "NorenOrdNum", "Eref", "ExchOrdNum", "TradingSymbol", "Token",
+    "UserId", "AcctId", "BrokerId", "Region", "ExchSeg", "RejReason", "RejBy",
+]
+
+
+def order_search_query(q: str) -> dict[str, Any]:
+    return {"simple_query_string": {
+        "query": q,
+        "fields": ORDER_SEARCH_FIELDS,
+        "default_operator": "and",
+        "analyze_wildcard": False,
+        "lenient": True,
+    }}
+
+
 def live_orders(*, size: int = 100, lookback: str = "24h", exchange: str | None = None,
                 status: str | None = None, broker: str | None = None, user_id: str | None = None,
                 symbol: str | None = None, q: str | None = None) -> dict[str, Any]:
@@ -93,8 +115,8 @@ def live_orders(*, size: int = 100, lookback: str = "24h", exchange: str | None 
     codes = _status_codes(status)
     if codes:
         filters.append({"terms": {"OrdStatus": codes}})
-    if q:
-        must.append({"query_string": {"query": q, "fields": ["TradingSymbol*", "UserId*", "AcctId*", "BrokerId*", "RejReason*", "NorenOrdNum"], "lenient": True}})
+    if q and q.strip():
+        must.append(order_search_query(q))
 
     body: dict[str, Any] = {
         "size": min(max(size, 1), 500),
@@ -122,6 +144,7 @@ def order_lifecycle(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
         return {"order_id": order_id, "events": [], "source": "demo"}
     body = {
         "size": 500,
+        "track_total_hits": 501,
         "query": {"bool": {"filter": [
             {"term": {"NorenOrdNum": order_id}},
             _range(settings.noren_timestamp_field, lookback),
@@ -130,10 +153,16 @@ def order_lifecycle(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
         "_source": {"excludes": ["PanNum", "IpAddr", "ExchUserInfo", "ParticId"]},
     }
     result = es.search(index=settings.noren_order_index, body=body)
-    events = [normalize_order(h.get("_source", {})) for h in result.get("hits", {}).get("hits", [])]
-    return {"order_id": order_id, "events": events, "count": len(events), "source": "elasticsearch"}
+    hits = result.get("hits", {})
+    events = [normalize_order(h.get("_source", {})) for h in hits.get("hits", [])]
+    total = hits.get("total", {})
+    total_value = total.get("value", len(events)) if isinstance(total, dict) else total
+    return {"order_id": order_id, "events": events, "count": len(events), "source": "elasticsearch",
+            # A partial-fill history longer than 500 events is cut; say so rather than look complete.
+            "truncated": bool(total_value and total_value > len(events))}
 
 
+@ttl_cache(3.0)  # below the collector interval (2 s), so a new rejection waits at most one tick
 def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
                       max_orders: int | None = 200) -> dict[str, Any]:
     """Summarise rejected orders.
@@ -153,7 +182,7 @@ def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
             {"terms": {"OrdStatus": [56, 65]}},
         ]}},
         "sort": _order_sort(True),
-        "_source": ["NorenOrdNum", "NorenTimeStamp", "NorenNsecs", "NorenOrgTimeStamp", "NorenOrgNsecs", "Eref", "OrdStatus", "ReportType", "AcctId", "UserId", "TradingSymbol", "ExchSeg", "TransType", "PriceType", "Product", "BrokerId", "Region", "QtyToFill", "PriceToFill", "RejReason", "RejBy", "ExchOrdNum"],
+        "_source": ["NorenOrdNum", "NorenTimeStamp", "NorenNsecs", "NorenOrgTimeStamp", "NorenOrgNsecs", "Eref", "OrdStatus", "ReportType", "AcctId", "UserId", "TradingSymbol", "ExchSeg", "TransType", "PriceType", "Product", "BrokerId", "Region", "QtyToFill", "PriceToFill", "RejReason", "RejBy", "ExchOrdNum", "Scripupdate.PriceMultiplier"],
     }
     result = es.search(index=settings.noren_order_index, body=body)
     docs = [h.get("_source", {}) for h in result.get("hits", {}).get("hits", [])]
@@ -199,11 +228,11 @@ def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
     }
 
 
-def _reject_rate(rejected_orders: int, *, lookback: str) -> float:
+def _reject_rate(rejected_orders: int, *, lookback: str) -> float | None:
     """Rejected unique orders as a percentage of all unique orders in the window."""
     es = get_es()
     if es is None or not rejected_orders:
-        return 0.0
+        return None  # unmeasured is not zero
     try:
         body = {
             "size": 0,
@@ -211,9 +240,9 @@ def _reject_rate(rejected_orders: int, *, lookback: str) -> float:
             "aggs": {"orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}}},
         }
         total = es.search(index=settings.noren_order_index, body=body).get("aggregations", {}).get("orders", {}).get("value", 0)
-        return round(rejected_orders / total * 100, 3) if total else 0.0
+        return round(rejected_orders / total * 100, 3) if total else None
     except Exception:
-        return 0.0
+        return None  # unmeasured is not zero
 
 
 def rca(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
@@ -242,6 +271,7 @@ def rca(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
     }
 
 
+@ttl_cache(5.0)
 def active_sessions(*, lookback: str = "24h", size: int = 2000) -> dict[str, Any]:
     es = get_es()
     if es is None:
@@ -299,11 +329,17 @@ def yel_health() -> dict[str, Any]:
     result = es.search(index=settings.noren_yel_index, body=body, ignore_unavailable=True)
     hits = result.get("hits", {}).get("hits", [])
     if not hits:
-        return {"connected": False, "keys": [], "source": "elasticsearch", "index": settings.noren_yel_index}
+        # No yel_connected event in the index is absence of evidence, not a
+        # disconnect: connected is None and the caller reports a data gap.
+        return {"connected": None, "state": "no evidence", "keys": [], "last_event": None,
+                "source": "elasticsearch", "index": settings.noren_yel_index}
     src = hits[0].get("_source", {})
-    return {"connected": True, "last_event": src.get("@timestamp"), "keys": src.get("Keys") or [], "source": "elasticsearch", "index": settings.noren_yel_index}
+    keys = src.get("Keys") or []
+    return {"connected": bool(keys), "state": "connected" if keys else "disconnected",
+            "last_event": src.get("@timestamp"), "keys": keys, "source": "elasticsearch", "index": settings.noren_yel_index}
 
 
+@ttl_cache(5.0)
 def overview(*, lookback: str = "24h") -> dict[str, Any]:
     es = get_es()
     if es is None:
@@ -315,7 +351,8 @@ def overview(*, lookback: str = "24h") -> dict[str, Any]:
             "orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}},
             "rejected": {"filter": {"terms": {"OrdStatus": [56, 65]}}, "aggs": {"orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}}}},
             "complete": {"filter": {"term": {"OrdStatus": 50}}, "aggs": {"orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}}}},
-            "exchanges": {"terms": {"field": _field(settings.noren_order_index, "ExchSeg"), "size": 20}},
+            "exchanges": {"terms": {"field": _field(settings.noren_order_index, "ExchSeg"), "size": 20},
+                          "aggs": {"last": {"max": {"field": settings.noren_timestamp_field}}}},
             "brokers": {"cardinality": {"field": _field(settings.noren_order_index, "BrokerId")}},
             "symbols": {"cardinality": {"field": _field(settings.noren_order_index, "TradingSymbol")}},
         },
@@ -331,10 +368,11 @@ def overview(*, lookback: str = "24h") -> dict[str, Any]:
         "orders": total,
         "complete": complete,
         "rejected": rej,
-        "reject_rate": round((rej / total * 100), 3) if total else 0,
+        "reject_rate": round((rej / total * 100), 3) if total else None,
         "brokers": a.get("brokers", {}).get("value", 0),
         "symbols": a.get("symbols", {}).get("value", 0),
-        "exchanges": [{"name": b.get("key"), "events": b.get("doc_count", 0)} for b in a.get("exchanges", {}).get("buckets", [])],
+        "exchanges": [{"name": b.get("key"), "events": b.get("doc_count", 0),
+                       "last_event": b.get("last", {}).get("value_as_string")} for b in a.get("exchanges", {}).get("buckets", [])],
         "sessions": sessions,
         "yel": yel,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -350,6 +388,11 @@ def incident_candidates(*, lookback: str = "15m") -> dict[str, Any]:
     n=int(rej.get("rejected_unique_orders") or 0)
     if n >= 10:
         incidents.append({"id":f"AUTO-REJ-{lookback}","severity":"P1" if n>=100 else "P2","type":"REJECTION_SPIKE","title":f"{n} rejected orders in {lookback}","status":"OPEN","evidence":rej.get("groups",[])[:5]})
-    if not yel.get("connected"):
-        incidents.append({"id":"AUTO-YEL-DOWN","severity":"P1","type":"YEL_CONNECTIVITY","title":"No YEL connectivity event available","status":"OPEN","evidence":yel})
-    return {"items":incidents,"count":len(incidents),"lookback":lookback,"source":"derived-from-elasticsearch"}
+    data_gaps=[]
+    if yel.get("connected") is False:
+        incidents.append({"id":"AUTO-YEL-DOWN","severity":"P1","type":"YEL_CONNECTIVITY","title":"YEL reports no connected exchange keys","status":"OPEN","evidence":yel})
+    elif yel.get("connected") is None:
+        data_gaps.append({"id":"GAP-YEL","type":"NO_YEL_EVIDENCE","title":"No yel_connected event in the index; gateway state unknown","evidence":yel})
+    if rej.get("reject_rate") is None and rej.get("source") == "elasticsearch":
+        data_gaps.append({"id":"GAP-REJECT-RATE","type":"REJECT_RATE_UNMEASURED","title":"Reject rate could not be computed","evidence":{"index":rej.get("index")}})
+    return {"items":incidents,"count":len(incidents),"data_gaps":data_gaps,"lookback":lookback,"source":"derived-from-elasticsearch"}

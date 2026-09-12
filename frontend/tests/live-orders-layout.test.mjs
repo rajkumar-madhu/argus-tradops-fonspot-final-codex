@@ -116,9 +116,31 @@ test('feed header owns pause control and retains real account/product/type/fill 
 });
 
 test('snapshot and demo never advertise a live stream or offer pause', () => {
-  for (const props of [{ snapshot: true }, { initial: { items, source: 'demo' } }]) {
+  // 'journal snapshot' is the API route serving a journal file (TRADEOPS_JOURNAL_PRIMARY).
+  for (const props of [{ snapshot: true }, { initial: { items, source: 'demo' } }, { initial: { items, source: 'journal snapshot' } }]) {
     const html = render(props);
     assert.match(html, /no live stream/);
     assert.doesNotMatch(html, /Pause updates|Stream connected/);
   }
+});
+
+test('feed header says how many of the source orders are loaded', () => {
+  assert.match(render(), /Order Feed \((<!-- -->)?4(<!-- -->)? of 900(<!-- -->)?\)/);
+  const all = render({ initial: { items, count: 4, returned: 4, source: 'journal snapshot' } });
+  assert.match(all, /Order Feed \((<!-- -->)?4(<!-- -->)?\)/);
+  assert.doesNotMatch(all, /Order Feed \([^)]* of /);
+});
+
+test('feed prices use the segment scale and label an unverified one', () => {
+  const html = render({
+    initial: {
+      source: 'journal snapshot',
+      items: [
+        { order_id: 'CDS-1', status: 'OPEN', exchange: 'CDS', price: 94.8825, price_scale: 'verified' },
+        { order_id: 'NCDEX-1', status: 'OPEN', exchange: 'NCDEX', price: null, price_raw: 554500, price_scale: 'unverified' },
+      ],
+    },
+  });
+  assert.ok(html.includes('94.8825'));
+  assert.ok(html.includes('554500 raw · unverified scale'));
 });

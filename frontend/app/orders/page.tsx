@@ -14,10 +14,13 @@ export default async function Page({
   const lookback = queryWindow(params.lookback);
   // Totals for the KPI row come from the overview, not from the loaded page of rows.
   const overviewPromise = getJSON('/api/overview');
+  // Search and filters run over the loaded rows, so load as many as the route
+  // allows: every order of a journal snapshot, and up to the backend's own cap
+  // (500) from Elasticsearch.
   const initial: any = await getJSON(
     snapshot
       ? '/api/journal/orders?size=10000'
-      : `/api/orders?size=100&lookback=${lookback}${params.order ? `&q=${encodeURIComponent(params.order)}` : ''}`,
+      : `/api/orders?size=10000&evidence=false&lookback=${lookback}${params.order ? `&q=${encodeURIComponent(params.order)}` : ''}`,
   );
   const err = apiError(initial);
   const overview: any = await overviewPromise;

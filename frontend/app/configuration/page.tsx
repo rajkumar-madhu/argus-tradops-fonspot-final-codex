@@ -2,6 +2,7 @@ import Shell from "@/components/Shell";
 import ConfigurationView from "@/components/ConfigurationView";
 import { EmptyState } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
+import { priceDivisorsText } from "@/lib/format";
 import { serverRuntimeConfig } from "@/lib/runtime";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ export default async function Page() {
       ) : (
         <ConfigurationView
           config={config}
+          priceDivisors={priceDivisorsText(config)}
           bus={apiError(bus) ? {} : bus}
           elk={apiError(elk) ? {} : elk}
           exchanges={apiError(exchanges) ? {} : exchanges}

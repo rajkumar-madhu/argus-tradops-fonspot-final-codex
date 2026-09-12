@@ -210,3 +210,16 @@ test('row headers are short, IST for time, and say prices are raw units', async 
   assert.equal(columnHeader('Seqno'), 'Seqno');
   assert.equal(columnTracks(['NorenOrdNum', 'Seqno']), '22px 128px minmax(80px, 1fr)');
 });
+
+test("lifecycle steps keep the raw price of a segment whose scale is unverified", async () => {
+  const { lifecycleSteps } = await import("../lib/journal-explore.ts");
+  const [verified, unverified] = lifecycleSteps([
+    { time: "2026-06-30T03:44:01Z", status_code: 48, price: 94.92, price_raw: 949200000, price_scale: "verified" },
+    { time: "2026-06-30T03:44:02Z", status_code: 48, price: null, price_raw: 554500, price_scale: "unverified" },
+  ]);
+  assert.equal(verified.price, 94.92);
+  assert.equal(verified.unverifiedScale, false);
+  assert.equal(unverified.price, null);
+  assert.equal(unverified.unverifiedScale, true);
+  assert.equal(unverified.priceRaw, 554500);
+});

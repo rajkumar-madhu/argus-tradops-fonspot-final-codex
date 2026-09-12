@@ -34,6 +34,8 @@ from app.elastic.normalizer import (
     OMS_STATUS_MAPPING_CONFIRMED,
     exch_confirm_label,
     oms_status_label,
+    rupee_value,
+    segment_divisors,
 )
 from app.elastic.noren_service import (
     active_sessions,
@@ -56,14 +58,6 @@ if settings.metrics_enabled:
     app.mount("/metrics", make_asgi_app())
 
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
-    expose_headers=["X-Request-ID"],
-)
 
 DEMO_MODE = settings.demo_mode
 
@@ -95,17 +89,32 @@ def _use_journal_data() -> bool:
 
 
 def _with_data_source(live_fn, journal_fn):
+    """Live first; journal fallback, but never a *silent* one.
+
+    An Elasticsearch outage used to render as journal data with nothing in the
+    payload saying so. A fallback now carries ``fallback`` so the UI can label
+    the screen DELAYED/FILE-BASED instead of LIVE. Exception text is not
+    included: client errors carry the cluster URL.
+    """
     if _use_journal_data():
         return journal_fn()
     try:
         result = live_fn()
         if isinstance(result, dict) and result.get("source") == "demo" and _journal_path():
-            return journal_fn()
+            return _fallback(journal_fn(), "elasticsearch not configured")
         return result
     except Exception:
+        logging.getLogger("tradeops.api").warning(json.dumps({"event": "live_source_failed", "fallback": bool(_journal_path())}))
         if _journal_path():
-            return journal_fn()
+            return _fallback(journal_fn(), "elasticsearch unavailable")
         raise
+
+
+def _fallback(payload, reason: str):
+    if isinstance(payload, dict):
+        return {**payload, "fallback": {"from": "elasticsearch", "reason": reason,
+                                        "at": datetime.now(timezone.utc).isoformat()}}
+    return payload
 
 
 def _metrics_path(request: Request) -> str:
@@ -147,6 +156,9 @@ async def metrics_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if not request.url.path.startswith("/metrics"):
         path = _metrics_path(request)
         elapsed = time.perf_counter() - started
@@ -154,6 +166,20 @@ async def metrics_middleware(request: Request, call_next):
         API_LATENCY.labels(method=request.method, path=path).observe(elapsed)
         logging.getLogger("tradeops.api").info(json.dumps({"event":"request", "request_id":request_id, "route":path, "status":response.status_code, "duration_seconds":round(elapsed,4)}))
     return response
+
+
+# Registered after the metrics/error middleware so it is the OUTERMOST layer:
+# add_middleware wraps whatever is already there. Registered first, the 503 the
+# error path synthesises never passed through CORS, and a browser reported a
+# dependency outage as a CORS failure instead of a 503 it could render.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
+)
 
 
 @app.on_event("startup")
@@ -174,11 +200,11 @@ def startup() -> None:
 
 # Synthetic demo values only. No records from the supplied Journal.log are embedded in the product package.
 DEMO_ORDERS = [
-    {"order_id":"DEMO-1001","eref":"501","exchange_order_id":"","time":"2026-09-07T09:15:01+00:00","exchange":"NSE","symbol":"ALPHA-EQ","side":"BUY","qty":10,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":125.5,"filled_qty":0,"cancelled_qty":0,"latency_ms":3.8,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1002","eref":"502","exchange_order_id":"","time":"2026-09-07T09:15:02+00:00","exchange":"BSE","symbol":"BETA","side":"SELL","qty":25,"product":"M","type":"MKT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":0,"filled_qty":0,"cancelled_qty":0,"latency_ms":5.1,"code":"RMS","reason":"RED:Margin Shortfall","rejection_category":"RMS / Margin","source":"demo"},
-    {"order_id":"DEMO-1003","eref":"503","exchange_order_id":"","time":"2026-09-07T09:15:04+00:00","exchange":"NSE","symbol":"GAMMA-EQ","side":"BUY","qty":50,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":412.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":2.9,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1004","eref":"504","exchange_order_id":"EX-77821","time":"2026-09-07T09:14:58+00:00","exchange":"NFO","symbol":"NIFTY24SEPFUT","side":"SELL","qty":75,"product":"M","type":"LMT","status":"PENDING","status_code":109,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":24150.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":4.2,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1005","eref":"505","exchange_order_id":"","time":"2026-09-07T09:16:11+00:00","exchange":"NSE","symbol":"DELTA-EQ","side":"BUY","qty":100,"product":"C","type":"LMT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":890.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":6.4,"code":"EXCH","reason":"RED:Price out of permissible range","rejection_category":"Exchange Validation","source":"demo"},
+    {"order_id":"DEMO-1001","eref":"501","exchange_order_id":"","time":"2026-09-07T09:15:01+00:00","exchange":"NSE","symbol":"ALPHA-EQ","side":"BUY","qty":10,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":125.5,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":3.8,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1002","eref":"502","exchange_order_id":"","time":"2026-09-07T09:15:02+00:00","exchange":"BSE","symbol":"BETA","side":"SELL","qty":25,"product":"M","type":"MKT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":5.1,"code":"RMS","reason":"RED:Margin Shortfall","rejection_category":"RMS / Margin","source":"demo"},
+    {"order_id":"DEMO-1003","eref":"503","exchange_order_id":"","time":"2026-09-07T09:15:04+00:00","exchange":"NSE","symbol":"GAMMA-EQ","side":"BUY","qty":50,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":412.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":2.9,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1004","eref":"504","exchange_order_id":"EX-77821","time":"2026-09-07T09:14:58+00:00","exchange":"NFO","symbol":"NIFTY24SEPFUT","side":"SELL","qty":75,"product":"M","type":"LMT","status":"PENDING","status_code":109,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":24150.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":4.2,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1005","eref":"505","exchange_order_id":"","time":"2026-09-07T09:16:11+00:00","exchange":"NSE","symbol":"DELTA-EQ","side":"BUY","qty":100,"product":"C","type":"LMT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":890.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":6.4,"code":"EXCH","reason":"RED:Price out of permissible range","rejection_category":"Exchange Validation","source":"demo"},
 ]
 
 DEMO_SESSIONS = [
@@ -401,10 +427,15 @@ def _demo_rejections() -> dict[str, Any]:
     }
 
 
+_STARTED_AT = time.time()
+
+
 @app.get("/health")
 def health():
+    """Liveness only: the process answers. Dependencies are /health/ready."""
     return {
         "status": "ok",
+        "uptime_seconds": round(time.time() - _STARTED_AT, 1),
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
         "csv_configured": bool(settings.csv_dir),
@@ -425,6 +456,13 @@ def ready():
 @app.get("/api/event-bus/status")
 def event_bus_status(user=Depends(require("dashboard:read"))):
     return redis_status()
+
+
+@app.get("/api/freshness")
+def freshness(user=Depends(require("dashboard:read"))):
+    """Age of the newest data per source, classified live/delayed/stale/closed/batch."""
+    from app.freshness import summary
+    return summary(data_source="journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"))
 
 
 @app.get("/api/incidents")
@@ -566,12 +604,16 @@ def orders(
     q: str | None = None,
     size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
+    # The per-row journal projection is over half the payload of a large list.
+    # A feed that only needs the table can skip it and read the evidence from
+    # the lifecycle route for the one order an operator opens.
+    evidence: bool = Query(True),
     user=Depends(require("orders:read")),
 ):
     from app.journal_snapshot import journal_orders as journal_orders_data
 
     if _use_journal_data():
-        return journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q)
+        return journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence)
     if DEMO_MODE:
         items = DEMO_ORDERS
         if status: items = [x for x in items if x["status"].lower() == status.lower()]
@@ -581,7 +623,7 @@ def orders(
         return {"items":items[:size],"count":len(items),"source":"demo"}
     return _with_data_source(
         lambda: live_orders(size=size, lookback=lookback, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q),
-        lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q),
+        lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence),
     )
 
 
@@ -716,7 +758,9 @@ def trades(
                 "side": o.get("side"),
                 "qty": o.get("filled_qty") or o.get("qty"),
                 "price": o.get("price"),
-                "value": round(float(o.get("price") or 0) * float(o.get("filled_qty") or o.get("qty") or 0), 2),
+                "price_raw": o.get("price_raw"),
+                "price_scale": o.get("price_scale"),
+                "value": rupee_value(o.get("price"), o.get("filled_qty") or o.get("qty"), o.get("value_multiplier")),
                 "account": o.get("account"),
                 "user": o.get("user"),
                 "broker": o.get("broker"),
@@ -776,6 +820,9 @@ def order_latency(user=Depends(require("latency:read"))):
             ]
             payload["oms_status_mapping_confirmed"] = True
         payload["feed_kind"] = feed_kind
+        # Both journal branches produce microseconds: _ms_to_us over Noren
+        # nanosecond clocks, or the µs L_ORDERLATENCY feed. Declared, not assumed.
+        payload["unit"] = "us"
         return payload
     if DEMO_MODE:
         return _latency_payload(DEMO_ORDER_LATENCY, "demo")
@@ -912,6 +959,8 @@ def runtime_config(user=Depends(require("dashboard:read"))):
         },
         "timestamp_field": settings.noren_timestamp_field,
         "price_divisor": settings.noren_price_divisor,
+        # Segments absent from this map are shown unnormalised as "unverified".
+        "price_divisors": segment_divisors(),
         "redis_label": settings.redis_public_label,
         "metrics_enabled": settings.metrics_enabled,
         "source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "runtime"),
@@ -989,5 +1038,26 @@ async def stream_market(request: Request, interval: float = Query(1.0, ge=0.5, l
 
 @app.get("/api/incidents/derived")
 def derived_incidents(lookback: str = Query("15m", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("incidents:read"))):
+    if _use_journal_data():
+        return _journal_derived_incidents(_journal_path())
     if DEMO_MODE: return {"items":[],"count":0,"source":"demo"}
-    return incident_candidates(lookback=lookback)
+    return _with_data_source(lambda: incident_candidates(lookback=lookback),
+                             lambda: _journal_derived_incidents(_journal_path()))
+
+
+def _journal_derived_incidents(path: str) -> dict[str, Any]:
+    """Same rules as incident_candidates, over the journal file. Read-only."""
+    from app.journal_snapshot import journal_rejections, journal_yel_health
+    rej = journal_rejections(path)
+    yel = journal_yel_health(path)
+    items = []
+    n = int(rej.get("rejected_unique_orders") or 0)
+    if n >= 10:
+        items.append({"id": "AUTO-REJ-journal", "severity": "P1" if n >= 100 else "P2", "type": "REJECTION_SPIKE",
+                      "title": f"{n} rejected orders in the journal window", "status": "OPEN", "evidence": rej.get("groups", [])[:5]})
+    data_gaps = []
+    if not yel.get("keys"):
+        # The file may simply predate or omit yel_connected events.
+        data_gaps.append({"id": "GAP-YEL", "type": "NO_YEL_EVIDENCE", "title": "No yel_connected event in the journal file; gateway state unknown", "evidence": yel})
+    return {"items": items, "count": len(items), "data_gaps": data_gaps, "lookback": "journal window",
+            "from": rej.get("from"), "to": rej.get("to"), "source": "journal snapshot"}

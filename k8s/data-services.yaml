@@ -1,3 +1,6 @@
+# Single-node Redis and Postgres for non-production environments (excluded from
+# kustomization.yaml). Hardened anyway: non-root, capabilities dropped, bounded.
+# Production uses k8s/ha/ (CloudNativePG, Redis HA).
 apiVersion: v1
 kind: Service
 metadata:
@@ -21,6 +24,13 @@ spec:
     metadata:
       labels: {app: tradeops-redis}
     spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: redis
           image: redis:7-alpine
@@ -31,6 +41,16 @@ spec:
             exec: {command: ["redis-cli", "ping"]}
             initialDelaySeconds: 3
             periodSeconds: 5
+          livenessProbe:
+            exec: {command: ["redis-cli", "ping"]}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
   volumeClaimTemplates:
     - metadata: {name: data}
       spec:
@@ -60,6 +80,13 @@ spec:
     metadata:
       labels: {app: tradeops-postgres}
     spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: postgres
           image: postgres:16-alpine
@@ -74,6 +101,16 @@ spec:
             exec: {command: ["sh", "-c", "pg_isready -U tradeops -d tradeops"]}
             initialDelaySeconds: 5
             periodSeconds: 5
+          livenessProbe:
+            exec: {command: ["sh", "-c", "pg_isready -U tradeops -d tradeops"]}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
   volumeClaimTemplates:
     - metadata: {name: data}
       spec:

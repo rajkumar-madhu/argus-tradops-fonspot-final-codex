@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { fmt, time24 } from '@/lib/format';
+import { fmt, orderPriceText, time24 } from '@/lib/format';
 import { istTime, lifecycleSteps } from '@/lib/journal-explore';
 import { apiUrl } from '@/lib/runtime';
 import { authHeaders } from '@/lib/session';
 import { openAuthenticatedEventSource } from '@/lib/stream';
 import {
-  journalFieldValue,
+  journalFieldText,
   ORDER_JOURNAL_FIELD_TITLES,
   type OrderJournalFieldValues,
 } from '@/lib/order-journal-fields';
@@ -71,12 +71,16 @@ export default function LiveOrders({
   const [evidenceState, setEvidenceState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [evidenceRetry, setEvidenceRetry] = useState(0);
   const [paused, setPaused] = useState(false);
+  // A journal file served through the API route (TRADEOPS_JOURNAL_PRIMARY) is as
+  // historical as the ?source=journal tab: there is no stream to open or pause.
+  const fileSource = snapshot || initial?.source === 'journal snapshot';
+  const offline = fileSource || initial?.source === 'demo';
   useEffect(() => {
     if (requestedOrder) setSelectedId(requestedOrder);
   }, [requestedOrder]);
 
   useEffect(() => {
-    if (snapshot || initial?.source === 'demo') {
+    if (offline) {
       setConnected(false);
       return;
     }
@@ -97,9 +101,11 @@ export default function LiveOrders({
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
     return () => es.close();
-  }, [snapshot, initial?.source, requestedOrder]);
+  }, [offline, requestedOrder]);
 
   const rows = data.items || [];
+  const loaded = Number(data.returned ?? rows.length);
+  const sourceCount = Number(data.count ?? loaded);
   const selected = rows.find((row: any) => row.order_id === selectedId) || {};
   const countStatus = (...statuses: string[]) => rows.filter((r: any) => statuses.includes(r.status)).length;
   // Source-wide totals only when the overview supplied them; otherwise every
@@ -114,6 +120,8 @@ export default function LiveOrders({
   const steps = lifecycleSteps(events);
   // Long partial-fill histories: keep the first and the last two steps.
   const stepperSteps = steps.length > 5 ? [...steps.slice(0, 2), null, ...steps.slice(-2)] : steps;
+  // Only the snapshot tab renders these, and it keeps the per-row projection;
+  // the API feed loads with evidence=false and never reads them.
   const journalFields = (selected.journal_fields || {}) as OrderJournalFieldValues;
   const maskedFields = new Set<string>(selected.masked_fields || []);
   useEffect(() => {
@@ -198,7 +206,7 @@ export default function LiveOrders({
           label="Last Update"
           value={lastEvent ? istTime(lastEvent) : '—'}
           delta={
-            snapshot || initial?.source === 'demo' || initial?.source === 'journal snapshot'
+            offline
               ? 'Latest journal event (IST)'
               : paused ? 'Display paused · buffering' : connected ? 'Stream connected' : 'Stream disconnected'
           }
@@ -208,10 +216,13 @@ export default function LiveOrders({
       </section>
       <section className="panel orders-main">
         <div className="panel-head orders-feed-head">
-          <b>Order Feed ({data.returned ?? rows.length})</b>
+          <b>
+            Order Feed ({fmt(loaded)}
+            {sourceCount > loaded ? ` of ${fmt(sourceCount)}` : ''})
+          </b>
           <div className="orders-feed-actions">
             <span className="source-tag" role="status">
-              {snapshot
+              {fileSource
                 ? 'Historical snapshot · no live stream'
                 : initial?.source === 'demo'
                   ? 'Offline · no live stream'
@@ -221,7 +232,7 @@ export default function LiveOrders({
                       ? 'Stream connected'
                       : 'Stream disconnected · last snapshot'}
             </span>
-            {!snapshot && initial?.source !== 'demo' && (
+            {!offline && (
               <button
                 type="button"
                 aria-pressed={paused}
@@ -255,7 +266,7 @@ export default function LiveOrders({
             { key: 'type', label: 'Type' },
             { key: 'qty', label: 'Qty' },
             { key: 'filled_qty', label: 'Filled' },
-            { key: 'price', label: 'Price' },
+            { key: 'price', label: 'Price', render: (r) => orderPriceText(r) },
             { key: 'status', label: 'Status', render: (r) => <Status value={r.status} /> },
             {
               key: 'latency_ms',
@@ -286,7 +297,7 @@ export default function LiveOrders({
               ['Side', selected.side],
               ['Qty', selected.qty],
               ['Filled', selected.filled_qty],
-              ['Price', selected.price ?? '—'],
+              ['Price', orderPriceText(selected)],
               ['Status Code', selected.status_code],
             ].map(([k, v]) => (
               <div key={String(k)}>
@@ -408,7 +419,8 @@ export default function LiveOrders({
           ) : (
             <>
               <p className="evidence-note">
-                Prices and timestamps are normalized for display. Order Status retains the raw
+                Prices use each exchange segment&apos;s Noren scale and timestamps are normalized for
+                display; a segment whose scale is unverified keeps its raw price. Order Status retains the raw
                 OrdStatus code. Fields marked “masked” never expose their original sensitive value.
               </p>
               <dl className="journal-field-grid">
@@ -418,7 +430,7 @@ export default function LiveOrders({
                       {title}
                       {maskedFields.has(field) && <span className="masked-label">masked</span>}
                     </dt>
-                    <dd>{journalFieldValue(journalFields[field])}</dd>
+                    <dd>{journalFieldText(field, journalFields[field], selected.price_scale)}</dd>
                   </div>
                 ))}
               </dl>
