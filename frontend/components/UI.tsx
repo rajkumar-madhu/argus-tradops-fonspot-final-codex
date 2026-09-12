@@ -80,7 +80,7 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
 }
 
 /** A failed read, explained for the operator: sign in, ask for a role, or retry. */
-export function ApiErrorState({ title, data }: { title: string; data: { _error?: string; _status?: number } | null | undefined }) {
+export function ApiErrorState({ title, data }: { title: string; data: Parameters<typeof apiErrorGuidance>[0] }) {
   const guidance = apiErrorGuidance(data);
   if (!guidance) return null;
   return (

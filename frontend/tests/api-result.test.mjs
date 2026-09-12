@@ -15,6 +15,32 @@ test('a missing role names the roles that grant access',()=>{
  assert.match(g.body,/trading_ops|auditor/);
 });
 
+test('a 403 with the API detail names the permission, the granting roles and the client',()=>{
+ const g=apiErrorGuidance({_error:'Your role does not grant access to this view (/api/orders)',_status:403,
+  _forbidden:{permission:'orders:read',granted_by:['auditor','super_admin','trading_ops'],app_roles:[],client_id:'tradeops-web'}});
+ assert.equal(g.kind,'forbidden');
+ assert.match(g.body,/orders:read/);
+ assert.match(g.body,/no TradeOps role/);
+ assert.match(g.body,/tradeops-web/);
+ assert.match(g.body,/auditor, super_admin or trading_ops/);
+ assert.match(g.body,/sign in again/i);
+});
+
+test('a 403 for a user who holds a narrower role says which one',()=>{
+ const g=apiErrorGuidance({_error:'x',_status:403,
+  _forbidden:{permission:'orders:read',granted_by:['auditor','trading_ops'],app_roles:['risk'],client_id:'tradeops-web'}});
+ assert.match(g.body,/Your token has risk/);
+ assert.doesNotMatch(g.body,/no TradeOps role/);
+});
+
+test('forbiddenDetail keeps only a well-formed API detail',async()=>{
+ const {forbiddenDetail}=await import('../lib/api-result.ts');
+ assert.equal(forbiddenDetail({detail:'Insufficient permission'}),undefined,'an older API sends a bare string');
+ assert.equal(forbiddenDetail(null),undefined);
+ const d=forbiddenDetail({detail:{permission:'orders:read',granted_by:['auditor'],app_roles:['risk'],client_id:'tradeops-web',extra:1}});
+ assert.deepEqual(d,{permission:'orders:read',granted_by:['auditor'],app_roles:['risk'],client_id:'tradeops-web'});
+});
+
 test('a genuine failure keeps the reason and never names a developer port',()=>{
  const g=apiErrorGuidance({_error:'API 502 (/api/overview)',_status:502});
  assert.equal(g.kind,'failed');
