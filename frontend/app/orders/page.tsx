@@ -3,6 +3,7 @@ import Shell from '@/components/Shell';
 import LiveOrders from '@/components/LiveOrders';
 import { ApiErrorState, PageHead } from '@/components/UI';
 import { apiError, getJSON } from '@/lib/api';
+import { sourceDisplayName } from '@/lib/data-source';
 
 export default async function Page({
   searchParams,
@@ -35,7 +36,7 @@ export default async function Page({
               ? `Historical journal snapshot · ${initial.from || '—'} to ${initial.to || '—'}`
               : 'Order flow from Noren Trader / OMS'
           }
-          badge={`${initial.count ?? initial.returned ?? 0} orders · ${initial.source || '—'}`}
+          badge={`${initial.count ?? initial.returned ?? 0} orders · ${sourceDisplayName(initial.source)}`}
         />
         <div className="orders-source-controls">
           <nav className="orders-source-tabs" aria-label="Order source">

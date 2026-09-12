@@ -2928,7 +2928,7 @@ td.ellipsis {
 }
 .section-head p {
   margin: 6px 0 0;
-  color: #62778d;
+  color: #556a80;
 }
 .text-link {
   color: var(--blue-ui);
@@ -3003,7 +3003,7 @@ td.ellipsis {
   font-size: 21px;
 }
 .split-text p {
-  color: #62778d;
+  color: #556a80;
   margin: 6px 0 14px;
 }
 .split-text ul {
@@ -3178,7 +3178,7 @@ td.ellipsis {
   font-size: 26px;
 }
 .trusted p {
-  color: #62778d;
+  color: #556a80;
   margin: 6px 0 22px;
 }
 .stats {
@@ -3436,7 +3436,7 @@ td.ellipsis {
   letter-spacing: -0.6px;
 }
 .auth-card > p {
-  color: #67798c;
+  color: #4e6376;
   margin: 0 0 22px;
   line-height: 1.5;
 }
@@ -3584,7 +3584,7 @@ td.ellipsis {
   border-radius: 9px;
   font-size: 13px;
   font-weight: 600;
-  color: #67798c;
+  color: #4e6376;
   text-decoration: none;
   transition:
     background 0.15s,
@@ -3616,7 +3616,7 @@ td.ellipsis {
 }
 .auth-card-head p {
   margin: 0;
-  color: #67798c;
+  color: #4e6376;
   font-size: 14px;
   line-height: 1.45;
 }
@@ -3733,7 +3733,7 @@ td.ellipsis {
   font-size: 11px;
   font-weight: 800;
   background: #e6eaef;
-  color: #67798c;
+  color: #4e6376;
 }
 .auth-step b {
   font-size: 12px;
@@ -4066,7 +4066,7 @@ td.ellipsis {
   margin: 12px 0 0;
 }
 .collector p {
-  color: #62778d;
+  color: #556a80;
   font-size: 15.5px;
   line-height: 1.6;
   margin: 12px 0 18px;
@@ -7404,17 +7404,6 @@ button, .btn, .primary-btn, .secondary-btn, .primary, .secondary {
 .primary, .primary-btn { box-shadow: 0 4px 12px -8px var(--brand-shadow); }
 :is(button, a, input, select, [tabindex]):focus-visible { outline: 3px solid var(--brand-focus); outline-offset: 2px; }
 
-.dashboard-theme {
-  background: var(--ground, #0d1319);
-}
-.dashboard-theme .marketbar { background: rgba(15, 21, 27, 0.96); }
-.dashboard-theme .page-head, .dashboard-theme .dashboard-head { border-color: var(--line); }
-.dashboard-theme .page-head h1::before, .dashboard-theme .dashboard-head h1::before { background: var(--brand); }
-.dashboard-theme .nav.active {
-  background: var(--brand);
-  box-shadow: none;
-}
-
 @media (max-width: 1000px) {
   .app-shell { grid-template-columns: 1fr; }
   .marketbar { padding: 0 16px; }
@@ -7582,22 +7571,6 @@ table tbody tr:hover { background: #e6f0ec; }
 .briefing-item { background: var(--surface); }
 .briefing-item:hover { background: #e6f0ec; }
 .dashboard-context-strip { background: rgba(243, 245, 246, 0.9); }
-
-.dashboard-theme {
-  --ground: #0A1018;
-  --surface: #111A23;
-  --surface-2: #16212C;
-  --surface-muted: #16212C;
-  --ink: #E7EDF3;
-  --ink-2: #B4C1CD;
-  --muted: #8494A2;
-  --line: #22303D;
-  --line-soft: #1A2632;
-}
-.dashboard-theme .marketbar { background: rgba(15, 21, 27, 0.96); }
-.dashboard-theme .dashboard-context-strip { background: rgba(20, 28, 38, 0.72); }
-.dashboard-theme table thead th { background: #19232f; color: #8ca1b5; }
-.dashboard-theme table tbody tr:hover, .dashboard-theme .briefing-item:hover { background: #233140; }
 
 @media (max-width: 800px) {
   .dashboard-source-strip { grid-template-columns: 1fr; gap: 5px; }
@@ -7978,7 +7951,7 @@ table tbody tr:hover { background: #e6f0ec; }
 .cc-section-head h2 { margin: 0; font-size: 18px; color: var(--text); }
 .cc-section-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-muted); }
 .command-center .cc-ok { --cc: var(--green); }
-.command-center .cc-warn { --cc: var(--amber); }
+.command-center .cc-warn { --cc: var(--amber); --cc-text: var(--amber-ink); }
 .command-center .cc-bad { --cc: var(--red); }
 .command-center .cc-idle { --cc: var(--muted); }
 
@@ -7991,7 +7964,7 @@ table tbody tr:hover { background: #e6f0ec; }
 .cc-tile-label { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); }
 .cc-tile-main { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .cc-tile-icon { color: var(--cc); flex: none; display: inline-flex; }
-.cc-tile-main b { display: block; font-size: 17px; line-height: 1.15; color: var(--cc); overflow-wrap: anywhere; }
+.cc-tile-main b { display: block; font-size: 17px; line-height: 1.15; color: var(--cc-text, var(--cc)); overflow-wrap: anywhere; }
 .cc-tile-main small { display: block; font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
 .cc-tile-foot { font-size: 11.5px; color: var(--text-muted); border-top: 1px solid var(--border-soft); padding-top: 7px; }
 
@@ -8209,13 +8182,13 @@ table tbody tr:hover { background: #e6f0ec; }
   display: inline-block; min-width: 74px; text-align: center; padding: 2px 8px; border-radius: 4px;
   font-size: 11.5px; font-weight: 600; text-transform: none; letter-spacing: 0; border: 0;
 }
-.app-shell .order-status.rejected { background: #fde4e4; color: #d92d2f; }
-.app-shell .order-status.complete, .app-shell .order-status.completed { background: #dcf5e6; color: #138a3e; }
-.app-shell .order-status.pending, .app-shell .order-status.trigger_pending { background: #fdefd5; color: #c77700; }
+.app-shell .order-status.rejected { background: #fde4e4; color: #b71f22; }
+.app-shell .order-status.complete, .app-shell .order-status.completed { background: #dcf5e6; color: #0f6b31; }
+.app-shell .order-status.pending, .app-shell .order-status.trigger_pending { background: #fdefd5; color: #8a5300; }
 .app-shell .order-status.open { background: #f5ebdd; color: #976008; }
 .app-shell .order-status.cancelled { background: #eff1f4; color: #56697b; }
 .app-shell .order-side.buy { color: #976008; font-weight: 700; }
-.app-shell .order-side.sell { color: #e5383b; font-weight: 700; }
+.app-shell .order-side.sell { color: #c8262a; font-weight: 700; }
 
 .app-shell .primary, .app-shell button.primary, .app-shell .primary-btn { background: #976008; border-color: #976008; color: #fff; border-radius: 6px; }
 .app-shell .primary:hover, .app-shell button.primary:hover, .app-shell .primary-btn:hover { background: #7a4d06; }
@@ -8307,10 +8280,10 @@ table tbody tr:hover { background: #e6f0ec; }
 .ref-chart .vbar-col span { white-space: nowrap; }
 .ref-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ref-pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; }
-.ref-pill.ok { background: #dcf5e6; color: #138a3e; }
+.ref-pill.ok { background: #dcf5e6; color: #0f6b31; }
 .ref-pill.info { background: #f5ebdd; color: #976008; }
-.ref-pill.warn { background: #fdefd5; color: #c77700; }
-.ref-pill.bad { background: #fde4e4; color: #d92d2f; }
+.ref-pill.warn { background: #fdefd5; color: #8a5300; }
+.ref-pill.bad { background: #fde4e4; color: #b71f22; }
 .ref-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #96a8b9; vertical-align: middle; }
 .ref-dot.ok { background: #16a34a; }
 .ref-health { list-style: none; margin: 0; padding: 4px 16px 14px; }
@@ -8426,7 +8399,7 @@ table tbody tr:hover { background: #e6f0ec; }
 .infra-topology li span { color: #67788a; font-size: 11.5px; }
 /* Tone variables usable outside the Command Center (pills, dots, topology). */
 .cc-ok { --cc: var(--green); }
-.cc-warn { --cc: var(--amber); }
+.cc-warn { --cc: var(--amber); --cc-text: var(--amber-ink); }
 .cc-bad { --cc: var(--red); }
 .cc-idle { --cc: var(--muted); }
 .infra-page .ref-table td { white-space: normal; }
@@ -8619,17 +8592,6 @@ table tbody tr:hover { background: #e6f0ec; }
   background: transparent;
   cursor: pointer;
 }
-.dashboard-theme .palette {
-  background: #141d26;
-  border-color: #2a3541;
-  color: #e9edf1;
-}
-.dashboard-theme .palette-input,
-.dashboard-theme .palette-foot { border-color: #2a3541; }
-.dashboard-theme .palette-input input { color: #e9edf1; }
-.dashboard-theme .palette-list li { color: #c5ceda; }
-.dashboard-theme .palette-list li.active { background: #233140; color: #f29c11; }
-.dashboard-theme .palette kbd { background: #1b2633; border-color: #2a3541; color: #9fb1c2; }
 
 /* ── Logs Explorer (mockup 01_19_54) ── */
 .lx-tabs a { display: inline-flex; align-items: center; padding: 7px 22px; border-right: 1px solid #dde3e9; font-size: 13px; color: #1f2b3a; text-decoration: none; }
@@ -8678,11 +8640,6 @@ table tbody tr:hover { background: #e6f0ec; }
   .lx-charts, .lx-main { grid-template-columns: 1fr; }
   .lx-quick { position: static; max-height: none; }
 }
-.dashboard-theme .lx-source, .dashboard-theme .lx-query-field, .dashboard-theme .lx-btn { background: #141d26; border-color: #2a3541; color: #c5ceda; }
-.dashboard-theme .lx-query-field input { color: #e9edf1; }
-.dashboard-theme .lx-facet summary, .dashboard-theme .lx-facet-row.selected { color: #e9edf1; }
-.dashboard-theme .lx-facet-row { color: #c5ceda; }
-.dashboard-theme .lx-facet { border-color: #2a3541; }
 
 /* ── Argus palette: status colours ───────────────────────────────────────────
    From the Argus Tradeops design (artifact c7de5260): gold is for actions only,
@@ -8904,3 +8861,38 @@ table tbody tr:hover { background: #e6f0ec; }
   .oi-when, .oi-actions { grid-column: 1 / -1; }
   .oi-grid { grid-template-columns: 1fr; }
 }
+
+/* Small-text AA on light surfaces. `--amber` (#F59E0B) and `--brand` (#9C6D22) are
+   fill colours: as small text they measure 2.15:1 and 4.27:1 on a tinted row. The
+   `-ink` pair is the same family at 4.5:1+ everywhere, and is for text only. */
+.app-shell { --amber-ink: #8a5300; --brand-ink: #8a5f1c; }
+.app-shell .mission-row-actions a,
+.app-shell .text-blue { color: var(--brand-ink) !important; }
+.app-shell .cc-quality dd.warn { color: var(--amber-ink); }
+
+/* ── Small screens: KPI tiles ────────────────────────────────────────────────
+   `.ref-kpis.six` only had a <=1200px rule (3 columns), and being later in the
+   file it beat the generic `.kpi-grid.six` two-column rule at <=600px. At 390px
+   that clipped every tile label ("TOTAL ORDER…", "BROKE… ACTI…") and broke the
+   delta line one word per line. */
+@media (max-width: 600px) {
+  .ref-kpis.six,
+  .app-shell .live-orders-kpis.ref-kpis.six,
+  .app-shell .ref-kpis.six { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell .kpi-card-label { white-space: normal; overflow-wrap: anywhere; }
+  .app-shell .ref-kpis.six .kpi-card-value { font-size: 20px; }
+}
+/* These three measured below 4.5:1 on light surfaces: table links and the
+   untranslated-code marker used fill colours, and .lx-muted was lighter than
+   the muted token. */
+.app-shell .orders-table a,
+.app-shell .table-scroll a,
+.app-shell table tbody a { color: var(--brand-ink); }
+.app-shell .lx-facet-value sup,
+.app-shell .jx-facet-value sup,
+.app-shell .jx-code.untranslated sup { color: var(--amber-ink); }
+.app-shell .lx-muted { color: var(--muted); }
+/* Configuration cards: the status word was #16a34a (3.3:1) and the zero state
+   #8598aa (2.97:1) on white. Same families, AA-compliant. */
+.app-shell .cfg-text em { color: #0f7a37; }
+.app-shell .cfg-text em.zero { color: var(--muted); }

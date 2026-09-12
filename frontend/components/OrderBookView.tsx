@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { DataTable, KPI, OrderDetailPanel, PageHead, StatusBadge } from "@/components/UI";
 import { orderPriceText, timeShort } from "@/lib/format";
+import { sourceDisplayName } from "@/lib/data-source";
 
 export default function OrderBookView({ initial }: { initial: any }) {
   const rows = initial?.items || [];
@@ -20,7 +21,7 @@ export default function OrderBookView({ initial }: { initial: any }) {
       <PageHead
         title="Order Book"
         subtitle="Open and pending Noren orders with full correlation context"
-        badge={`${initial?.count || rows.length} open · ${initial?.source || "—"}`}
+        badge={`${initial?.count || rows.length} open · ${sourceDisplayName(initial?.source)}`}
         badgeTone="ok"
       />
       <section className="kpi-grid four">

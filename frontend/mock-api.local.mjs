@@ -160,6 +160,133 @@ const staticRoutes = {
     count: 6,
     source: "demo",
   },
+  // ── File analytics + journal explorer ─────────────────────────────────────
+  // Shapes mirror app/file_routes.py and app/journal_explore.py so /data-quality,
+  // /order-latency (incl. Stage timing) and /logs render in the preview instead of
+  // showing "unavailable". Numbers are fixtures, like every other route here.
+  "/api/files/sources": {
+    source: "csv snapshot",
+    count: 3,
+    unit: "us",
+    latency_unit: "us",
+    refresh_policy: "Startup snapshot. Restart the API after replacing source files.",
+    items: [
+      { name: "ORDERLATENCY20260907.csv", kind: "latency", instance: "latency", state: "Ready", bytes: 184320,
+        rows: 1820, accepted: 1815, rejected: 5, duplicates: 0, invalid_values: 2, missing_values: 3,
+        timestamp_mismatches: 0, processed_rows: 1820, accepted_rows: 1815, imported_at: "2026-09-07T03:31:00+00:00",
+        sha256: "4f1c9b7e2a6d5308", duration_seconds: 0.42 },
+      { name: "QueSize_QKBT1_20260907.csv", kind: "queue", instance: "QKBT1", state: "Partial data", bytes: 40960,
+        rows: 420, accepted: 402, rejected: 18, duplicates: 0, invalid_values: 18, missing_values: 0,
+        timestamp_mismatches: 0, processed_rows: 420, accepted_rows: 402, imported_at: "2026-09-07T03:31:01+00:00",
+        sha256: "9c22ab40f1de7755", duration_seconds: 0.08 },
+      { name: "ORDERLATENCYSORTED20260907.csv", kind: "hops", instance: "hops", state: "Ready", bytes: 12288,
+        rows: 10, accepted: 10, rejected: 0, duplicates: 0, stages: 84, invalid_values: 0, missing_values: 0,
+        timestamp_mismatches: 0, processed_rows: 10, accepted_rows: 10, imported_at: "2026-09-07T03:31:02+00:00",
+        sha256: "1b07f5c6d9e34a21", duration_seconds: 0.03 },
+    ],
+  },
+  "/api/files/latency": {
+    source: "csv snapshot",
+    unit: "us",
+    count: 1815,
+    unique_orders: 1640,
+    bucket_seconds: 300,
+    summary: {
+      oms: { samples: 1815, p50: 412, p90: 1180, p95: 2340, p99: 8900, max: 96046 },
+      confirmation: { samples: 1702, p50: 980, p90: 2450, p95: 4100, p99: 12400, max: 128300 },
+    },
+    choices: { segment: ["NSE", "BSE", "NFO"], status: ["COMPLETE", "REJECTED", "OPEN"] },
+    facets: { segments: ["NSE", "BSE", "NFO"], statuses: ["COMPLETE", "REJECTED", "OPEN"] },
+    trend: Array.from({ length: 8 }).map((_, i) => ({
+      time: new Date(Date.parse("2026-09-07T03:30:00+00:00") + i * 300000).toISOString(),
+      oms: [380, 402, 455, 610, 528, 470, 431, 415][i],
+    })),
+    by_segment: [
+      { segment: "NSE", count: 1120, events: 1120, oms: { samples: 1120, p50: 395, p95: 2100, max: 41200 } },
+      { segment: "BSE", count: 402, events: 402, oms: { samples: 402, p50: 430, p95: 2480, max: 18400 } },
+      { segment: "NFO", count: 293, events: 293, oms: { samples: 293, p50: 470, p95: 3020, max: 96046 } },
+    ],
+    items: Array.from({ length: 10 }).map((_, i) => ({
+      file: "ORDERLATENCY20260907.csv", fingerprint: `fp-${i}`, order_id: `26090700000${120 + i}`,
+      segment: ["NSE", "BSE", "NFO"][i % 3], event_time: new Date(Date.parse("2026-09-07T03:31:00+00:00") + i * 4000).toISOString(),
+      oms: [412, 380, 1180, 2340, 455, 610, 528, 470, 8900, 431][i], confirmation: [980, 1020, 2450, 4100, 1120, 1380, 1240, 1090, 12400, 1010][i],
+      oms_status: ["COMPLETE", "COMPLETE", "REJECTED", "COMPLETE", "OPEN"][i % 5],
+    })),
+    notes: [
+      "Rows are observations, not necessarily unique orders. Exact duplicate rows within each source are excluded.",
+      "Source timestamps normalize to UTC; textual IST timestamps use Asia/Kolkata.",
+    ],
+  },
+  "/api/files/hops": {
+    source: "csv snapshot",
+    unit: "us",
+    orders: 10,
+    note: "Stage codes are shown as recorded; stage names pending Noren definitions.",
+    choices: { segment: ["NSE", "BSE"], instance: ["QKBT1", "QKBT2"] },
+    stages: [
+      { stage: "82", orders: 10, samples: 10, p50: 392.3, p90: 800, p95: 824.5, p99: 826.5, max: 826.5 },
+      { stage: "79", orders: 10, samples: 10, p50: 235.3, p90: 600, p95: 644.3, p99: 644.3, max: 644.3 },
+      { stage: "80", orders: 10, samples: 10, p50: 500, p90: 900, p95: 923.5, p99: 923.5, max: 923.5 },
+      { stage: "46", orders: 10, samples: 10, p50: 1030, p90: 90000, p95: 94062, p99: 94062, max: 94062 },
+      { stage: "47", orders: 10, samples: 10, p50: 1810, p90: 92000, p95: 95840, p99: 95840, max: 95840 },
+      { stage: "50/49", orders: 4, samples: 4, p50: 1970, p90: 2500, p95: 2570, p99: 2570, max: 2570 },
+    ],
+    slowest: [
+      { order_id: "26090700000017", segment: "NSE", instance: "QKBT2", stages: 8, span_us: 96046, first_start: "2026-09-07T03:31:04+00:00" },
+      { order_id: "26090700000018", segment: "NSE", instance: "QKBT2", stages: 8, span_us: 95870, first_start: "2026-09-07T03:31:05+00:00" },
+      { order_id: "26090700000027", segment: "BSE", instance: "QKBT1", stages: 9, span_us: 6770, first_start: "2026-09-07T03:31:06+00:00" },
+      { order_id: "26090700000026", segment: "BSE", instance: "QKBT1", stages: 8, span_us: 6400, first_start: "2026-09-07T03:31:07+00:00" },
+    ],
+  },
+  "/api/journal/explore": {
+    source: "journal snapshot",
+    msg_type: "ordupd",
+    total: 18504,
+    count: 10,
+    limit: 10,
+    offset: 0,
+    columns: ["NorenTimeStamp_N", "NorenOrdNum", "ExchSeg", "TradSym", "TransType", "OrdStatus", "Qty", "PriceToFill", "RejReason"],
+    search_fields: ["NorenOrdNum", "TradSym", "ExchSeg"],
+    facets: [
+      { field: "ExchSeg", truncated: false, values: [
+        { value: "NSE", count: 11240, selected: false, label: null },
+        { value: "BSE", count: 4302, selected: false, label: null },
+        { value: "NFO", count: 2962, selected: false, label: null } ] },
+      { field: "OrdStatus", truncated: false, values: [
+        { value: "48", count: 7210, selected: false, label: "Open" },
+        { value: "50", count: 6104, selected: false, label: "Complete" },
+        { value: "56", count: 3190, selected: false, label: "Rejected" },
+        { value: "98", count: 2000, selected: false, label: null } ] },
+      { field: "TransType", truncated: false, values: [
+        { value: "B", count: 12100, selected: false, label: "Buy" },
+        { value: "S", count: 6404, selected: false, label: "Sell" } ] },
+    ],
+    histogram: {
+      level_field: "OrdStatus",
+      start: "2026-06-30T03:44:00+00:00",
+      end: "2026-06-30T03:54:00+00:00",
+      undated: 0,
+      buckets: Array.from({ length: 10 }).map((_, i) => ({
+        start: new Date(Date.parse("2026-06-30T03:44:00+00:00") + i * 60000).toISOString(),
+        count: [1820, 1902, 1750, 1988, 1840, 1902, 1760, 1812, 1880, 1850][i],
+        by: { "48": 720 + i * 4, "50": 610 + i * 3, "56": 320 - i * 2, "98": 170 },
+      })),
+    },
+    items: Array.from({ length: 10 }).map((_, i) => ({
+      source_line: 1204 + i,
+      fields: {
+        NorenTimeStamp_N: new Date(Date.parse("2026-06-30T03:44:01+00:00") + i * 3000).toISOString(),
+        NorenOrdNum: `26063000000${120 + i}`,
+        ExchSeg: ["NSE", "BSE", "NFO"][i % 3],
+        TradSym: ["VAML-EQ", "SAKSOFT-EQ", "NIFTY07JUL26P24000", "KEC-EQ"][i % 4],
+        TransType: i % 3 ? "B" : "S",
+        OrdStatus: [48, 50, 56, 48, 50][i % 5],
+        Qty: [50, 3, 10, 65, 100][i % 5],
+        PriceToFill: [43849, 198370, 19380, 21300, 30535][i % 5],
+        RejReason: i % 5 === 2 ? "RED:Margin shortfall [CNC]" : "",
+      },
+    })),
+  },
   "/api/order-latency": {
     "items": [
       {
@@ -488,6 +615,22 @@ function rca(orderId) {
   };
 }
 
+/** One order's stage timeline (backend: csv_store.hop_order) — offsets in microseconds. */
+function hopTrace(orderId) {
+  const stages = [
+    { stage: "46", position: 4, duration_us: 94062, start_us: 0, end_us: 94062 },
+    { stage: "47", position: 5, duration_us: 95840, start_us: 120, end_us: 95960 },
+    { stage: "82", position: 1, duration_us: 824.5, start_us: 95960, end_us: 96784.5 },
+    { stage: "79", position: 2, duration_us: 644.3, start_us: 96784.5, end_us: 97428.8 },
+  ];
+  return {
+    order_id: orderId, segment: "NSE", instance: "QKBT2",
+    files: ["ORDERLATENCYSORTED20260907.csv"],
+    first_start: "2026-09-07T03:31:04+00:00",
+    span_us: 96046, stages,
+  };
+}
+
 function routeKey(pathname) {
   if (staticRoutes[pathname]) return pathname;
   const basePath = pathname.split("?")[0];
@@ -495,6 +638,10 @@ function routeKey(pathname) {
   if (basePath.startsWith("/api/orders/") && basePath.endsWith("/lifecycle")) {
     const orderId = decodeURIComponent(basePath.slice("/api/orders/".length, -"/lifecycle".length));
     return { type: "lifecycle", orderId };
+  }
+  if (basePath.startsWith("/api/files/hops/")) {
+    const orderId = decodeURIComponent(basePath.slice("/api/files/hops/".length));
+    return { type: "hopTrace", orderId };
   }
   if (basePath.startsWith("/api/rca/order/")) {
     const orderId = decodeURIComponent(basePath.slice("/api/rca/order/".length));
@@ -558,6 +705,7 @@ http
     if (typeof key === "object") {
       if (key.type === "lifecycle") return json(res, 200, lifecycle(key.orderId));
       if (key.type === "rca") return json(res, 200, rca(key.orderId));
+      if (key.type === "hopTrace") return json(res, 200, hopTrace(key.orderId));
       if (key.type === "stream") return handleStream(req, res, key.kind);
     }
     return json(res, 200, staticRoutes[key]);

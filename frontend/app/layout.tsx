@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import "./dashboard-theme.css";
 import "./market-monitor.css";
 import { serverRuntimeConfig } from "@/lib/runtime";
 

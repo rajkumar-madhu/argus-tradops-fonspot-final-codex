@@ -16,7 +16,7 @@ import { sourceChip, type SourceChip } from "@/lib/data-source";
 import {
   Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, ChevronLeft,
   ChevronRight, CircleDollarSign, ClipboardList, FileText, Gauge, HelpCircle, Layers3, LineChart,
-  Lock, Moon, Network, Pin, Search, Server, Settings, ShieldCheck, Sun, Timer, Users, WalletCards, Menu,
+  Lock, Network, Pin, Search, Server, Settings, ShieldCheck, Timer, Users, WalletCards, Menu,
 } from "lucide-react";
 
 /** `lib/nav-model` is React-free so it can be unit tested; icons are bound here. */
@@ -71,7 +71,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionUser | null>(null);
   const [checked, setChecked] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dark, setDark] = useState(false);
 
   // Rail state. Preferences load in an effect rather than during render so the
   // server-rendered markup and the first client render agree.
@@ -82,8 +81,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [chip, setChip] = useState<SourceChip>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  useEffect(() => { try { setDark(localStorage.getItem('argus-theme') === 'dark'); } catch {} }, []);
-  function toggleTheme() { const next = !dark; setDark(next); try { localStorage.setItem('argus-theme', next ? 'dark' : 'light'); } catch {} }
 
   useEffect(() => { setPrefs(readPrefs()); setPrefsLoaded(true); }, []);
   useEffect(() => {
@@ -165,7 +162,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const expired = checked && !!session && isExpired(session);
 
   return (
-    <div className={`app-shell${dark ? " dashboard-theme" : ""}${menuOpen ? " menu-open" : ""}${collapsed ? " rail-collapsed" : ""}`}>
+    <div className={`app-shell${menuOpen ? " menu-open" : ""}${collapsed ? " rail-collapsed" : ""}`}>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar" id="app-navigation">
         <div className="brand">
@@ -238,7 +235,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <button type="button" className="nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="app-navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20}/></button><div className="env-pill">Read only</div>
           <MarketTicker variant="bar"/>
           <div className="market-right">
-            <button className="bell theme-toggle" type="button" onClick={toggleTheme} aria-pressed={dark} aria-label={dark ? "Light theme" : "Dark theme"} title={dark ? "Light theme" : "Dark theme"}>{dark ? <Sun size={17}/> : <Moon size={17}/>}</button>
             <Clock/>
             <form action="/logs" className="topsearch"><Search size={14}/><input name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><button type="button" className="kbd-btn" onClick={() => setPaletteOpen(true)} aria-label="Open command palette" title="Command palette"><kbd>⌘/Ctrl K</kbd></button></form>
             <Link href="/incidents" className="bell" aria-label="Alerts and incidents"><Bell size={17}/></Link>

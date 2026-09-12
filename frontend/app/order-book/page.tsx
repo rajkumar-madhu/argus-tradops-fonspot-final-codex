@@ -2,6 +2,7 @@ import Shell from "@/components/Shell";
 import OrderBookView from "@/components/OrderBookView";
 import { ApiErrorState, PageHead } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
+import { sourceDisplayName } from "@/lib/data-source";
 
 export default async function Page() {
   const initial: any = await getJSON("/api/order-book?size=200");
@@ -12,7 +13,7 @@ export default async function Page() {
       <PageHead
         title="Order Book"
         subtitle="Consolidated resting order book reconstructed from the Noren journal"
-        badge={`${initial.count ?? initial.returned ?? 0} orders · ${initial.source || "—"}`}
+        badge={`${initial.count ?? initial.returned ?? 0} orders · ${sourceDisplayName(initial.source)}`}
         badgeTone="ok"
       />
       {err ? (

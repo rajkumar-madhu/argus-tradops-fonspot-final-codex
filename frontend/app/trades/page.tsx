@@ -7,6 +7,7 @@ import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { tradeVolumeTrend } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
 import { dateShort, fmt, money, orderPriceText, timeShort } from "@/lib/format";
+import { sourceDisplayName } from "@/lib/data-source";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function Page({searchParams}: {searchParams: Promise<{lookb
           <p>Executed fills and trade economics from Noren order updates</p>
         </div>
         <div className="time-controls"><QueryWindow value={lookback} source={d.source}/>
-          <span className="source-tag">{rows.length} of {d.count || allRows.length} trades · {d.source || "—"}</span>
+          <span className="source-tag">{rows.length} of {d.count || allRows.length} trades · {sourceDisplayName(d.source)}</span>
         </div>
       </section>
 
