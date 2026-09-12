@@ -207,7 +207,7 @@ export function severityDonut(alerts: AlertRow[]) {
   return [
     { label: "Critical", value: counts.Critical, cls: "seg-red", pct: `${((counts.Critical / total) * 100).toFixed(1)}%` },
     { label: "Major", value: counts.Major, cls: "seg-amber", pct: `${((counts.Major / total) * 100).toFixed(1)}%` },
-    { label: "Minor", value: counts.Minor, cls: "seg-blue", pct: `${((counts.Minor / total) * 100).toFixed(1)}%` },
+    { label: "Minor", value: counts.Minor, cls: "seg-minor", pct: `${((counts.Minor / total) * 100).toFixed(1)}%` },
     { label: "Info", value: counts.Info, cls: "seg-purple", pct: `${((counts.Info / total) * 100).toFixed(1)}%` },
   ].filter((s) => s.value > 0);
 }
@@ -222,7 +222,7 @@ export function incidentStatusDonut(incidents: IncidentRow[]) {
   const palette: Record<string, string> = {
     OPEN: "seg-red",
     IN_PROGRESS: "seg-amber",
-    ON_HOLD: "seg-blue",
+    ON_HOLD: "seg-neutral",
     RESOLVED: "seg-green",
     CLOSED: "seg-green",
   };

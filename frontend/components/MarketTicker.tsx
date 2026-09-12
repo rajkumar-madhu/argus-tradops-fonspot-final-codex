@@ -72,14 +72,12 @@ export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "s
       }
 
       try {
-        const [healthRes, overviewRes] = await Promise.all([
-          fetch(`${apiUrl()}/health`, { cache: "no-store" }),
-          fetch(`${apiUrl()}/api/overview`, { cache: "no-store" }),
-        ]);
-        if (cancelled || !healthRes.ok || !overviewRes.ok) return;
-        const health = await healthRes.json();
+        // /api/overview carries the source itself. The old /health fallback 404'd behind
+        // ingresses that route only /api/* to the backend (UAT does).
+        const overviewRes = await fetch(`${apiUrl()}/api/overview`, { cache: "no-store" });
+        if (cancelled || !overviewRes.ok) return;
         const overview = await overviewRes.json();
-        const source = String(overview?.source || health?.data_source || "");
+        const source = String(overview?.source || "");
         if (!isJournalSource(source)) return;
         setJournal({
           orders: Number(overview?.orders ?? 0),

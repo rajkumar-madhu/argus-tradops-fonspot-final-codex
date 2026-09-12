@@ -37,6 +37,7 @@ output/
 design-qa.md
 L_ORDERLATENCY*.csv
 ORDERLATENCY_*.csv
+ORDERLATENCYSORTED*.csv
 QueSize_*.csv
 gen_order_latency.py
 latency.py

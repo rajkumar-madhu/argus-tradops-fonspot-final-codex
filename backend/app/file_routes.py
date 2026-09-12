@@ -1,11 +1,14 @@
 """Authenticated file analytics. Ingestion is operator-driven, never an HTTP write."""
 from datetime import datetime
+import logging
 from typing import Literal
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path as ApiPath, Query
 from fastapi.responses import StreamingResponse
 from app.auth import require
 from app.config import settings
 from app.file_analytics import FileAnalytics
+
+LOG = logging.getLogger('tradeops.file_routes')
 
 router=APIRouter(prefix='/api/files',tags=['File analytics'])
 _store: FileAnalytics | None = None
@@ -15,16 +18,25 @@ def initialize():
     global _store
     if settings.csv_dir:
         _store=FileAnalytics(settings.csv_cache_path,settings.csv_dir,max_bytes=settings.csv_max_bytes,unit=settings.csv_latency_unit,max_rows=settings.csv_max_rows)
-        _store.ingest()
         from app.metrics import CSV_LAST_IMPORT, CSV_QUEUE_LAST_EVENT, CSV_QUEUE_HAS_DATA
-        CSV_LAST_IMPORT.set(datetime.now().timestamp())
-        latest = {}
-        for item in _store.queues()["items"]:
-            stamp = datetime.fromisoformat(item["last_observed"]).timestamp() if item.get("last_observed") else 0
-            latest[item["instance"]] = max(latest.get(item["instance"], 0), stamp)
-        for instance, stamp in latest.items():
-            CSV_QUEUE_LAST_EVENT.labels(instance=instance).set(stamp)
-            CSV_QUEUE_HAS_DATA.labels(instance=instance).set(int(stamp > 0))
+        try:
+            _store.ingest()
+            # Only a successful import advances freshness: a failed one must not look recent.
+            CSV_LAST_IMPORT.set(datetime.now().timestamp())
+        except Exception:
+            # Keep the API up: a progress-handler interrupt or corrupt cache must
+            # not take down journal/ES routes. Operators restart after fixing sources.
+            LOG.exception('CSV ingest failed during startup; serving existing cache if any')
+        try:
+            latest = {}
+            for item in _store.queues()["items"]:
+                stamp = datetime.fromisoformat(item["last_observed"]).timestamp() if item.get("last_observed") else 0
+                latest[item["instance"]] = max(latest.get(item["instance"], 0), stamp)
+            for instance, stamp in latest.items():
+                CSV_QUEUE_LAST_EVENT.labels(instance=instance).set(stamp)
+                CSV_QUEUE_HAS_DATA.labels(instance=instance).set(int(stamp > 0))
+        except Exception:
+            LOG.exception('CSV queue metrics refresh failed after ingest')
 
 
 def store():
@@ -62,6 +74,18 @@ def export(f=Depends(filters),sort: Literal['time','oms','confirmation','order_i
 @router.get('/queues')
 def queues(instance: str=Query('',max_length=128),f=Depends(filters),user=Depends(require('latency:read'))):
     return store().queues(instance=instance,start=f['start'],end=f['end'])
+
+
+@router.get('/hops')
+def hops(segment: str=Query('',max_length=16),instance: str=Query('',max_length=64),user=Depends(require('latency:read'))):
+    return store().hops_summary(segment=segment,instance=instance)
+
+
+@router.get('/hops/{order_id}')
+def hop_order(order_id: str=ApiPath(...,max_length=32,pattern=r'^[A-Za-z0-9._-]+$'),user=Depends(require('latency:read'))):
+    trace=store().hop_order(order_id)
+    if trace is None:raise HTTPException(404,'No stage timings for this order')
+    return trace
 
 
 @router.get('/queues/export')

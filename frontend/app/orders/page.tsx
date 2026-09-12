@@ -1,7 +1,7 @@
 import QueryWindow, { queryWindow } from '@/components/QueryWindow';
 import Shell from '@/components/Shell';
 import LiveOrders from '@/components/LiveOrders';
-import { EmptyState, PageHead } from '@/components/UI';
+import { ApiErrorState, PageHead } from '@/components/UI';
 import { apiError, getJSON } from '@/lib/api';
 
 export default async function Page({
@@ -49,10 +49,7 @@ export default async function Page({
           {!snapshot && <QueryWindow value={lookback} source={initial.source} />}
         </div>
         {err ? (
-          <EmptyState
-            title="Unable to load orders"
-            body={`${err}. Confirm the API is running on port 8001.`}
-          />
+          <ApiErrorState title="Unable to load orders" data={initial} />
         ) : (
           <LiveOrders initial={initial} snapshot={snapshot} requestedOrder={params.order} overview={apiError(overview) ? null : overview} />
         )}

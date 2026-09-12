@@ -948,6 +948,7 @@ def runtime_config(user=Depends(require("dashboard:read"))):
         "journal_primary": settings.journal_primary,
         "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
         "auth_disabled": settings.auth_disabled,
+        "environment": settings.environment,
         "schema": "noren-v1",
         "indices": {
             "orders": settings.noren_order_index,

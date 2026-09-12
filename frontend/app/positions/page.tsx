@@ -2,6 +2,7 @@ import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, LineChart, RefreshCw, Scale, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
+import PositionsFlow from "@/components/PositionsFlow";
 import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
@@ -11,7 +12,7 @@ import { dateShort, fmt, money } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const d: any = await getJSON("/api/positions");
+  const [d, trades]: any[] = await Promise.all([getJSON("/api/positions"), getJSON("/api/trades?size=10000")]);
   const err = apiError(d);
   const rows = d.items || [];
   const netMtm = rows.reduce((s: number, r: any) => s + Number(r.mtm || 0), 0);
@@ -33,7 +34,7 @@ export default async function Page() {
       <section className="dashboard-head overview-head">
         <div>
           <h1>Positions</h1>
-          <p>Intraday net positions by symbol, product and exchange segment</p>
+          <p>Positions and filled flow across segments and exchanges</p>
         </div>
         <div className="time-controls"><RefreshButton/>
           <span className="source-tag">{err ? "Unavailable" : `${fmt(d.count ?? rows.length)} positions · ${sourceDisplayName(d.source)}`}</span>
@@ -43,10 +44,7 @@ export default async function Page() {
       {err ? (
         <EmptyState title="Unable to load positions" body={err} />
       ) : rows.length === 0 ? (
-        <EmptyState
-          title="Position snapshots unavailable"
-          body={d.note || "No RMS position snapshot is configured. Order events cannot be used to infer authoritative positions, P&L or exposure."}
-        />
+        <div className="ref-page"><PositionsFlow trades={trades} note={d.note} /></div>
       ) : (
         <>
           <section className="kpi-grid four">
@@ -73,7 +71,7 @@ export default async function Page() {
                 slices={[
                   { label: "Long", value: longs.length, cls: "seg-green", pct: rows.length ? `${((longs.length / rows.length) * 100).toFixed(0)}%` : "0%" },
                   { label: "Short", value: shorts.length, cls: "seg-red", pct: rows.length ? `${((shorts.length / rows.length) * 100).toFixed(0)}%` : "0%" },
-                  { label: "Flat", value: Math.max(0, rows.length - longs.length - shorts.length), cls: "seg-blue", pct: "—" },
+                  { label: "Flat", value: Math.max(0, rows.length - longs.length - shorts.length), cls: "seg-neutral", pct: "—" },
                 ]}
               />
             </div>

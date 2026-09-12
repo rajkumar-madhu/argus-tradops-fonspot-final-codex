@@ -1,7 +1,7 @@
 import { CheckCircle2, CircleAlert, Timer, Zap } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { HBarList } from '@/components/Charts';
-import { DataTable, EmptyState, KpiCard, PageHead } from '@/components/UI';
+import { ApiErrorState, DataTable, EmptyState, KpiCard, PageHead } from '@/components/UI';
 import { apiError, getJSON } from '@/lib/api';
 import { sourceBadgeText } from '@/lib/data-source';
 import { fmt } from '@/lib/format';
@@ -52,10 +52,7 @@ export default async function Page() {
       />
 
       {err && (
-        <EmptyState
-          title="Unable to load order latency"
-          body={`${err}. Confirm the API is running on port 8001.`}
-        />
+        <ApiErrorState title="Unable to load order latency" data={d} />
       )}
 
       {!err && rows.length === 0 && (

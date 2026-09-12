@@ -12,6 +12,7 @@
 import { apiUrl } from "@/lib/runtime";
 import { clearToken, setToken } from "@/lib/session";
 import { keycloakRegistrationUrl } from "@/lib/oidc-registration";
+import { authorizeParams, tokenErrorMessage } from "@/lib/oidc-flow";
 
 export type AuthConfig = {
   auth_disabled: boolean;
@@ -55,8 +56,8 @@ async function challengeFor(verifier: string): Promise<string> {
   return base64Url(digest);
 }
 
-/** Kicks off login. Sends the browser to Keycloak; never returns. */
-export async function login(returnTo = "/dashboard"): Promise<void> {
+/** Kicks off login. Sends the browser to Keycloak; never returns. `loginHint` pre-fills the username. */
+export async function login(returnTo = "/dashboard", loginHint?: string): Promise<void> {
   const cfg = await fetchAuthConfig();
   if (cfg.auth_disabled) {
     window.location.href = returnTo;
@@ -68,14 +69,12 @@ export async function login(returnTo = "/dashboard"): Promise<void> {
   sessionStorage.setItem(RETURN_KEY, returnTo);
   sessionStorage.setItem(`${VERIFIER_KEY}.state`, state);
 
-  const params = new URLSearchParams({
-    client_id: cfg.client_id,
-    redirect_uri: redirectUri(),
-    response_type: "code",
-    scope: "openid profile email",
+  const params = authorizeParams({
+    clientId: cfg.client_id,
+    redirectUri: redirectUri(),
     state,
-    code_challenge: await challengeFor(verifier),
-    code_challenge_method: "S256",
+    challenge: await challengeFor(verifier),
+    loginHint,
   });
   window.location.href = `${cfg.authorization_endpoint}?${params.toString()}`;
 }
@@ -108,7 +107,7 @@ export async function completeLogin(search: URLSearchParams): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
-  if (!res.ok) throw new Error(`Token exchange failed (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(tokenErrorMessage(res.status, await res.text().catch(() => ""), cfg.client_id));
   const token = await res.json();
   if (!token.access_token) throw new Error("Token endpoint returned no access_token");
 

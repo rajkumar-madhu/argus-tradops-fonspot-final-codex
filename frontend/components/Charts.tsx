@@ -368,10 +368,12 @@ function showTick(i: number, n: number, every: number) {
 }
 
 /** Stacked vertical bars, one colour per series (e.g. orders per bin by exchange). */
-export function StackedBars({ bins, series, height = 170, colors = SERIES_COLORS }: {
+export function StackedBars({ bins, series, height = 170, colors = SERIES_COLORS, width = 460 }: {
   bins: { label: string; values: number[] }[]; series: string[]; height?: number; colors?: string[];
+  /** viewBox width; raise it for a wide panel so the chart is not scaled up tall. */
+  width?: number;
 }) {
-  const w = 460;
+  const w = width;
   const pad = { l: 34, r: 8, t: 8, b: 20 };
   const plotW = w - pad.l - pad.r;
   const plotH = height - pad.t - pad.b;

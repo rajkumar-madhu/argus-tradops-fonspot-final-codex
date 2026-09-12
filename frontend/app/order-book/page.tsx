@@ -1,6 +1,6 @@
 import Shell from "@/components/Shell";
 import OrderBookView from "@/components/OrderBookView";
-import { EmptyState, PageHead } from "@/components/UI";
+import { ApiErrorState, PageHead } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
 
 export default async function Page() {
@@ -16,7 +16,7 @@ export default async function Page() {
         badgeTone="ok"
       />
       {err ? (
-        <EmptyState title="Unable to load order book" body={`${err}. Confirm the API is running on port 8001.`} />
+        <ApiErrorState title="Unable to load order book" data={initial} />
       ) : (
         <OrderBookView initial={initial} />
       )}

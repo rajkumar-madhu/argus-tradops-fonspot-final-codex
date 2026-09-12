@@ -2,6 +2,7 @@ import { healthTone } from "@/lib/health-state";
 import { sourceDisplayName } from "@/lib/data-source";
 import FilterableTable from "@/components/FilterableTable";
 import { fmt, orderPriceText } from "@/lib/format";
+import { apiErrorGuidance } from "@/lib/api-result";
 
 export function Card({ title, children, action }: { title?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -74,6 +75,19 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
     <div className="empty-state">
       <b>{title}</b>
       <p>{body}</p>
+    </div>
+  );
+}
+
+/** A failed read, explained for the operator: sign in, ask for a role, or retry. */
+export function ApiErrorState({ title, data }: { title: string; data: { _error?: string; _status?: number } | null | undefined }) {
+  const guidance = apiErrorGuidance(data);
+  if (!guidance) return null;
+  return (
+    <div className="empty-state">
+      <b>{guidance.kind === "signed-out" ? "Sign in to view this" : title}</b>
+      <p>{guidance.body}</p>
+      {guidance.kind === "signed-out" && <a className="btn primary" href="/signin">Sign in</a>}
     </div>
   );
 }

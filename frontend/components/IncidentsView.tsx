@@ -18,8 +18,8 @@ import RefreshButton from "@/components/RefreshButton";
 import { Donut, HBarList, StackedBars } from "@/components/Charts";
 
 // Matches alertsTrendSeries order: Critical, Major, Minor, Info.
-const SEVERITY_COLORS = ["#e5383b", "#f59e0b", "#0b5cff", "#9aa6bb"];
-import { EmptyState, KpiCard, Severity } from "@/components/UI";
+const SEVERITY_COLORS = ["#e5383b", "#f59e0b", "#1B6F80", "#8494A2"];
+import { ApiErrorState, EmptyState, KpiCard, Severity } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import {
   aiInsights,
@@ -122,7 +122,7 @@ export default function IncidentsView({ persisted, derived, rejections, yel }: I
       </section>
 
       {err ? (
-        <EmptyState title="Unable to load incidents" body={`${err}. Confirm the API is running on port 8001.`} />
+        <ApiErrorState title="Unable to load incidents" data={rejections} />
       ) : (
         <>
           <section className="kpi-grid six incidents-kpis">

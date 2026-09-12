@@ -1,6 +1,6 @@
 import Shell from "@/components/Shell";
 import SessionsOverview from "@/components/SessionsOverview";
-import { EmptyState } from "@/components/UI";
+import { ApiErrorState } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +15,7 @@ export default async function Page() {
   return (
     <Shell>
       {err ? (
-        <EmptyState
-          title="Unable to load sessions"
-          body={`${err}. Confirm the API is running on port 8001.`}
-        />
+        <ApiErrorState title="Unable to load sessions" data={apiError(sessions) ? sessions : summary} />
       ) : (
         <SessionsOverview data={sessions} summary={summary} />
       )}

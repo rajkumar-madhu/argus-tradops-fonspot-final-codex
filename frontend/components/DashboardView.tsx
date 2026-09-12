@@ -5,7 +5,7 @@ import RefreshButton from "@/components/RefreshButton";
 import QueryWindow from "@/components/QueryWindow";
 import MissionControlTable from "@/components/MissionControlTable";
 import { AreaChart, Donut, HBarList } from "@/components/Charts";
-import { EmptyState, KpiCard } from "@/components/UI";
+import { ApiErrorState, EmptyState, KpiCard } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import { platformHealth } from "@/lib/command-center";
 import { orderTrendFromRows, statusDonutSlices } from "@/lib/dashboard-data";
@@ -88,7 +88,6 @@ export default function DashboardView({
   const yelRows: any[] = (yelRecords?.items || []).slice(0, 5);
 
   const ovErr = apiError(ov);
-
   // The header describes the payload, so it has to know the payload failed.
   // Previously it fell through to the live wording and printed a zero count
   // directly above the "Unable to load overview" panel.
@@ -127,7 +126,7 @@ export default function DashboardView({
         <div>
           <div className="ref-title-row">
             <h1>Trading Operations Dashboard</h1>
-            <span className={`source-badge ${isJournal ? "file-based" : sourceBadgeTone(source)}`}>{sourceBadgeText(source)}</span>
+            <span className={`source-badge ${isJournal ? "file-based" : sourceBadgeTone(source, !ovErr)}`}>{sourceBadgeText(source, !ovErr)}</span>
           </div>
           <p>Monitoring for Noren Trader / OMS / RMS / Exchange / Infrastructure · {metaLine}</p>
         </div>
@@ -138,7 +137,7 @@ export default function DashboardView({
       </section>
 
       {ovErr ? (
-        <EmptyState title="Unable to load overview" body={`${ovErr}. Confirm the API is running and reachable.`} />
+        <ApiErrorState title="Unable to load overview" data={ov} />
       ) : (
         <>
           <section className="kpi-grid ref-kpis six mission-kpis" aria-label="Dashboard KPIs">
