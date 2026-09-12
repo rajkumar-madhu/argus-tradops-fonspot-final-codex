@@ -181,6 +181,43 @@ def _latency_ms(doc: dict[str, Any]) -> float | None:
     return None
 
 
+# The RMS writes the price band into the rejection text and mask_reason keeps it
+# readable on purpose (it is market data, not client data). Parsed here into
+# structured numbers so an investigation view can draw the band the order broke,
+# instead of asking an operator to read it out of a sentence.
+_BAND_FIELD = re.compile(r"\b(Current|LowerCircuit|UpperCircuit):INR\s*(-?[\d,]+(?:\.\d+)?)")
+_FREEZE_QTY = re.compile(r"freeze qty\D*(?:set\D*)?(\d+)\D*(?:current\D*)?(\d+)?", re.IGNORECASE)
+
+
+def price_band(reason: str) -> dict[str, Any] | None:
+    """Circuit band from a rejection reason, or None when the text carries none.
+
+    ``breach`` says which side the quoted price fell outside, and is None when
+    the price sits inside the band (the RMS also rejects for reasons the band
+    alone does not explain).
+    """
+    found = {key: float(value.replace(",", "")) for key, value in _BAND_FIELD.findall(str(reason or ""))}
+    if not found:
+        return None
+    current, lower, upper = found.get("Current"), found.get("LowerCircuit"), found.get("UpperCircuit")
+    breach = None
+    if current is not None:
+        if upper is not None and current > upper:
+            breach = "above"
+        elif lower is not None and current < lower:
+            breach = "below"
+    return {"current": current, "lower": lower, "upper": upper, "breach": breach, "unit": "INR"}
+
+
+def freeze_quantity(reason: str) -> dict[str, Any] | None:
+    """Exchange freeze quantity from a rejection reason, when it names one."""
+    match = _FREEZE_QTY.search(str(reason or ""))
+    if not match:
+        return None
+    allowed, requested = match.group(1), match.group(2)
+    return {"allowed": int(allowed), "requested": int(requested) if requested else None}
+
+
 def rejection_code(reason: str) -> str:
     reason = str(reason or "").strip()
     m = re.match(r"^([A-Z]{2,8}|\d{3,8})\s*[:\-]", reason)
@@ -294,6 +331,9 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
         "code": rejection_code(reason),
         "reason": mask_reason(reason) if mask_sensitive else reason,
         "rejection_category": rejection_category(reason),
+        # Structured market limits from the same text, for the investigation chart.
+        "price_band": price_band(reason),
+        "freeze_qty": freeze_quantity(reason),
         "source": "noren-ordupd",
     }
 

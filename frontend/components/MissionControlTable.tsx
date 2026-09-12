@@ -69,7 +69,7 @@ function OrderRecord({ order }: { order: any }) {
           {masked.length ? ` · ${masked.length} masked` : ""} · masked at projection
         </span>
         <span className="mission-row-actions">
-          <Link href={`/orders?order=${encodeURIComponent(order.order_id)}`}>Lifecycle ›</Link>
+          <Link href={`/orders/${encodeURIComponent(order.order_id)}`}>Investigate ›</Link>
           <Link href={`/rca?order_id=${encodeURIComponent(order.order_id)}`}>RCA ›</Link>
         </span>
       </div>

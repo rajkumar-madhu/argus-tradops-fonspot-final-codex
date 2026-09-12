@@ -103,7 +103,7 @@ export function DataTable({
     rows={rows.map((row, index) => ({
       id: rowKey(row, index),
       values: row,
-      cells: () => columns.map(c => c.render ? c.render(row) : row[c.key] == null ? "—" : typeof row[c.key] === "object" ? JSON.stringify(row[c.key]) : String(row[c.key])),
+      cells: columns.map(c => c.render ? c.render(row) : row[c.key] == null ? "—" : typeof row[c.key] === "object" ? JSON.stringify(row[c.key]) : String(row[c.key])),
     }))}
     selectedId={selectedId}
     onSelect={onRowClick}

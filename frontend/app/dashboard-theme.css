@@ -132,3 +132,16 @@
   background: #2a2412;
   color: #e0ae55;
 }
+
+/* Chart series in the dark desk: keep the informational teal leading, and keep
+   the band pills readable against the dark surface. */
+.app-shell.dashboard-theme {
+  --series-1: #4faabc;
+  --series-2: var(--up);
+  --series-3: #a78bfa;
+  --series-4: var(--accent);
+  --series-5: var(--down);
+  --series-6: #38bdf8;
+}
+.dashboard-theme .annotated .band-limit .band-pill { fill: rgba(224, 112, 112, .16); stroke: rgba(224, 112, 112, .38); }
+.dashboard-theme .chart-empty { background: var(--surface-2); border-color: var(--line); }

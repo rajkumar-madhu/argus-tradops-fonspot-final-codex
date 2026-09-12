@@ -44,3 +44,22 @@ export function tradeVolumeTrend(rows: { time: string; value: number }[]) {
     series: [{ name: "Turnover", points: values, cls: "s-executed" }],
   };
 }
+
+/**
+ * Keep reference-line labels from overlapping.
+ *
+ * Two limits can sit fractions apart — an order priced 1,465.00 against an
+ * upper circuit of 1,464.70 is exactly the case worth showing — and their pills
+ * would then print on top of each other. The lines stay at their true value;
+ * only the label is nudged, with a leader drawn back to the line.
+ */
+export function placeBands<T extends { value: number }>(bands: T[], y: (v: number) => number, gap = 17) {
+  const placed = bands
+    .map((band) => ({ band, lineY: y(band.value), labelY: y(band.value) }))
+    .sort((a, b) => a.lineY - b.lineY);
+  for (let i = 1; i < placed.length; i += 1) {
+    const previous = placed[i - 1].labelY;
+    if (placed[i].labelY - previous < gap) placed[i].labelY = previous + gap;
+  }
+  return placed;
+}

@@ -160,7 +160,7 @@ function OrderOverview({ fields }: { fields: Record<string, unknown> }) {
           </span>
         </div>
         <span className="jx-order-links">
-          {orderId && <Link href={`/orders?order=${encodeURIComponent(orderId)}`}>Lifecycle view ›</Link>}
+          {orderId && <Link href={`/orders/${encodeURIComponent(orderId)}`}>Investigate ›</Link>}
           {orderId && <Link href={`/rca?order_id=${encodeURIComponent(orderId)}`}>RCA ›</Link>}
         </span>
       </div>
