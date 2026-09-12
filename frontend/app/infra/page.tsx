@@ -6,7 +6,7 @@ import { HBarList } from "@/components/Charts";
 import { EmptyState, KpiCard } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
 import { stateTone } from "@/lib/command-center";
-import { sourceBadgeText, sourceDisplayName } from "@/lib/data-source";
+import { sourceBadgeText, sourceBadgeTone, sourceDisplayName } from "@/lib/data-source";
 import { fmt, priceDivisorsText } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +74,7 @@ export default async function Page() {
           <div>
             <div className="ref-title-row">
               <h1>Infrastructure</h1>
-              <span className={`source-badge ${source === "journal snapshot" ? "file-based" : "live"}`}>{sourceBadgeText(source)}</span>
+              <span className={`source-badge ${sourceBadgeTone(source)}`}>{sourceBadgeText(source)}</span>
             </div>
             <p>Servers, core services and data pipeline · source: {sourceDisplayName(source)}</p>
           </div>

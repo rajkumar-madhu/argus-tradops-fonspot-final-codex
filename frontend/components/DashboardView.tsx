@@ -12,7 +12,7 @@ import { orderTrendFromRows, statusDonutSlices } from "@/lib/dashboard-data";
 import { sourceBadgeText, sourceBadgeTone, sourceDisplayName } from "@/lib/data-source";
 import { fmt, journalWindowLabel } from "@/lib/format";
 import { istTime } from "@/lib/journal-explore";
-import { MISSION_KPI_DEFS, fileSourceStripMeta, rejectRatePct } from "@/lib/mission-control";
+import { MISSION_KPI_DEFS, dashboardMetaLine, fileSourceStripMeta, rejectRatePct } from "@/lib/mission-control";
 
 export type DashboardPayload = {
   lookback: string;
@@ -87,13 +87,19 @@ export default function DashboardView({
   const sessionRows: any[] = (sessions?.items || []).filter((s: any) => s.event === "login").slice(0, 5);
   const yelRows: any[] = (yelRecords?.items || []).slice(0, 5);
 
-  const metaLine = isJournal
-    ? `${fmt(Number(ov.journal_events || 0))} journal events · ${journalWindowLabel(ov.from, ov.to)} · uploaded history, not a live feed`
-    : isDemo
-      ? "Elasticsearch not connected"
-      : `${fmt(total)} orders in the ${lookback} window · live Elasticsearch read path`;
-
   const ovErr = apiError(ov);
+
+  // The header describes the payload, so it has to know the payload failed.
+  // Previously it fell through to the live wording and printed a zero count
+  // directly above the "Unable to load overview" panel.
+  const metaLine = dashboardMetaLine({
+    source,
+    errored: Boolean(ovErr),
+    totalText: fmt(total),
+    lookback,
+    journalEventsText: fmt(Number(ov.journal_events || 0)),
+    journalWindow: journalWindowLabel(ov.from, ov.to),
+  });
   const fileStrip = fileSourceStripMeta(fileSources);
 
   const kpiValues: Record<string, { value: string; delta: string; deltaTone?: "up" | "down" | "warn" | ""; tone: "blue" | "green" | "red" | "amber" | "purple" | "teal"; icon: ReactNode }> = {
