@@ -67,10 +67,10 @@ class MarketDataSession:
         return self._client.live_data.get(symbol)
 
 
-def _segment_lag(tick: dict[str, Any]) -> float:
+def _segment_lag(tick: dict[str, Any]) -> float | None:
     ts = tick.get("tick_time")
     if not ts:
-        return 0.0
+        return None
     try:
         if isinstance(ts, datetime):
             tick_at = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
@@ -78,7 +78,7 @@ def _segment_lag(tick: dict[str, Any]) -> float:
             tick_at = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
         return max(0.0, (datetime.now(timezone.utc) - tick_at).total_seconds() * 1000)
     except Exception:
-        return 0.0
+        return None  # an unparsable tick time is not zero lag
 
 
 def flush_once(session: MarketDataSession, specs: list) -> dict[str, Any]:
@@ -93,7 +93,9 @@ def flush_once(session: MarketDataSession, specs: list) -> dict[str, Any]:
         symbols.append(row)
         key = segment_key(spec.exchange, spec.segment)
         segment_counts[key] = segment_counts.get(key, 0) + 1
-        segment_lags[key] = max(segment_lags.get(key, 0.0), _segment_lag(row))
+        lag = _segment_lag(row)
+        if lag is not None:
+            segment_lags[key] = max(segment_lags.get(key, 0.0), lag)
     feeds, segments = build_feed_health(
         connected=session.connected,
         packets=len(symbols),

@@ -119,7 +119,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         if (hasSignal(count)) next[href] = count as number;
       }));
       if (!abort.signal.aborted) setSignals(next);
-      const parsed = sourceChip(await get("/api/config"));
+      const [config, fresh] = await Promise.all([get("/api/config"), get("/api/freshness")]);
+      const parsed = sourceChip(config, fresh);
       if (!abort.signal.aborted && parsed) setChip(parsed);
     })();
     return () => abort.abort();
@@ -223,7 +224,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="sidebar-foot">
           {chip
-            ? <span className={`nav-source tone-${chip.tone}`}><i aria-hidden="true" />{chip.text}</span>
+            ? <span className={`nav-source tone-${chip.tone}`} title={chip.detail || undefined}><i aria-hidden="true" />{chip.text}</span>
             : <span className="nav-source tone-unknown"><i aria-hidden="true" />Source unreported</span>}
           <div><Lock size={11} aria-hidden="true" />Read-only · never places orders</div>
           <Link href="/configuration" className="sidebar-help"><HelpCircle size={14} aria-hidden="true" />Help &amp; configuration</Link>

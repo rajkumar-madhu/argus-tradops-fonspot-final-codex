@@ -257,6 +257,8 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
         "eref": str(doc.get("Eref") or ""),
         "exchange_order_id": str(doc.get("ExchOrdNum") or ""),
         "time": _iso_from_unix(doc.get("NorenTimeStamp"), doc.get("NorenNsecs")),
+        # Beats receive clock (Logstash leaves @timestamp alone); absent in journal files.
+        "ingested_at": str(doc.get("@timestamp") or "") or None,
         "exchange_time": _iso_from_unix(doc.get("ExchTimeStamp"), doc.get("ExchNsecs")),
         "original_time": _iso_from_unix(doc.get("NorenOrgTimeStamp"), doc.get("NorenOrgNsecs")),
         "status": order_status(doc),

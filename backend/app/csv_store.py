@@ -247,6 +247,31 @@ class CsvStore:
                 'by_segment':segments,'trend':trend,'bucket_seconds':width,'choices':choices,'limit':limit,'offset':offset,
                 'note':'Events, not unique orders. Timing samples include valid zero values. Missing status is unavailable; duration units require a confirmed feed contract.'}
 
+    @staticmethod
+    def drain_snapshots(rows):
+        """Group (event_time, queue) rows into backlog-drain dumps.
+
+        A QueSize file is not a sampled time series: the OMS writes one row per
+        pending message while it drains a backlog, so QSz counts DOWN (750, 749,
+        ... 1) at ~140 rows/second and a new dump begins when it rises again.
+        The only depth that means anything is each dump's starting value; the
+        mean of a countdown is depth/2 and says nothing. The boundary is a rise:
+        real dumps drain to 1, so the next dump's first row is always higher.
+        """
+        snapshots=[];current=None;previous=None
+        for stamp,depth in rows:
+            if depth is None:continue
+            if current is None or (previous is not None and depth>previous):
+                if current:snapshots.append(current)
+                current={'start':stamp,'end':stamp,'depth':depth,'rows':0}
+            current['end']=stamp;current['rows']+=1;current['depth']=max(current['depth'],depth);previous=depth
+        if current:snapshots.append(current)
+        for s in snapshots:
+            seconds=max(0.0,(s['end'] or 0)-(s['start'] or 0));s['seconds']=round(seconds,1)
+            s['drain_rows_per_second']=round(s['rows']/seconds,1) if seconds>0 else None
+            s['start']=iso(s['start']);s['end']=iso(s['end'])
+        return snapshots
+
     def queues(self,**filters):
         where,args=self._where('queue',**filters)
         sources=[]
@@ -254,20 +279,23 @@ class CsvStore:
             for f in self.catalog()['files']:
                 if f['kind']!='queue' or (filters.get('instance') and f['instance']!=filters['instance']):continue
                 scoped=where+' AND file=?';params=args+[f['name']]
-                row=db.execute(f'SELECT count(*) AS samples,max(queue) AS peak,avg(queue) AS average,min(event_time) AS first,max(event_time) AS last FROM events WHERE {scoped}',params).fetchone()
+                row=db.execute(f'SELECT count(*) AS samples,max(queue) AS peak,min(event_time) AS first,max(event_time) AS last FROM events WHERE {scoped}',params).fetchone()
                 latest=db.execute(f'SELECT queue FROM events WHERE {scoped} ORDER BY event_time DESC,rowid DESC LIMIT 1',params).fetchone()
                 width=max(60,math.ceil(((row['last'] or 0)-(row['first'] or 0))/180))
                 trend=[{'time':iso(r[0]),'peak':r[1]} for r in db.execute(f'SELECT cast(event_time/? AS INTEGER)*?,max(queue) FROM events WHERE {scoped} GROUP BY 1 ORDER BY 1',[width,width]+params)]
-                distribution=db.execute(f'SELECT distribution(queue) FROM events WHERE {scoped}',params).fetchone()[0]
-                p99=json.loads(distribution)['p99'] if distribution else None
-                anomalies=db.execute(f'SELECT count(*) FROM events WHERE {scoped} AND queue>?',params+[p99]).fetchone()[0] if p99 is not None else 0
-                sources.append({'instance':f['instance'],'file':f['name'],'samples':row['samples'],'latest':latest[0] if latest else None,'peak':row['peak'],'average':row['average'],
+                snapshots=self.drain_snapshots(db.execute(f'SELECT event_time,queue FROM events WHERE {scoped} ORDER BY event_time,row_number,rowid',params).fetchall())
+                depths=sorted(s['depth'] for s in snapshots)
+                sources.append({'instance':f['instance'],'file':f['name'],'samples':row['samples'],'latest':latest[0] if latest else None,'peak':row['peak'],
+                                'snapshots':len(snapshots),'max_depth':depths[-1] if depths else None,'median_depth':depths[len(depths)//2] if depths else None,
+                                'drain_rows_per_second':round(sum(s['rows'] for s in snapshots)/sum(s['seconds'] for s in snapshots),1) if sum(s['seconds'] for s in snapshots)>0 else None,
+                                'drains':snapshots[-50:],
                                 'last_observed':iso(row['last']),'age_seconds':max(0,time.time()-row['last']) if row['last'] else None,
                                 'state':f['state'] if row['samples'] or not f['accepted'] else 'No matching rows',
-                                'freshness':'Stale snapshot' if row['last'] and time.time()-row['last']>300 else ('Recent observation' if row['last'] else 'No data received'),
-                                'anomalies':anomalies,'anomaly_rule':'Strictly above this filtered source p99; not a configured operational alert',
+                                # A daily batch file is never "stale" by wall clock; its day is its freshness.
+                                'freshness':'Daily batch' if row['last'] else 'No data received',
                                 'trend':trend,'bucket_seconds':width,'identical_content_to':f.get('identical_content_to')})
-        return {'source':'csv snapshot','sources':sources,'count':sum(s['samples'] for s in sources),'unit':'messages','note':'Instance aliases remain separate. Do not sum depths across potentially duplicated source files.'}
+        return {'source':'csv snapshot','sources':sources,'count':sum(s['samples'] for s in sources),'unit':'messages',
+                'note':'Each file is a sequence of backlog-drain dumps: one row per pending message while the OMS drains, so depth counts down and a rise starts a new dump. Reported depths are dump start values, never averages. Instance aliases remain separate; do not sum across possibly duplicated files.'}
 
     def export_rows(self,kind,sort='event_time',direction='asc',**filters):
         sort='event_time' if sort=='time' else sort

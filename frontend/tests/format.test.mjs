@@ -34,3 +34,12 @@ test('price divisors are grouped by value for the configuration view', () => {
  assert.equal(priceDivisorsText({ price_divisor: 100 }), '÷100', 'older API without the per-segment map');
  assert.equal(priceDivisorsText(null), '—');
 });
+
+test('counts distinguish measured zero from missing', async () => {
+ const { fmt } = await import('../lib/format.ts');
+ assert.equal(fmt(0), '0');
+ assert.equal(fmt(12345), '12,345');
+ assert.equal(fmt(undefined), '—');
+ assert.equal(fmt(null), '—');
+ assert.equal(fmt('x'), '—');
+});

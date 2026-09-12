@@ -285,7 +285,9 @@ type QueueSource = {
   instance?: string;
   latest?: number | null;
   peak?: number | null;
-  average?: number | null;
+  max_depth?: number | null;
+  snapshots?: number | null;
+  drain_rows_per_second?: number | null;
   state?: string;
   last_observed?: string | null;
   identical_content_to?: string | null;
@@ -301,7 +303,11 @@ export function queueInstances(queues: any) {
       instance: String(q.instance || "—"),
       latest: q.latest ?? null,
       peak: q.peak ?? null,
-      average: q.average ?? null,
+      // Depth of the largest backlog dump; a QueSize file is a set of countdown
+      // dumps, so its mean is meaningless and is not carried.
+      maxDepth: q.max_depth ?? q.peak ?? null,
+      snapshots: q.snapshots ?? null,
+      drainPerSecond: q.drain_rows_per_second ?? null,
       lastObserved: q.last_observed ? istClock(q.last_observed) : "—",
     })),
     total: items.length,

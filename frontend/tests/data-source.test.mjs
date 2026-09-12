@@ -47,3 +47,20 @@ test('a missing or failed config yields no rail chip at all', () => {
     assert.equal(sourceChip(bad), null);
   }
 });
+
+test('freshness badges: LIVE only while the newest event is inside the threshold', async () => {
+  const { ageText, freshnessBadge } = await import('../lib/data-source.ts');
+  assert.equal(freshnessBadge({ state: 'live', age_seconds: 4, ingest_lag_seconds: 1.2 }, 'elasticsearch').text, 'LIVE');
+  assert.match(freshnessBadge({ state: 'live', age_seconds: 4, ingest_lag_seconds: 1.2 }, 'elasticsearch').detail, /4 s ago · ingest lag 1 s/);
+  assert.deepEqual(freshnessBadge({ state: 'delayed', age_seconds: 200 }, 'elasticsearch').text, 'DELAYED');
+  assert.equal(freshnessBadge({ state: 'stale', age_seconds: 2000 }, 'elasticsearch').text, 'STALE');
+  assert.equal(freshnessBadge({ state: 'closed', age_seconds: 7200 }, 'elasticsearch').text, 'CLOSED');
+  assert.equal(freshnessBadge({ state: 'live', age_seconds: 1 }, 'journal snapshot').text, 'FILE-BASED', 'a file is never LIVE');
+  assert.equal(freshnessBadge({ state: 'live', age_seconds: 1 }, 'elasticsearch', { reason: 'elasticsearch unavailable' }).text, 'DELAYED', 'a fallback is never LIVE');
+  assert.equal(freshnessBadge(null, 'elasticsearch').text, 'OFFLINE');
+  assert.equal(freshnessBadge(null, 'demo').text, 'OFFLINE');
+  assert.equal(ageText(4), '4 s'); assert.equal(ageText(200), '3 min'); assert.equal(ageText(7800), '2 h 10 min'); assert.equal(ageText(null), '');
+  assert.deepEqual(sourceChip({ data_source: 'elasticsearch' }, { primary: { state: 'stale', age_seconds: 900 } }),
+    { text: 'STALE', tone: 'stale', detail: 'No event for 15 min during trading hours' });
+  assert.deepEqual(sourceChip({ data_source: 'elasticsearch' }, { _error: 'boom' }), { text: 'LIVE', tone: 'live' }, 'a failed freshness call falls back to the source badge');
+});

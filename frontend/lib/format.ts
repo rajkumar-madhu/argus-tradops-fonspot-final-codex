@@ -1,5 +1,8 @@
+/** Integer/count formatter. A missing value renders "—": 0 means measured zero. */
 export function fmt(v: unknown): string {
-  return Number(v || 0).toLocaleString();
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toLocaleString() : "—";
 }
 
 export function money(v: unknown): string {

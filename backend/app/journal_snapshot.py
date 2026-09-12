@@ -206,7 +206,14 @@ def load_journal(path: str) -> dict[str, Any]:
     complete = [row for row in items if row.get("status") == "COMPLETE"]
     open_orders = [row for row in items if row.get("status") in {"OPEN", "PENDING", "TRIGGER_PENDING"}]
 
+    loaded_at = datetime.now(timezone.utc)
+    try:
+        from app.metrics import JOURNAL_LOADED
+        JOURNAL_LOADED.set(loaded_at.timestamp())
+    except ImportError:
+        pass
     return {
+        "loaded_at": loaded_at.isoformat(),
         "items": items,
         "events": order_events,
         "sessions": session_events,

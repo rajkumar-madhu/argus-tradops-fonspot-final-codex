@@ -7,6 +7,7 @@ import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { mtmDistribution } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
 import { dateShort, fmt, money } from "@/lib/format";
+import { sourceDisplayName } from "@/lib/data-source";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
           <p>Delivery holdings, average cost, portfolio valuation and sector exposure</p>
         </div>
         <div className="time-controls"><RefreshButton/>
-          <span className="source-tag">{rows.length}{rows.length !== sourceRows.length ? ` of ${sourceRows.length}` : ""} holdings · {d.source || "—"}</span>
+          <span className="source-tag">{err ? "Unavailable" : `${fmt(rows.length)}${rows.length !== sourceRows.length ? ` of ${fmt(sourceRows.length)}` : ""} holdings · ${sourceDisplayName(d.source)}`}</span>
         </div>
       </section>
 

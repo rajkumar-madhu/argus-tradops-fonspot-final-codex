@@ -7763,6 +7763,13 @@ table tbody tr:hover { background: #e6f0ec; }
 .nav-source.tone-live i { background: #1bc790; box-shadow: 0 0 0 3px rgba(27, 199, 144, .16); }
 .nav-source.tone-file-based i { background: #d9a53c; box-shadow: 0 0 0 3px rgba(217, 165, 60, .16); }
 .nav-source.tone-warn i { background: #e0625a; box-shadow: 0 0 0 3px rgba(224, 98, 90, .16); }
+.nav-source.tone-delayed i { background: #d9a53c; box-shadow: 0 0 0 3px rgba(217, 165, 60, .16); animation: nav-pulse 1.6s ease-in-out infinite; }
+.nav-source.tone-stale i { background: #e0625a; box-shadow: 0 0 0 3px rgba(224, 98, 90, .16); animation: nav-pulse 1.2s ease-in-out infinite; }
+.nav-source.tone-closed i { background: #7c8798; box-shadow: 0 0 0 3px rgba(124, 135, 152, .16); }
+@keyframes nav-pulse { 50% { opacity: .35; } }
+.source-badge.delayed { background: rgba(217, 165, 60, .16); color: #b47f1a; }
+.source-badge.stale { background: rgba(224, 98, 90, .16); color: #b8433c; }
+.source-badge.closed { background: rgba(124, 135, 152, .16); color: #5b6675; }
 
 .sidebar-foot div {
   display: flex;

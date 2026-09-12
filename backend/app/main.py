@@ -97,17 +97,32 @@ def _use_journal_data() -> bool:
 
 
 def _with_data_source(live_fn, journal_fn):
+    """Live first; journal fallback, but never a *silent* one.
+
+    An Elasticsearch outage used to render as journal data with nothing in the
+    payload saying so. A fallback now carries ``fallback`` so the UI can label
+    the screen DELAYED/FILE-BASED instead of LIVE. Exception text is not
+    included: client errors carry the cluster URL.
+    """
     if _use_journal_data():
         return journal_fn()
     try:
         result = live_fn()
         if isinstance(result, dict) and result.get("source") == "demo" and _journal_path():
-            return journal_fn()
+            return _fallback(journal_fn(), "elasticsearch not configured")
         return result
     except Exception:
+        logging.getLogger("tradeops.api").warning(json.dumps({"event": "live_source_failed", "fallback": bool(_journal_path())}))
         if _journal_path():
-            return journal_fn()
+            return _fallback(journal_fn(), "elasticsearch unavailable")
         raise
+
+
+def _fallback(payload, reason: str):
+    if isinstance(payload, dict):
+        return {**payload, "fallback": {"from": "elasticsearch", "reason": reason,
+                                        "at": datetime.now(timezone.utc).isoformat()}}
+    return payload
 
 
 def _metrics_path(request: Request) -> str:
@@ -403,10 +418,15 @@ def _demo_rejections() -> dict[str, Any]:
     }
 
 
+_STARTED_AT = time.time()
+
+
 @app.get("/health")
 def health():
+    """Liveness only: the process answers. Dependencies are /health/ready."""
     return {
         "status": "ok",
+        "uptime_seconds": round(time.time() - _STARTED_AT, 1),
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
         "csv_configured": bool(settings.csv_dir),
@@ -427,6 +447,13 @@ def ready():
 @app.get("/api/event-bus/status")
 def event_bus_status(user=Depends(require("dashboard:read"))):
     return redis_status()
+
+
+@app.get("/api/freshness")
+def freshness(user=Depends(require("dashboard:read"))):
+    """Age of the newest data per source, classified live/delayed/stale/closed/batch."""
+    from app.freshness import summary
+    return summary(data_source="journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"))
 
 
 @app.get("/api/incidents")
@@ -784,6 +811,9 @@ def order_latency(user=Depends(require("latency:read"))):
             ]
             payload["oms_status_mapping_confirmed"] = True
         payload["feed_kind"] = feed_kind
+        # Both journal branches produce microseconds: _ms_to_us over Noren
+        # nanosecond clocks, or the µs L_ORDERLATENCY feed. Declared, not assumed.
+        payload["unit"] = "us"
         return payload
     if DEMO_MODE:
         return _latency_payload(DEMO_ORDER_LATENCY, "demo")

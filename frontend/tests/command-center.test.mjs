@@ -110,12 +110,16 @@ test('data quality sums per-file counters and returns null without files', () =>
 
 test('queue instances keep aliases separate and skip instances without data', () => {
   const q = queueInstances({ sources: [
-    { instance: 'NSE2', peak: 4470, latest: 1 },
+    { instance: 'NSE2', peak: 4470, latest: 1, max_depth: 4470, snapshots: 3, drain_rows_per_second: 139.2 },
     { instance: 'NSE', peak: 341, latest: 36 },
     { instance: 'BFO', peak: null, state: 'No data received' },
   ] });
   assert.deepEqual(q.rows.map((r) => r.instance), ['NSE2', 'NSE']);
   assert.equal(q.empty, 1);
+  // Drain-dump facts replace the mean of a countdown, which meant nothing.
+  assert.deepEqual([q.rows[0].maxDepth, q.rows[0].snapshots, q.rows[0].drainPerSecond], [4470, 3, 139.2]);
+  assert.deepEqual([q.rows[1].maxDepth, q.rows[1].snapshots], [341, null]);
+  assert.ok(!('average' in q.rows[0]));
 });
 
 test('a permission refusal is distinguished from an outage', () => {

@@ -89,7 +89,8 @@ Every read path resolves to one of three sources, and the chosen one is echoed i
 
 `/api/journal/explore` backs `/logs` (the Journal Explorer): paged masked rows, facet counts and an event histogram for one `msg_type` at a time. It reuses `journal_routes.allowed()`, so permission is per message type — `ordupd` needs `orders:read`, sessions need `sessions:read`, `yel_connected` needs `exchange:read`. That matters because `/logs` itself is granted via `logs:read`, which `infra_sre` holds without holding `orders:read`: the route is reachable but order records are not. Raw log search (`/api/logs/search`) stays empty under a journal source by design — source rows carry PAN, IP and session fields, so the explorer serves the masked projection instead.
 
-Operator-facing UI must never render the word "demo": `frontend/lib/data-source.ts` maps sources to badges (`LIVE` / `FILE-BASED` / `OFFLINE`). Route new `source` values through those helpers.
+Operator-facing UI must never render the word "demo": `frontend/lib/data-source.ts` maps sources to badges. The vocabulary is five states, not three: `LIVE` (newest event within `TRADEOPS_FRESH_LIVE_SECONDS`), `DELAYED`, `STALE` (quiet during trading hours), `CLOSED` (quiet outside `TRADEOPS_TRADING_HOURS`), `FILE-BASED`, `OFFLINE`. `/api/freshness` (`app/freshness.py`) is the source of those states; `freshnessBadge()` renders them and a live→journal `fallback` on any payload is always `DELAYED`, never `LIVE`. Route new `source` values through those helpers.
+- Failures are never zero: `_reject_rate` returns `None`, `yel_health().connected` is `None` when the index holds no `yel_connected` event (a data gap, not a P1), `_with_data_source` stamps `fallback` on a payload it served from the journal, and `fmt()` renders a missing count as `—`.
 
 ### Backend (`backend/app/`)
 

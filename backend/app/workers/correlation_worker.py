@@ -63,7 +63,9 @@ def _handle_rejection(payload: dict) -> None:
     publish("incidents", incident)
 
 def _handle_exchange(payload: dict) -> None:
-    if payload.get("connected"):
+    # connected is None when the index has no yel_connected evidence at all;
+    # that is a data gap the API reports, not a P1 gateway incident.
+    if payload.get("connected") is not False:
         return
     incident = upsert_incident(
         incident_type="YEL_CONNECTIVITY",
