@@ -113,3 +113,35 @@ export function applyMissionFacets<T extends Record<string, unknown>>(
     return true;
   });
 }
+
+/**
+ * The one-line summary printed under the dashboard title.
+ *
+ * It tells an operator what they are looking at, so it must never describe a
+ * feed the API did not report. When the overview call fails, `source` is empty
+ * and the counts collapse to 0 — falling through to the live wording then
+ * printed "0 orders in the 24h window · live Elasticsearch read path" above a
+ * panel that said the call had failed. A failure is not an observation of zero.
+ *
+ * Counts arrive pre-formatted so this stays a pure choice of sentence and the
+ * number formatting keeps living with the caller.
+ */
+export function dashboardMetaLine(input: {
+  source?: string | null;
+  errored?: boolean;
+  totalText?: string;
+  lookback?: string | null;
+  journalEventsText?: string;
+  journalWindow?: string | null;
+}): string {
+  const { source, errored, totalText, lookback, journalEventsText, journalWindow } = input;
+  // Two different facts, and the header should say which: the call failed, or
+  // it answered without naming a source. Neither licenses the live wording.
+  if (errored) return "overview unavailable — no counts for this window";
+  if (!source) return "data source unavailable — the API reported none for this window";
+  if (source === "journal snapshot") {
+    return `${journalEventsText ?? "—"} journal events · ${journalWindow ?? "—"} · uploaded history, not a live feed`;
+  }
+  if (source === "demo") return "Elasticsearch not connected";
+  return `${totalText ?? "—"} orders in the ${lookback ?? "—"} window · live Elasticsearch read path`;
+}

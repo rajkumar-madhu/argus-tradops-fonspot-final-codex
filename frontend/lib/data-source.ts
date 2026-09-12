@@ -12,6 +12,10 @@ export function sourceBadgeText(source?: string | null, connected = true): strin
   if (isJournalSource(source) || source === "csv snapshot") return "FILE-BASED";
   if (source === "demo") return "OFFLINE";
   if (!connected) return "OFFLINE";
+  // No source means the API did not answer, or answered without naming one.
+  // That is an absence of evidence, not evidence of a live feed — defaulting it
+  // to LIVE put a green badge above a page whose data call had 401'd.
+  if (!source) return "OFFLINE";
   return "LIVE";
 }
 
@@ -20,7 +24,7 @@ export function sourceBadgeTone(
   connected = true,
 ): "file-based" | "live" | "warn" {
   if (isJournalSource(source) || source === "csv snapshot") return "file-based";
-  if (source === "demo" || !connected) return "warn";
+  if (source === "demo" || !connected || !source) return "warn";
   return "live";
 }
 
