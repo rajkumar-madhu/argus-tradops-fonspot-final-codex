@@ -1,7 +1,7 @@
 import { healthTone } from "@/lib/health-state";
 import { sourceDisplayName } from "@/lib/data-source";
 import FilterableTable from "@/components/FilterableTable";
-import { fmt } from "@/lib/format";
+import { fmt, orderPriceText } from "@/lib/format";
 
 export function Card({ title, children, action }: { title?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -130,7 +130,7 @@ export function OrderDetailPanel({ order }: { order: any }) {
     ["Side", order.side],
     ["Qty", order.qty],
     ["Filled", order.filled_qty ?? 0],
-    ["Price", order.price ?? "—"],
+    ["Price", orderPriceText(order)],
     ["Status", order.status],
     ["Status Code", order.status_code],
     ["Latency", order.latency_ms == null ? "—" : `${order.latency_ms} ms`],

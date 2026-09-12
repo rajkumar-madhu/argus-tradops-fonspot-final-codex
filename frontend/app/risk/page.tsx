@@ -56,7 +56,7 @@ export default async function Page() {
         ) : (
           <>
             <section className="kpi-grid ref-kpis six">
-              <KpiCard label="Working Order Value" value={ordersDenied ? "—" : inr(exposure.total)} delta={ordersDenied ? "Requires order access" : `${fmt(exposure.count)} open / pending · equity & F&O`} tone="green" icon={<IndianRupee size={18} />} />
+              <KpiCard label="Working Order Value" value={ordersDenied ? "—" : inr(exposure.total)} delta={ordersDenied ? "Requires order access" : `${fmt(exposure.count)} open / pending${exposure.excluded ? ` · ${exposure.excludedVenues.join(", ")} excluded` : ""}`} tone="green" icon={<IndianRupee size={18} />} />
               <KpiCard label="Limit Utilization" value={limits.length ? `${limits.length} limits` : "—"} delta={limits.length ? "From the risk feed" : "No RMS limit feed connected"} tone="blue" icon={<Gauge size={18} />} />
               <KpiCard label="Open Position Risk (VaR)" value="—" delta="No position or VaR feed" tone="purple" icon={<PieChart size={18} />} />
               <KpiCard label="Margin Rejections" value={fmt(margin)} delta="RMS margin-shortfall rule hits" deltaTone={margin ? "down" : ""} tone="amber" icon={<ShieldAlert size={18} />} />
@@ -76,7 +76,7 @@ export default async function Page() {
                       labels={Array.from({ length: trend.n }, (_, i) => istTime(new Date(trend.start + i * trend.width).toISOString()).slice(0, 5))}
                       unit="L"
                     />
-                    <p className="ref-note">₹ lakh of open / pending order value placed in each bucket, for {trend.series.map((s) => s.name).join(", ")}. Order value, not a settled position.{exposure.excluded ? ` ${fmt(exposure.excluded)} CDS/MCX orders excluded: their price scale is not rupees.` : ""}</p>
+                    <p className="ref-note">₹ lakh of open / pending order value placed in each bucket, for {trend.series.map((s) => s.name).join(", ")}. Order value, not a settled position.{exposure.excluded ? ` ${fmt(exposure.excluded)} ${exposure.excludedVenues.join(", ")} orders excluded: their rupee notional is not established from the journal.` : ""}</p>
                   </div>
                 ) : (
                   <EmptyState title="No working orders" body="No open or pending order with a price in scope." />

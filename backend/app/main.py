@@ -34,6 +34,8 @@ from app.elastic.normalizer import (
     OMS_STATUS_MAPPING_CONFIRMED,
     exch_confirm_label,
     oms_status_label,
+    rupee_value,
+    segment_divisors,
 )
 from app.elastic.noren_service import (
     active_sessions,
@@ -174,11 +176,11 @@ def startup() -> None:
 
 # Synthetic demo values only. No records from the supplied Journal.log are embedded in the product package.
 DEMO_ORDERS = [
-    {"order_id":"DEMO-1001","eref":"501","exchange_order_id":"","time":"2026-09-07T09:15:01+00:00","exchange":"NSE","symbol":"ALPHA-EQ","side":"BUY","qty":10,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":125.5,"filled_qty":0,"cancelled_qty":0,"latency_ms":3.8,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1002","eref":"502","exchange_order_id":"","time":"2026-09-07T09:15:02+00:00","exchange":"BSE","symbol":"BETA","side":"SELL","qty":25,"product":"M","type":"MKT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":0,"filled_qty":0,"cancelled_qty":0,"latency_ms":5.1,"code":"RMS","reason":"RED:Margin Shortfall","rejection_category":"RMS / Margin","source":"demo"},
-    {"order_id":"DEMO-1003","eref":"503","exchange_order_id":"","time":"2026-09-07T09:15:04+00:00","exchange":"NSE","symbol":"GAMMA-EQ","side":"BUY","qty":50,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":412.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":2.9,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1004","eref":"504","exchange_order_id":"EX-77821","time":"2026-09-07T09:14:58+00:00","exchange":"NFO","symbol":"NIFTY24SEPFUT","side":"SELL","qty":75,"product":"M","type":"LMT","status":"PENDING","status_code":109,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":24150.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":4.2,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1005","eref":"505","exchange_order_id":"","time":"2026-09-07T09:16:11+00:00","exchange":"NSE","symbol":"DELTA-EQ","side":"BUY","qty":100,"product":"C","type":"LMT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":890.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":6.4,"code":"EXCH","reason":"RED:Price out of permissible range","rejection_category":"Exchange Validation","source":"demo"},
+    {"order_id":"DEMO-1001","eref":"501","exchange_order_id":"","time":"2026-09-07T09:15:01+00:00","exchange":"NSE","symbol":"ALPHA-EQ","side":"BUY","qty":10,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":125.5,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":3.8,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1002","eref":"502","exchange_order_id":"","time":"2026-09-07T09:15:02+00:00","exchange":"BSE","symbol":"BETA","side":"SELL","qty":25,"product":"M","type":"MKT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":5.1,"code":"RMS","reason":"RED:Margin Shortfall","rejection_category":"RMS / Margin","source":"demo"},
+    {"order_id":"DEMO-1003","eref":"503","exchange_order_id":"","time":"2026-09-07T09:15:04+00:00","exchange":"NSE","symbol":"GAMMA-EQ","side":"BUY","qty":50,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":412.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":2.9,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1004","eref":"504","exchange_order_id":"EX-77821","time":"2026-09-07T09:14:58+00:00","exchange":"NFO","symbol":"NIFTY24SEPFUT","side":"SELL","qty":75,"product":"M","type":"LMT","status":"PENDING","status_code":109,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":24150.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":4.2,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1005","eref":"505","exchange_order_id":"","time":"2026-09-07T09:16:11+00:00","exchange":"NSE","symbol":"DELTA-EQ","side":"BUY","qty":100,"product":"C","type":"LMT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":890.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":6.4,"code":"EXCH","reason":"RED:Price out of permissible range","rejection_category":"Exchange Validation","source":"demo"},
 ]
 
 DEMO_SESSIONS = [
@@ -566,12 +568,16 @@ def orders(
     q: str | None = None,
     size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
+    # The per-row journal projection is over half the payload of a large list.
+    # A feed that only needs the table can skip it and read the evidence from
+    # the lifecycle route for the one order an operator opens.
+    evidence: bool = Query(True),
     user=Depends(require("orders:read")),
 ):
     from app.journal_snapshot import journal_orders as journal_orders_data
 
     if _use_journal_data():
-        return journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q)
+        return journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence)
     if DEMO_MODE:
         items = DEMO_ORDERS
         if status: items = [x for x in items if x["status"].lower() == status.lower()]
@@ -581,7 +587,7 @@ def orders(
         return {"items":items[:size],"count":len(items),"source":"demo"}
     return _with_data_source(
         lambda: live_orders(size=size, lookback=lookback, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q),
-        lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q),
+        lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence),
     )
 
 
@@ -716,7 +722,9 @@ def trades(
                 "side": o.get("side"),
                 "qty": o.get("filled_qty") or o.get("qty"),
                 "price": o.get("price"),
-                "value": round(float(o.get("price") or 0) * float(o.get("filled_qty") or o.get("qty") or 0), 2),
+                "price_raw": o.get("price_raw"),
+                "price_scale": o.get("price_scale"),
+                "value": rupee_value(o.get("price"), o.get("filled_qty") or o.get("qty"), o.get("value_multiplier")),
                 "account": o.get("account"),
                 "user": o.get("user"),
                 "broker": o.get("broker"),
@@ -911,6 +919,8 @@ def runtime_config(user=Depends(require("dashboard:read"))):
         },
         "timestamp_field": settings.noren_timestamp_field,
         "price_divisor": settings.noren_price_divisor,
+        # Segments absent from this map are shown unnormalised as "unverified".
+        "price_divisors": segment_divisors(),
         "redis_label": settings.redis_public_label,
         "metrics_enabled": settings.metrics_enabled,
         "source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "runtime"),

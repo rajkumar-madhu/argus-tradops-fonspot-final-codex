@@ -6,7 +6,7 @@ import { AreaChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { tradeVolumeTrend } from "@/lib/chart-data";
 import { apiError, getJSON } from "@/lib/api";
-import { dateShort, fmt, money, timeShort } from "@/lib/format";
+import { dateShort, fmt, money, orderPriceText, timeShort } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -72,8 +72,8 @@ export default async function Page({searchParams}: {searchParams: Promise<{lookb
                 { key: "symbol", label: "Symbol" },
                 { key: "side", label: "Side", render: (r) => <span className={r.side === "BUY" ? "text-green" : "text-red"}>{r.side}</span> },
                 { key: "qty", label: "Qty" },
-                { key: "price", label: "Price", render: (r) => money(r.price) },
-                { key: "value", label: "Value", render: (r) => money(r.value) },
+                { key: "price", label: "Price", render: (r) => orderPriceText(r) },
+                { key: "value", label: "Value", render: (r) => (r.value === null || r.value === undefined ? "—" : money(r.value)) },
                 { key: "broker", label: "Broker" },
               ]}
             />

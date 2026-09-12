@@ -178,3 +178,16 @@ test("lifecycle steps are ordered oldest first with gaps and never carry reasons
   assert.equal(formatGap(90061000), "+1d 01h");
   assert.equal(formatGap(0), "+<1 ms", "same-timestamp events are not a measured zero");
 });
+
+test("lifecycle steps keep the raw price of a segment whose scale is unverified", async () => {
+  const { lifecycleSteps } = await import("../lib/journal-explore.ts");
+  const [verified, unverified] = lifecycleSteps([
+    { time: "2026-06-30T03:44:01Z", status_code: 48, price: 94.92, price_raw: 949200000, price_scale: "verified" },
+    { time: "2026-06-30T03:44:02Z", status_code: 48, price: null, price_raw: 554500, price_scale: "unverified" },
+  ]);
+  assert.equal(verified.price, 94.92);
+  assert.equal(verified.unverifiedScale, false);
+  assert.equal(unverified.price, null);
+  assert.equal(unverified.unverifiedScale, true);
+  assert.equal(unverified.priceRaw, 554500);
+});

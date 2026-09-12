@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { breachesByRule, brokerExposure, inr, orderValue, rmsBreaches, valueTrend, workingExposure } from '../lib/risk-overview.ts';
 
-const o = (extra) => ({ status: 'OPEN', exchange: 'NSE', broker: 'KBC', qty: 10, price: 100, time: '2026-06-30T03:44:00Z', ...extra });
+const o = (extra) => ({ status: 'OPEN', exchange: 'NSE', broker: 'KBC', qty: 10, price: 100, value_multiplier: 1, time: '2026-06-30T03:44:00Z', ...extra });
 
 test('order value needs a positive quantity and price', () => {
   assert.equal(orderValue(o({})), 1000);
@@ -46,9 +46,25 @@ test('value trend sums working value per bin for the busiest venues', () => {
   assert.equal(valueTrend([]), null);
 });
 
-test('currency and commodity orders are excluded from rupee value', () => {
-  const x = workingExposure([o({}), o({ exchange: 'CDS', qty: 1000, price: 9492000 }), o({ exchange: 'MCX' })]);
+test('commodity value applies the contract price multiplier', () => {
+  // GOLDM: 200 g at Rs 372 per 10 g, multiplier 0.1. The RMS required Rs 7,440.
+  assert.equal(orderValue(o({ exchange: 'MCX', qty: 200, price: 372, value_multiplier: 0.1 })), 7440);
+  const x = workingExposure([o({}), o({ exchange: 'MCX', qty: 1, price: 153800, value_multiplier: 100 })]);
+  assert.equal(x.total, 1000 + 15_380_000);
+  assert.equal(x.excluded, 0);
+  assert.deepEqual(x.venues.map((v) => v.name), ['MCX', 'NSE']);
+});
+
+test('orders without an established rupee notional are excluded, not summed', () => {
+  // CDS: price scale established (USDINR 94.92), notional convention not.
+  const cds = o({ exchange: 'CDS', qty: 1000, price: 94.92, value_multiplier: null });
+  const unverified = o({ exchange: 'NCDEX', price: null, value_multiplier: null });
+  const legacy = o({ value_multiplier: undefined });
+  const x = workingExposure([o({}), cds, unverified, legacy, o({ exchange: 'CDS', status: 'COMPLETE', value_multiplier: null })]);
   assert.equal(x.total, 1000);
-  assert.equal(x.excluded, 2);
-  assert.equal(orderValue(o({ exchange: 'CDS' })), 0);
+  assert.equal(x.excluded, 3);
+  assert.deepEqual(x.excludedVenues, ['CDS', 'NCDEX', 'NSE']);
+  assert.equal(orderValue(cds), 0);
+  assert.equal(orderValue(o({ value_multiplier: 0 })), 0);
+  assert.equal(orderValue(o({ value_multiplier: 'x' })), 0);
 });

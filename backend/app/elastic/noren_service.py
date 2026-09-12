@@ -153,7 +153,7 @@ def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
             {"terms": {"OrdStatus": [56, 65]}},
         ]}},
         "sort": _order_sort(True),
-        "_source": ["NorenOrdNum", "NorenTimeStamp", "NorenNsecs", "NorenOrgTimeStamp", "NorenOrgNsecs", "Eref", "OrdStatus", "ReportType", "AcctId", "UserId", "TradingSymbol", "ExchSeg", "TransType", "PriceType", "Product", "BrokerId", "Region", "QtyToFill", "PriceToFill", "RejReason", "RejBy", "ExchOrdNum"],
+        "_source": ["NorenOrdNum", "NorenTimeStamp", "NorenNsecs", "NorenOrgTimeStamp", "NorenOrgNsecs", "Eref", "OrdStatus", "ReportType", "AcctId", "UserId", "TradingSymbol", "ExchSeg", "TransType", "PriceType", "Product", "BrokerId", "Region", "QtyToFill", "PriceToFill", "RejReason", "RejBy", "ExchOrdNum", "Scripupdate.PriceMultiplier"],
     }
     result = es.search(index=settings.noren_order_index, body=body)
     docs = [h.get("_source", {}) for h in result.get("hits", {}).get("hits", [])]

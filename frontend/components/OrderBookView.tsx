@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { DataTable, KPI, OrderDetailPanel, PageHead, StatusBadge } from "@/components/UI";
-import { money, timeShort } from "@/lib/format";
+import { orderPriceText, timeShort } from "@/lib/format";
 
 export default function OrderBookView({ initial }: { initial: any }) {
   const rows = initial?.items || [];
@@ -46,7 +46,7 @@ export default function OrderBookView({ initial }: { initial: any }) {
               { key: "symbol", label: "Symbol", render: (r) => <b>{r.symbol}</b> },
               { key: "side", label: "Side", render: (r) => <span className={r.side === "BUY" ? "text-green" : "text-red"}>{r.side}</span> },
               { key: "qty", label: "Qty" },
-              { key: "price", label: "Price", render: (r) => money(r.price) },
+              { key: "price", label: "Price", render: (r) => orderPriceText(r) },
               { key: "product", label: "Product" },
               { key: "type", label: "Type" },
               { key: "status", label: "Status", render: (r) => <StatusBadge value={r.status} /> },

@@ -18,8 +18,11 @@ from app.elastic.normalizer import (
     normalize_order,
     normalize_session_event,
     order_status,
+    price_divisor,
     rejection_category,
     rejection_code,
+    rupee_value,
+    scale_price,
 )
 
 ORDER_JOURNAL_FIELDS = (
@@ -84,15 +87,6 @@ def _timestamp(value: Any, nsecs: Any = 0) -> str:
         return str(value)
 
 
-def _price(value: Any) -> float | None:
-    if value in (None, ""):
-        return None
-    try:
-        return round(float(value) / settings.noren_price_divisor, 4)
-    except (TypeError, ValueError, ZeroDivisionError):
-        return None
-
-
 def _project_order_fields(
     doc: dict[str, Any],
     normalized: dict[str, Any],
@@ -105,8 +99,11 @@ def _project_order_fields(
     projected["NorenTimeStamp"] = normalized.get("time") or ""
     projected["ExchTimeStamp"] = normalized.get("exchange_time") or ""
     projected["FillTime"] = _timestamp(doc.get("FillTime"), doc.get("FillNsecs"))
+    # Same per-segment scale as normalize_order. Where the scale is unverified
+    # the recorded value is kept unnormalised; the row's price_scale says so.
+    segment = doc.get("ExchSeg")
     for field in _PRICE_FIELDS:
-        projected[field] = _price(doc.get(field))
+        projected[field] = scale_price(doc.get(field), segment) if price_divisor(segment) else doc.get(field)
     projected["AcctId"] = mask_account(str(doc.get("AcctId") or ""))
     projected["UserId"] = mask_id(str(doc.get("UserId") or ""), 4)
     projected["ExchUserId"] = mask_id(str(doc.get("ExchUserId") or ""), 4)
@@ -229,6 +226,11 @@ def load_journal(path: str) -> dict[str, Any]:
     }
 
 
+def _without_evidence(row: dict[str, Any]) -> dict[str, Any]:
+    """Drop the per-row journal projection; it is ~57% of a full list payload."""
+    return {k: v for k, v in row.items() if k not in ("journal_fields", "masked_fields")}
+
+
 def journal_orders(
     path: str,
     *,
@@ -237,6 +239,7 @@ def journal_orders(
     exchange: str | None = None,
     symbol: str | None = None,
     q: str | None = None,
+    evidence: bool = True,
 ) -> dict[str, Any]:
     snapshot = load_journal(path)
     items = snapshot["items"]
@@ -249,8 +252,9 @@ def journal_orders(
     if q:
         needle = q.lower()
         items = [row for row in items if needle in str(row).lower()]
+    shown = [_withhold_reason(row) for row in items[:size]]
     return {
-        "items": [_withhold_reason(row) for row in items[:size]],
+        "items": shown if evidence else [_without_evidence(row) for row in shown],
         "count": len(items),
         "returned": min(size, len(items)),
         "source": snapshot["source"],
@@ -440,8 +444,8 @@ def journal_trades(path: str, *, size: int = 100) -> dict[str, Any]:
     snapshot = load_journal(path)
     items = []
     for row in snapshot["complete"][:size]:
-        price = float(row.get("fill_price") or row.get("price") or 0)
-        qty = float(row.get("filled_qty") or row.get("qty") or 0)
+        price = row.get("fill_price") or row.get("price")
+        qty = row.get("filled_qty") or row.get("qty")
         items.append(
             {
                 "trade_id": f"T-{row.get('order_id')}",
@@ -450,9 +454,12 @@ def journal_trades(path: str, *, size: int = 100) -> dict[str, Any]:
                 "exchange": row.get("exchange"),
                 "symbol": row.get("symbol"),
                 "side": row.get("side"),
-                "qty": row.get("filled_qty") or row.get("qty"),
-                "price": row.get("fill_price") or row.get("price"),
-                "value": round(price * qty, 2),
+                "qty": qty,
+                "price": price,
+                "price_raw": row.get("fill_price_raw") or row.get("price_raw"),
+                "price_scale": row.get("price_scale"),
+                # None where the segment's rupee notional is not established.
+                "value": rupee_value(price, qty, row.get("value_multiplier")),
                 "account": row.get("account"),
                 "user": row.get("user"),
                 "broker": row.get("broker"),

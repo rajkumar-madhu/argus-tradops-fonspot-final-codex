@@ -132,7 +132,7 @@ Next.js 15 App Router, React 19, hand-written CSS in `app/globals.css`. No state
 
 - Event time is `NorenTimeStamp_N` (a date field Logstash derives from the UNIX `NorenTimeStamp`), **not** `@timestamp`. `@timestamp` is ingestion time and is the only usable sort for `yel_connected`.
 - Order status is derived from the numeric `OrdStatus` in `normalizer.order_status()`; `_status_codes()` in `noren_service.py` maps the reverse direction for filters. Both must stay in sync (56/65 rejected, 52 cancelled, 50 complete, 48 open, 54 trigger-pending, 109/110/115 pending).
-- Prices are divided by `NOREN_PRICE_DIVISOR` (default 100).
+- Prices are divided per exchange segment (`normalizer.price_divisor()`): `NOREN_PRICE_DIVISOR` (default 100) for NSE/BSE/NFO/BFO/MCX, 10⁷ for CDS, overridable via `NOREN_PRICE_DIVISORS="SEG=n,..."`. A segment without an established divisor is left unscaled (`price` null, `price_raw` kept, `price_scale: "unverified"`) — never guess one. Rupee value is qty × price × `value_multiplier` (1 on equity/F&O, `Scripupdate.PriceMultiplier` on MCX, null on CDS). Evidence in `NOREN_FIELD_MAP.md`.
 - Order identity is `NorenOrdNum`; list queries `collapse` on it and count via a `cardinality` agg, so `count` (unique orders) and `returned` (rows) differ deliberately.
 - Latency has two distinct meanings and `latency_kind` in the response says which: `oms_latency` (measured OMS→exchange confirmation) vs `journal_event_interval` (the gap between Noren original and current event timestamps — **not** a network measurement). Never relabel one as the other.
 

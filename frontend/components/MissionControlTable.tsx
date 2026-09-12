@@ -18,6 +18,7 @@ import { apiUrl } from "@/lib/runtime";
 import { authHeaders } from "@/lib/session";
 import { openAuthenticatedEventSource } from "@/lib/stream";
 import { time24 } from "@/lib/format";
+import { journalFieldText } from "@/lib/order-journal-fields";
 
 const MAX_ROWS = 200;
 const EMPTY_FACETS: MissionFacets = {};
@@ -77,7 +78,7 @@ function OrderRecord({ order }: { order: any }) {
           {shown.map(([k, v]) => (
             <div key={k} className="jx-field">
               <dt>{k}</dt>
-              <dd>{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>
+              <dd>{typeof v === "object" ? JSON.stringify(v) : journalFieldText(k, v, order.price_scale)}</dd>
             </div>
           ))}
         </dl>

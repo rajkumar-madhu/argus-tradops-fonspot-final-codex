@@ -2,6 +2,7 @@ import { Database, FileText, Search, ShieldCheck } from "lucide-react";
 import Shell from "@/components/Shell";
 import { Card, EmptyState, KpiCard, PageHead, Status } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
+import { priceDivisorsText } from "@/lib/format";
 import { serverRuntimeConfig } from "@/lib/runtime";
 
 export default async function Page() {
@@ -35,7 +36,7 @@ export default async function Page() {
                   <li key={row.key}><span>{row.key}</span><b>{row.value}</b></li>
                 ))}
                 <li><span>Timestamp field</span><b>{config.timestamp_field}</b></li>
-                <li><span>Price divisor</span><b>{config.price_divisor}</b></li>
+                <li><span>Price divisors</span><b>{priceDivisorsText(config)}</b></li>
               </ul>
             </Card>
             <Card title="Platform services">
