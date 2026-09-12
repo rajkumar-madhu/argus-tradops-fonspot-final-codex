@@ -151,16 +151,11 @@ def _rejection_row(snapshot: dict[str, Any], row: dict[str, Any]) -> dict[str, A
     enriched = dict(row)
     if str(enriched.get("reason") or "").strip():
         return enriched
-    for event in reversed(snapshot["events"]):
-        if event.get("order_id") != enriched.get("order_id"):
-            continue
-        reason = str(event.get("reason") or "").strip()
-        if not reason:
-            continue
-        enriched["reason"] = reason
+    event = snapshot.get("last_reason", {}).get(enriched.get("order_id"))
+    if event:
+        enriched["reason"] = str(event.get("reason") or "").strip()
         enriched["code"] = event.get("code") or enriched.get("code")
         enriched["rejection_category"] = event.get("rejection_category") or enriched.get("rejection_category")
-        break
     return enriched
 
 
@@ -212,6 +207,12 @@ def _load_journal(path: str, _mtime_ns: int, _size: int) -> dict[str, Any]:
 
     order_events.sort(key=lambda row: row["time"])
     latest = {row["order_id"]: row for row in order_events if row["order_id"]}
+    # Latest non-empty rejection reason per order, so rejection views do not
+    # rescan every event for every rejected order.
+    last_reason: dict[str, dict[str, Any]] = {}
+    for event in order_events:
+        if str(event.get("reason") or "").strip():
+            last_reason[event["order_id"]] = event
     items = sorted(latest.values(), key=lambda row: row["time"], reverse=True)
 
     session_events.sort(key=lambda row: row["time"], reverse=True)
@@ -233,6 +234,7 @@ def _load_journal(path: str, _mtime_ns: int, _size: int) -> dict[str, Any]:
         "loaded_at": loaded_at.isoformat(),
         "items": items,
         "events": order_events,
+        "last_reason": last_reason,
         "sessions": session_events,
         "active_sessions": active_sessions,
         "yel_docs": yel_docs,
@@ -255,6 +257,15 @@ def _without_evidence(row: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in row.items() if k not in ("journal_fields", "masked_fields")}
 
 
+_SEARCH_KEYS = ("order_id", "eref", "exchange_order_id", "symbol", "exchange", "broker", "account", "user",
+                "status", "side", "product", "type", "code", "rejection_category")
+
+
+def _search_text(row: dict[str, Any]) -> str:
+    """The same fields the ES path searches; str(row) also matched masked/withheld text."""
+    return " ".join(str(row.get(k) or "") for k in _SEARCH_KEYS).lower()
+
+
 def journal_orders(
     path: str,
     *,
@@ -275,7 +286,7 @@ def journal_orders(
         items = [row for row in items if str(row.get("symbol", "")).lower() == symbol.lower()]
     if q:
         needle = q.lower()
-        items = [row for row in items if needle in str(row).lower()]
+        items = [row for row in items if needle in _search_text(row)]
     shown = [_withhold_reason(row) for row in items[:size]]
     return {
         "items": shown if evidence else [_without_evidence(row) for row in shown],
@@ -435,8 +446,13 @@ def journal_overview(path: str) -> dict[str, Any]:
     total = snapshot["count"] or 0
     rejected = len(snapshot["rejected"])
     complete = len(snapshot["complete"])
+    last_event: dict[str, str] = {}
+    for row in snapshot["items"]:
+        name = row.get("exchange") or "Unknown"
+        if row.get("time") and row["time"] > last_event.get(name, ""):
+            last_event[name] = row["time"]
     exchanges = [
-        {"name": name, "events": count}
+        {"name": name, "events": count, "last_event": last_event.get(name)}
         for name, count in snapshot["exchange_counts"].most_common()
     ]
     symbols = len({row.get("symbol") for row in snapshot["items"] if row.get("symbol")})
@@ -538,7 +554,13 @@ def _float_field(value: Any) -> float:
 
 
 def load_order_latency_csv(path: str) -> list[dict[str, Any]]:
-    """Parse L_ORDERLATENCY*.csv into rows shaped for _latency_payload."""
+    """Parse L_ORDERLATENCY*.csv into rows shaped for _latency_payload (cached per file identity)."""
+    st = Path(path).stat()
+    return _load_order_latency_csv(path, st.st_mtime_ns, st.st_size)
+
+
+@lru_cache(maxsize=2)
+def _load_order_latency_csv(path: str, _mtime_ns: int, _size: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with Path(path).open(encoding="utf-8", newline="") as stream:
         for raw in csv.DictReader(stream):

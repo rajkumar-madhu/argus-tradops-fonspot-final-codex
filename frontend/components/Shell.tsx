@@ -100,14 +100,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Every failure path (403 for a role without access, network error, unusable
   // payload) leaves the entry unset, and an unset entry renders no badge.
   useEffect(() => {
+    // No token is not a reason to stay silent: with AUTH_DISABLED the API
+    // answers anyway, and with auth on a 401 simply leaves the chip unset.
     const token = getToken();
-    if (!token) return;
     const abort = new AbortController();
     const base = apiUrl();
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const get = async (route: string) => {
       try {
-        const res = await fetch(`${base}${route}`, { headers, signal: abort.signal, cache: "no-store" });
+        const res = await fetch(`${base}${route}`, { headers, signal: abort.signal, cache: "no-store", credentials: "include" });
         if (!res.ok) return null;
         return await res.json();
       } catch { return null; }
@@ -227,7 +228,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             ? <span className={`nav-source tone-${chip.tone}`} title={chip.detail || undefined}><i aria-hidden="true" />{chip.text}</span>
             : <span className="nav-source tone-unknown"><i aria-hidden="true" />Source unreported</span>}
           <div><Lock size={11} aria-hidden="true" />Read-only · never places orders</div>
-          <Link href="/configuration" className="sidebar-help"><HelpCircle size={14} aria-hidden="true" />Help &amp; configuration</Link>
+          {visible("/configuration") && <Link href="/configuration" className="sidebar-help"><HelpCircle size={14} aria-hidden="true" />Help &amp; configuration</Link>}
         </div>
       </aside>
       <main className="main" id="main-content" tabIndex={-1}>
@@ -239,7 +240,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Clock/>
             <form action="/logs" className="topsearch"><Search size={14}/><input ref={searchRef} name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><kbd>⌘/Ctrl K</kbd></form>
             <Link href="/incidents" className="bell" aria-label="Alerts and incidents"><Bell size={17}/></Link>
-            <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>
+            {visible("/configuration") && <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>}
             <div className="avatar">{(session?.username || "T").slice(0, 1).toUpperCase()}</div>
             <div className="profile">
               <b>{session?.username || "Argus TradeOps"}</b>

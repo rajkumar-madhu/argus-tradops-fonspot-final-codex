@@ -70,6 +70,31 @@ export function sessionRail(windows: ObservedWindow[]) {
   return { phases, windows: spans };
 }
 
+export type VenueState = { name: string; events: number; lastEvent: string; ageSeconds: number | null; state: "live" | "delayed" | "stale" | "closed" | "unknown" };
+
+/**
+ * Per-venue liveness from the newest event each venue produced, judged with the
+ * same thresholds and trading window as /api/freshness. "closed" is a quiet
+ * venue outside the session; "stale" is a quiet venue inside it. A venue with no
+ * timestamped event is "unknown", never green.
+ */
+export function venueStates(exchanges: any, fresh: any): VenueState[] {
+  const rows: any[] = Array.isArray(exchanges) ? exchanges : [];
+  const now = parse(fresh?.generated_at) ?? Date.now();
+  const live = Number(fresh?.thresholds?.live_seconds ?? 60);
+  const delayed = Number(fresh?.thresholds?.delayed_seconds ?? 300);
+  const open = fresh?.trading_open === true;
+  return rows
+    .map((x) => {
+      const last = parse(x.last_event);
+      const age = last === null ? null : Math.max(0, (now - last) / 1000);
+      const state: VenueState["state"] =
+        age === null ? "unknown" : age <= live ? "live" : age <= delayed ? "delayed" : open ? "stale" : "closed";
+      return { name: String(x.name || "—"), events: Number(x.events || 0), lastEvent: last === null ? "—" : istClock(new Date(last).toISOString()), ageSeconds: age === null ? null : Math.round(age), state };
+    })
+    .sort((a, b) => b.events - a.events);
+}
+
 function hhmm(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
@@ -286,8 +311,9 @@ type QueueSource = {
   latest?: number | null;
   peak?: number | null;
   max_depth?: number | null;
-  snapshots?: number | null;
-  drain_rows_per_second?: number | null;
+  episodes?: number | null;
+  rows_per_second?: number | null;
+  longest_episode_seconds?: number | null;
   state?: string;
   last_observed?: string | null;
   identical_content_to?: string | null;
@@ -303,11 +329,12 @@ export function queueInstances(queues: any) {
       instance: String(q.instance || "—"),
       latest: q.latest ?? null,
       peak: q.peak ?? null,
-      // Depth of the largest backlog dump; a QueSize file is a set of countdown
-      // dumps, so its mean is meaningless and is not carried.
+      // Peak of the deepest backlog episode; a QueSize file is one row per
+      // processed message, so the mean of the column is meaningless and is not carried.
       maxDepth: q.max_depth ?? q.peak ?? null,
-      snapshots: q.snapshots ?? null,
-      drainPerSecond: q.drain_rows_per_second ?? null,
+      episodes: q.episodes ?? null,
+      rowsPerSecond: q.rows_per_second ?? null,
+      longestEpisodeSeconds: q.longest_episode_seconds ?? null,
       lastObserved: q.last_observed ? istClock(q.last_observed) : "—",
     })),
     total: items.length,

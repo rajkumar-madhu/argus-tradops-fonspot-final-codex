@@ -248,29 +248,37 @@ class CsvStore:
                 'note':'Events, not unique orders. Timing samples include valid zero values. Missing status is unavailable; duration units require a confirmed feed contract.'}
 
     @staticmethod
-    def drain_snapshots(rows):
-        """Group (event_time, queue) rows into backlog-drain dumps.
+    def backlog_episodes(rows):
+        """Group (event_time, queue) rows into backlog episodes.
 
         A QueSize file is not a sampled time series: the OMS writes one row per
-        pending message while it drains a backlog, so QSz counts DOWN (750, 749,
-        ... 1) at ~140 rows/second and a new dump begins when it rises again.
-        The only depth that means anything is each dump's starting value; the
-        mean of a countdown is depth/2 and says nothing. The boundary is a rise:
-        real dumps drain to 1, so the next dump's first row is always higher.
+        message it processes, carrying the pending depth at that moment
+        (~140 rows/second). Depth counts down while it drains and rises when
+        new messages arrive mid-drain. An episode runs from the first pending
+        message until the queue is empty again (depth <= 1); that is the unit
+        an operator cares about ("a 4,470-deep backlog took 32 s to clear"),
+        and the mean of the raw column says nothing.
         """
-        snapshots=[];current=None;previous=None
+        episodes=[];current=None;drained=True
+        def fresh(stamp,depth):return {'start':stamp,'end':stamp,'start_depth':depth,'peak_depth':depth,'rows':0,'_seconds':set()}
         for stamp,depth in rows:
             if depth is None:continue
-            if current is None or (previous is not None and depth>previous):
-                if current:snapshots.append(current)
-                current={'start':stamp,'end':stamp,'depth':depth,'rows':0}
-            current['end']=stamp;current['rows']+=1;current['depth']=max(current['depth'],depth);previous=depth
-        if current:snapshots.append(current)
-        for s in snapshots:
-            seconds=max(0.0,(s['end'] or 0)-(s['start'] or 0));s['seconds']=round(seconds,1)
-            s['drain_rows_per_second']=round(s['rows']/seconds,1) if seconds>0 else None
-            s['start']=iso(s['start']);s['end']=iso(s['end'])
-        return snapshots
+            if drained and depth>1:
+                if current:episodes.append(current)
+                current=fresh(stamp,depth)
+            if current is None:current=fresh(stamp,depth)
+            current['end']=stamp;current['rows']+=1;current['peak_depth']=max(current['peak_depth'],depth)
+            if stamp is not None:current['_seconds'].add(int(stamp))
+            drained=depth<=1
+        if current:episodes.append(current)
+        for e in episodes:
+            span=max(0.0,(e['end'] or 0)-(e['start'] or 0));e['seconds']=round(span,1)
+            # Rows land in bursts (2,064 rows on 14 distinct seconds across three
+            # hours in NSE), so throughput is rows per second that had rows.
+            busy=len(e.pop('_seconds')) or 1;e['busy_seconds']=busy
+            e['rows_per_second']=round(e['rows']/busy,1)
+            e['start']=iso(e['start']);e['end']=iso(e['end'])
+        return episodes
 
     def queues(self,**filters):
         where,args=self._where('queue',**filters)
@@ -283,19 +291,20 @@ class CsvStore:
                 latest=db.execute(f'SELECT queue FROM events WHERE {scoped} ORDER BY event_time DESC,rowid DESC LIMIT 1',params).fetchone()
                 width=max(60,math.ceil(((row['last'] or 0)-(row['first'] or 0))/180))
                 trend=[{'time':iso(r[0]),'peak':r[1]} for r in db.execute(f'SELECT cast(event_time/? AS INTEGER)*?,max(queue) FROM events WHERE {scoped} GROUP BY 1 ORDER BY 1',[width,width]+params)]
-                snapshots=self.drain_snapshots(db.execute(f'SELECT event_time,queue FROM events WHERE {scoped} ORDER BY event_time,row_number,rowid',params).fetchall())
-                depths=sorted(s['depth'] for s in snapshots)
+                episodes=self.backlog_episodes(db.execute(f'SELECT event_time,queue FROM events WHERE {scoped} ORDER BY event_time,row_number,rowid',params).fetchall())
+                peaks=sorted(e['peak_depth'] for e in episodes);busy=sum(e['busy_seconds'] for e in episodes)
                 sources.append({'instance':f['instance'],'file':f['name'],'samples':row['samples'],'latest':latest[0] if latest else None,'peak':row['peak'],
-                                'snapshots':len(snapshots),'max_depth':depths[-1] if depths else None,'median_depth':depths[len(depths)//2] if depths else None,
-                                'drain_rows_per_second':round(sum(s['rows'] for s in snapshots)/sum(s['seconds'] for s in snapshots),1) if sum(s['seconds'] for s in snapshots)>0 else None,
-                                'drains':snapshots[-50:],
+                                'episodes':len(episodes),'max_depth':peaks[-1] if peaks else None,'median_depth':peaks[len(peaks)//2] if peaks else None,
+                                'longest_episode_seconds':max((e['seconds'] for e in episodes),default=None),
+                                'rows_per_second':round(sum(e['rows'] for e in episodes)/busy,1) if busy>0 else None,
+                                'backlogs':episodes[-50:],
                                 'last_observed':iso(row['last']),'age_seconds':max(0,time.time()-row['last']) if row['last'] else None,
                                 'state':f['state'] if row['samples'] or not f['accepted'] else 'No matching rows',
                                 # A daily batch file is never "stale" by wall clock; its day is its freshness.
                                 'freshness':'Daily batch' if row['last'] else 'No data received',
                                 'trend':trend,'bucket_seconds':width,'identical_content_to':f.get('identical_content_to')})
         return {'source':'csv snapshot','sources':sources,'count':sum(s['samples'] for s in sources),'unit':'messages',
-                'note':'Each file is a sequence of backlog-drain dumps: one row per pending message while the OMS drains, so depth counts down and a rise starts a new dump. Reported depths are dump start values, never averages. Instance aliases remain separate; do not sum across possibly duplicated files.'}
+                'note':'One row per processed message carrying the pending depth at that moment. A backlog episode runs from the first pending message until the queue empties (depth <= 1); rises inside an episode are arrivals during the drain. Reported depths are episode peaks, never averages. Instance aliases remain separate; do not sum across possibly duplicated files.'}
 
     def export_rows(self,kind,sort='event_time',direction='asc',**filters):
         sort='event_time' if sort=='time' else sort

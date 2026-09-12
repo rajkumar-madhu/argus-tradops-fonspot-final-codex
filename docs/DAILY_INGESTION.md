@@ -34,7 +34,7 @@ Measured on the 08-Sep-2026 set:
 ANALYTICS_DB_HOST=10.172.0.10 ANALYTICS_DB_PORT=30414 \
 ANALYTICS_DB_USER=tradeops_ingest ANALYTICS_DB_PASSWORD=... ANALYTICS_DB_NAME=analytics \
 TRADEOPS_CSV_DIR=/data/noren_core/COZY_LOG_FILES/nfs_ps \
-QUEUE_INSTANCE_LINES="NSE-2729=2,NFO-13424=2" \
+QUEUE_INSTANCE_LINES="NSE-5864=1,NSE-2729=2,NFO-13429=1,NFO-13424=2" \
 python3 scripts/latency_ingest.py --dry-run
 ```
 
@@ -51,7 +51,11 @@ Guarantees:
 - **Transactional.** One transaction per file. Failure → rollback + a
   `failed` run row with the error; no partial days.
 - **No guessing.** `QueSize_<SEG>-<instance>` files are ingested only when
-  `QUEUE_INSTANCE_LINES` names their line. Otherwise they are recorded as
+  `QUEUE_INSTANCE_LINES` names their line. The mapping above is established from
+  the 08-Sep-2026 set, where `QueSize_NSE-5864` is byte-identical to `QueSize_NSE`
+  (line 1) and `QueSize_NSE-2729` to `QueSize_NSE2` (line 2); likewise
+  `NFO-13424` = `NFO2`. `NFO-13429` and `NFO` were both empty that day, so
+  `NFO-13429=1` is by elimination — confirm it on a day with data. Otherwise they are recorded as
   `unmapped_instance` and skipped — visibly, with the setting to add.
 - **Rejected rows are counted**, not silently coerced to NULL.
 - **Retention** keeps the newest 30 distinct `file_date`s per table, as before.
@@ -70,6 +74,16 @@ the cluster; the schedule is not in this repo today, so record it there:
 ```
 
 `k8s/daily-ingest-cronjob.example.yaml` shows the in-cluster equivalent.
+
+## What a QueSize file is
+
+One row per message the OMS processes, carrying the pending depth at that
+moment (~140 rows per second). Depth counts down while the queue drains and
+rises when messages arrive mid-drain. `NFO-13424` is one 750-deep backlog
+cleared in 3 s; `NSE-2729` has a 4,470-deep backlog cleared at ~140 rows/s;
+`NSE` keeps refilling (983 rises in 2,064 rows). The API reports **backlog
+episodes** — first pending message to empty queue — with their peak depth,
+duration and throughput. The mean of the raw column is never shown.
 
 ## Freshness
 

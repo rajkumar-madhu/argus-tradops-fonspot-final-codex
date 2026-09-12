@@ -47,6 +47,14 @@ export type SourceChip = { text: string; tone: string; detail?: string } | null;
 export type FreshnessState = "live" | "delayed" | "stale" | "closed" | "batch" | "unavailable";
 export type Freshness = { state?: FreshnessState | string; as_of?: string | null; age_seconds?: number | null; ingest_lag_seconds?: number | null };
 
+/** "2026-06-30 03:53 UTC" from an ISO stamp, or the value itself for a bare date. */
+export function stampText(value: string | null | undefined): string {
+  if (!value) return "";
+  const t = Date.parse(value);
+  if (!Number.isFinite(t) || !value.includes("T")) return value;
+  return `${new Date(t).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 /** "4 s", "3 min", "2 h 10 min" — for badges, not tables. */
 export function ageText(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(Number(seconds))) return "";
@@ -72,7 +80,7 @@ export function freshnessBadge(
 ): { text: string; tone: string; detail: string } {
   if (fallback) return { text: "DELAYED", tone: "delayed", detail: `Live source unavailable (${fallback.reason || "fallback"}); showing the journal file` };
   if (isJournalSource(dataSource) || dataSource === "csv snapshot") {
-    return { text: "FILE-BASED", tone: "file-based", detail: primary?.as_of ? `File window to ${primary.as_of}` : "Uploaded history, not a live feed" };
+    return { text: "FILE-BASED", tone: "file-based", detail: primary?.as_of ? `File window to ${stampText(primary.as_of)}` : "Uploaded history, not a live feed" };
   }
   if (dataSource === "demo") return { text: "OFFLINE", tone: "warn", detail: "No live or file source connected" };
   const age = ageText(primary?.age_seconds);
@@ -83,7 +91,7 @@ export function freshnessBadge(
     case "delayed": return { text: "DELAYED", tone: "delayed", detail: `Newest event ${age} ago${lagText}` };
     case "stale": return { text: "STALE", tone: "stale", detail: `No event for ${age} during trading hours` };
     case "closed": return { text: "CLOSED", tone: "closed", detail: `Market closed · last event ${age} ago` };
-    case "batch": return { text: "FILE-BASED", tone: "file-based", detail: primary?.as_of ? `Batch as of ${primary.as_of}` : "Daily batch" };
+    case "batch": return { text: "FILE-BASED", tone: "file-based", detail: primary?.as_of ? `Batch as of ${stampText(primary.as_of)}` : "Daily batch" };
     default: return { text: "OFFLINE", tone: "warn", detail: "Freshness unavailable" };
   }
 }

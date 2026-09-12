@@ -3,6 +3,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
+from app.cache import ttl_cache
 from app.config import settings
 from app.elastic.client import get_es
 from app.elastic.normalizer import mask_reason, normalize_order, normalize_session_event, rejection_category, rejection_code
@@ -143,6 +144,7 @@ def order_lifecycle(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
         return {"order_id": order_id, "events": [], "source": "demo"}
     body = {
         "size": 500,
+        "track_total_hits": 501,
         "query": {"bool": {"filter": [
             {"term": {"NorenOrdNum": order_id}},
             _range(settings.noren_timestamp_field, lookback),
@@ -151,10 +153,16 @@ def order_lifecycle(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
         "_source": {"excludes": ["PanNum", "IpAddr", "ExchUserInfo", "ParticId"]},
     }
     result = es.search(index=settings.noren_order_index, body=body)
-    events = [normalize_order(h.get("_source", {})) for h in result.get("hits", {}).get("hits", [])]
-    return {"order_id": order_id, "events": events, "count": len(events), "source": "elasticsearch"}
+    hits = result.get("hits", {})
+    events = [normalize_order(h.get("_source", {})) for h in hits.get("hits", [])]
+    total = hits.get("total", {})
+    total_value = total.get("value", len(events)) if isinstance(total, dict) else total
+    return {"order_id": order_id, "events": events, "count": len(events), "source": "elasticsearch",
+            # A partial-fill history longer than 500 events is cut; say so rather than look complete.
+            "truncated": bool(total_value and total_value > len(events))}
 
 
+@ttl_cache(3.0)  # below the collector interval (2 s), so a new rejection waits at most one tick
 def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
                       max_orders: int | None = 200) -> dict[str, Any]:
     """Summarise rejected orders.
@@ -263,6 +271,7 @@ def rca(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
     }
 
 
+@ttl_cache(5.0)
 def active_sessions(*, lookback: str = "24h", size: int = 2000) -> dict[str, Any]:
     es = get_es()
     if es is None:
@@ -330,6 +339,7 @@ def yel_health() -> dict[str, Any]:
             "last_event": src.get("@timestamp"), "keys": keys, "source": "elasticsearch", "index": settings.noren_yel_index}
 
 
+@ttl_cache(5.0)
 def overview(*, lookback: str = "24h") -> dict[str, Any]:
     es = get_es()
     if es is None:
@@ -341,7 +351,8 @@ def overview(*, lookback: str = "24h") -> dict[str, Any]:
             "orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}},
             "rejected": {"filter": {"terms": {"OrdStatus": [56, 65]}}, "aggs": {"orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}}}},
             "complete": {"filter": {"term": {"OrdStatus": 50}}, "aggs": {"orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}}}},
-            "exchanges": {"terms": {"field": _field(settings.noren_order_index, "ExchSeg"), "size": 20}},
+            "exchanges": {"terms": {"field": _field(settings.noren_order_index, "ExchSeg"), "size": 20},
+                          "aggs": {"last": {"max": {"field": settings.noren_timestamp_field}}}},
             "brokers": {"cardinality": {"field": _field(settings.noren_order_index, "BrokerId")}},
             "symbols": {"cardinality": {"field": _field(settings.noren_order_index, "TradingSymbol")}},
         },
@@ -360,7 +371,8 @@ def overview(*, lookback: str = "24h") -> dict[str, Any]:
         "reject_rate": round((rej / total * 100), 3) if total else None,
         "brokers": a.get("brokers", {}).get("value", 0),
         "symbols": a.get("symbols", {}).get("value", 0),
-        "exchanges": [{"name": b.get("key"), "events": b.get("doc_count", 0)} for b in a.get("exchanges", {}).get("buckets", [])],
+        "exchanges": [{"name": b.get("key"), "events": b.get("doc_count", 0),
+                       "last_event": b.get("last", {}).get("value_as_string")} for b in a.get("exchanges", {}).get("buckets", [])],
         "sessions": sessions,
         "yel": yel,
         "generated_at": datetime.now(timezone.utc).isoformat(),

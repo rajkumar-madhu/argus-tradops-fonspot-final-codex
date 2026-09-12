@@ -8418,3 +8418,16 @@ table tbody tr:hover { background: #e6f0ec; }
 .infra-page .ref-grid.four .hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .infra-page .ref-grid.four .hbar-value { min-width: 64px; }
 .ref-page .hbar-row { grid-template-columns: minmax(80px, 1.1fr) minmax(40px, 1.4fr) auto; }
+
+/* Per-venue state strip under the session rail: colour is the freshness state
+   of that venue's newest event, never a decorative green. */
+.cc-venues { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line, rgba(120, 130, 150, .18)); display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.cc-venues li { display: grid; grid-template-columns: auto auto; column-gap: 8px; align-items: center; font-size: 12px; }
+.cc-venues li i { width: 8px; height: 8px; border-radius: 50%; background: #7c8798; grid-row: span 2; }
+.cc-venues li b { font-weight: 700; }
+.cc-venues li span { grid-column: 2; opacity: .8; }
+.cc-venues li small { grid-column: 2; opacity: .7; }
+.cc-venues li.venue-live i { background: #1bc790; }
+.cc-venues li.venue-delayed i { background: #d9a53c; }
+.cc-venues li.venue-stale i { background: #e0625a; }
+.cc-venues li.venue-closed i { background: #7c8798; }

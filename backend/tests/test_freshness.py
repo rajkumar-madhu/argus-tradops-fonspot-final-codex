@@ -120,20 +120,23 @@ class CollectorFreshnessTests(unittest.TestCase):
         self.assertEqual(collector.observe_freshness([]), (None, None))
 
 
-class QueueDrainTests(unittest.TestCase):
-    def test_countdowns_become_snapshots_with_start_depth(self):
-        # Real dumps drain to 1 (NFO-13424: 750 -> 1), so the next dump's first
-        # row is always a rise; that rise is the boundary.
-        rows = [(100.0, 5), (100.0, 4), (100.1, 3), (100.2, 2), (100.2, 1),   # dump 1 starts at 5
-                (160.0, 12), (160.0, 11), (160.5, 10), (160.5, 1),            # dump 2 starts at 12
-                (200.0, None), (200.0, 3), (200.5, 2), (200.5, 1)]            # dump 3 starts at 3
-        snaps = CsvStore.drain_snapshots(rows)
-        self.assertEqual([s["depth"] for s in snaps], [5, 12, 3])
-        self.assertEqual([s["rows"] for s in snaps], [5, 4, 3])
-        self.assertEqual(snaps[0]["seconds"], 0.2)
-        self.assertEqual(snaps[0]["drain_rows_per_second"], 25.0)
-        self.assertEqual(snaps[2]["seconds"], 0.5)
-        self.assertEqual(CsvStore.drain_snapshots([]), [])
+class QueueEpisodeTests(unittest.TestCase):
+    def test_episodes_end_when_the_queue_drains_not_when_depth_rises(self):
+        # NFO-13424 shape: one countdown 750 -> 1.
+        pure = [(100.0 + i * 0.004, 5 - i) for i in range(5)]
+        self.assertEqual([(e["start_depth"], e["peak_depth"], e["rows"]) for e in CsvStore.backlog_episodes(pure)], [(5, 5, 5)])
+        # NSE-5864 shape: arrivals during the drain raise the depth mid-episode.
+        rows = [(100.0, 10), (100.0, 9), (100.1, 8), (100.1, 12), (100.2, 11), (100.2, 3), (100.3, 1),   # one episode, peak 12
+                (160.0, 336), (160.0, 341), (160.5, 200), (160.5, 1),                                   # second episode, peak 341
+                (200.0, None), (200.0, 3), (200.5, 2), (200.5, 1)]                                        # third, peak 3
+        eps = CsvStore.backlog_episodes(rows)
+        self.assertEqual([e["peak_depth"] for e in eps], [12, 341, 3])
+        self.assertEqual([e["start_depth"] for e in eps], [10, 336, 3])
+        self.assertEqual([e["rows"] for e in eps], [7, 4, 3])
+        self.assertEqual(eps[0]["seconds"], 0.3)
+        self.assertEqual((eps[0]["busy_seconds"], eps[0]["rows_per_second"]), (1, 7.0), "rows per second that had rows, not per span second")
+        self.assertEqual((eps[1]["busy_seconds"], eps[1]["rows_per_second"]), (1, 4.0))
+        self.assertEqual(CsvStore.backlog_episodes([]), [])
 
 
 if __name__ == "__main__":

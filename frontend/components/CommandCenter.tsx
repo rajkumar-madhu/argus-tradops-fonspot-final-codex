@@ -22,6 +22,7 @@ import {
   rejectRateTrend,
   sample,
   sessionRail,
+  venueStates,
   slowestHop,
   sourceChips,
 } from "@/lib/command-center";
@@ -148,6 +149,7 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
     { label: "Journal", from: ov?.from, to: ov?.to },
     { label: "Latency file", from: latencyFrom, to: latencyTo },
   ]);
+  const venues = venueStates(ov?.exchanges, apiError(fresh) ? null : fresh);
   // Age-based, from /api/freshness: LIVE is claimed only while the newest event
   // is within the live threshold. A live→journal fallback on any feed is DELAYED.
   const fallback = [ov, od, rj].map((x) => x?.fallback).find(Boolean) || null;
@@ -247,6 +249,18 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             </li>
           ))}
         </ol>
+        {venues.length > 0 && (
+          <ul className="cc-venues" aria-label="Venue state from newest event">
+            {venues.map((v) => (
+              <li key={v.name} className={`venue-${v.state}`} title={v.ageSeconds === null ? "No timestamped event" : `Newest event ${v.ageSeconds} s ago`}>
+                <i aria-hidden="true" />
+                <b>{v.name}</b>
+                <span>{fmt(v.events)} events</span>
+                <small>{v.state === "unknown" ? "no timestamp" : `${v.state} · last ${v.lastEvent}`}</small>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="cc-metrics">
@@ -279,13 +293,13 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             <>
               <div className="cc-metric-value">
                 <b>{num(queue.rows[0].maxDepth)}</b>
-                <span>Largest backlog dump · {queue.rows[0].instance}</span>
+                <span>Deepest backlog episode · {queue.rows[0].instance}</span>
               </div>
               <table className="cc-mini-table">
-                <thead><tr><th>Instance</th><th>Dumps</th><th>Max depth</th><th>Drain /s</th><th>Last</th></tr></thead>
+                <thead><tr><th>Instance</th><th>Backlogs</th><th>Peak depth</th><th>Rows/s</th><th>Last</th></tr></thead>
                 <tbody>
                   {queue.rows.slice(0, 4).map((q) => (
-                    <tr key={q.instance}><td>{q.instance}</td><td>{num(q.snapshots)}</td><td>{num(q.maxDepth)}</td><td>{num(q.drainPerSecond)}</td><td>{q.lastObserved}</td></tr>
+                    <tr key={q.instance}><td>{q.instance}</td><td>{num(q.episodes)}</td><td>{num(q.maxDepth)}</td><td>{num(q.rowsPerSecond)}</td><td>{q.lastObserved}</td></tr>
                   ))}
                 </tbody>
               </table>

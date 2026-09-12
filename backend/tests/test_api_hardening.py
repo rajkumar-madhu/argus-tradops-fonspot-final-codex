@@ -63,3 +63,17 @@ class ApiHardeningTests(unittest.TestCase):
         with patch('app.journal_snapshot.load_journal',return_value=sample):
             data=journal_exchanges('fixture')
         self.assertEqual([r['reject_rate'] for r in data['items']],[50,0])
+
+
+class CorsOnErrorTests(unittest.TestCase):
+    def test_a_synthesised_503_still_carries_cors_headers(self):
+        # A dependency outage must reach the browser as a 503, not as a CORS error.
+        import os
+        origin = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")[0].strip()
+        with patch.object(main, "DEMO_MODE", False), patch.object(main, "list_incidents", side_effect=RuntimeError("postgres down")):
+            client = TestClient(main.app, raise_server_exceptions=False)
+            res = client.get("/api/incidents", headers={"Origin": origin})
+        self.assertEqual(res.status_code, 503)
+        self.assertEqual(res.headers.get("access-control-allow-origin"), origin)
+        self.assertNotIn("postgres down", res.text)
+        self.assertEqual(res.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors 'none'")

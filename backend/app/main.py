@@ -58,14 +58,6 @@ if settings.metrics_enabled:
     app.mount("/metrics", make_asgi_app())
 
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
-    expose_headers=["X-Request-ID"],
-)
 
 DEMO_MODE = settings.demo_mode
 
@@ -164,6 +156,9 @@ async def metrics_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if not request.url.path.startswith("/metrics"):
         path = _metrics_path(request)
         elapsed = time.perf_counter() - started
@@ -171,6 +166,20 @@ async def metrics_middleware(request: Request, call_next):
         API_LATENCY.labels(method=request.method, path=path).observe(elapsed)
         logging.getLogger("tradeops.api").info(json.dumps({"event":"request", "request_id":request_id, "route":path, "status":response.status_code, "duration_seconds":round(elapsed,4)}))
     return response
+
+
+# Registered after the metrics/error middleware so it is the OUTERMOST layer:
+# add_middleware wraps whatever is already there. Registered first, the 503 the
+# error path synthesises never passed through CORS, and a browser reported a
+# dependency outage as a CORS failure instead of a 503 it could render.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
+)
 
 
 @app.on_event("startup")
@@ -1028,5 +1037,26 @@ async def stream_market(request: Request, interval: float = Query(1.0, ge=0.5, l
 
 @app.get("/api/incidents/derived")
 def derived_incidents(lookback: str = Query("15m", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("incidents:read"))):
+    if _use_journal_data():
+        return _journal_derived_incidents(_journal_path())
     if DEMO_MODE: return {"items":[],"count":0,"source":"demo"}
-    return incident_candidates(lookback=lookback)
+    return _with_data_source(lambda: incident_candidates(lookback=lookback),
+                             lambda: _journal_derived_incidents(_journal_path()))
+
+
+def _journal_derived_incidents(path: str) -> dict[str, Any]:
+    """Same rules as incident_candidates, over the journal file. Read-only."""
+    from app.journal_snapshot import journal_rejections, journal_yel_health
+    rej = journal_rejections(path)
+    yel = journal_yel_health(path)
+    items = []
+    n = int(rej.get("rejected_unique_orders") or 0)
+    if n >= 10:
+        items.append({"id": "AUTO-REJ-journal", "severity": "P1" if n >= 100 else "P2", "type": "REJECTION_SPIKE",
+                      "title": f"{n} rejected orders in the journal window", "status": "OPEN", "evidence": rej.get("groups", [])[:5]})
+    data_gaps = []
+    if not yel.get("keys"):
+        # The file may simply predate or omit yel_connected events.
+        data_gaps.append({"id": "GAP-YEL", "type": "NO_YEL_EVIDENCE", "title": "No yel_connected event in the journal file; gateway state unknown", "evidence": yel})
+    return {"items": items, "count": len(items), "data_gaps": data_gaps, "lookback": "journal window",
+            "from": rej.get("from"), "to": rej.get("to"), "source": "journal snapshot"}
