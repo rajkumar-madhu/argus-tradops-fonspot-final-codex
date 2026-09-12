@@ -16,13 +16,6 @@
       "autoPort": false
     },
     {
-      "name": "price-preview-tmp",
-      "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "CSV_DIR=/Users/rajkumarmadhu/Desktop/tradeops-observability-noren-production-hardened /private/tmp/claude-501/-Users-rajkumarmadhu-Desktop-tradeops-observability-noren-production-hardened--claude-worktrees-gracious-burnell-740796/d017ac8e-db94-43c1-ae66-cd41a1c69b21/scratchpad/price-preview.sh"],
-      "port": 3105,
-      "autoPort": false
-    },
-    {
       "name": "file-preview",
       "runtimeExecutable": "bash",
       "runtimeArgs": ["scripts/start-file-preview.sh"],
