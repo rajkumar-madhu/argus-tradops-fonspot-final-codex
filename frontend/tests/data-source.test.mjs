@@ -64,3 +64,15 @@ test('freshness badges: LIVE only while the newest event is inside the threshold
     { text: 'STALE', tone: 'stale', detail: 'No event for 15 min during trading hours' });
   assert.deepEqual(sourceChip({ data_source: 'elasticsearch' }, { _error: 'boom' }), { text: 'LIVE', tone: 'live' }, 'a failed freshness call falls back to the source badge');
 });
+
+test("an unreported source is never rendered as LIVE", () => {
+  // A failed /api/overview leaves `source` empty. Defaulting that to LIVE told
+  // operators a feed was healthy when the API had not answered at all.
+  for (const unknown of ["", null, undefined]) {
+    assert.equal(sourceBadgeText(unknown), "OFFLINE");
+    assert.equal(sourceBadgeTone(unknown), "warn");
+  }
+  // A source the API did report still reads live.
+  assert.equal(sourceBadgeText("elasticsearch"), "LIVE");
+  assert.equal(sourceBadgeTone("elasticsearch"), "live");
+});

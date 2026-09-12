@@ -101,3 +101,30 @@ test('fileSourceStripMeta hides errors and empty lists', () => {
     { count: 3, awaiting: 2 },
   );
 });
+
+import { dashboardMetaLine } from "../lib/mission-control.ts";
+
+test("the dashboard meta line never claims a feed the API did not report", () => {
+  // /api/overview failed: no count, and no claim about a read path.
+  const failed = dashboardMetaLine({ source: "", errored: true, totalText: "0", lookback: "24h" });
+  assert.doesNotMatch(failed, /live Elasticsearch/i);
+  assert.doesNotMatch(failed, /0 orders/);
+  assert.match(failed, /overview unavailable/i);
+
+  // The API answered but named no source — same treatment, not an assumed feed.
+  assert.match(dashboardMetaLine({ source: "", totalText: "12", lookback: "24h" }), /source unavailable/i);
+});
+
+test("the dashboard meta line keeps its reporting branches", () => {
+  assert.match(
+    dashboardMetaLine({ source: "elasticsearch", totalText: "7,592", lookback: "24h" }),
+    /^7,592 orders in the 24h window · live Elasticsearch read path$/,
+  );
+  assert.match(
+    dashboardMetaLine({ source: "journal snapshot", journalEventsText: "1,204", journalWindow: "26 Jun → 30 Jun" }),
+    /^1,204 journal events · 26 Jun → 30 Jun · uploaded history, not a live feed$/,
+  );
+  assert.equal(dashboardMetaLine({ source: "demo" }), "Elasticsearch not connected");
+  // An errored journal payload must not print a journal-event count either.
+  assert.match(dashboardMetaLine({ source: "journal snapshot", errored: true, journalEventsText: "0" }), /overview unavailable/i);
+});
