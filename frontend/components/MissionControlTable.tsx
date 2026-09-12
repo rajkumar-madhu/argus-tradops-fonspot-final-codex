@@ -145,37 +145,63 @@ export default function MissionControlTable({
   }, [live]);
 
   // Auto-refresh poll (reference "Auto Refresh 2s"): reloads list API.
-  // Journal stays FILE-BASED; elasticsearch uses this as a snapshot backstop beside SSE.
+  // Journal stays FILE-BASED; elasticsearch uses this as a snapshot backstop
+  // beside SSE. The loop is polite: it aborts an in-flight request on unmount,
+  // pauses while the tab is hidden, backs off exponentially on failure, and
+  // slows to every 10 s while SSE is delivering (the stream is the fast path).
   useEffect(() => {
     if (!autoRefresh || paused) return;
     const path = live
-      ? `/api/orders?size=${MAX_ROWS}&lookback=${encodeURIComponent(lookback)}`
+      ? `/api/orders?size=${MAX_ROWS}&lookback=${encodeURIComponent(lookback)}`  // keeps journal_fields: OrderRecord renders them inline
       : `/api/journal/orders?size=${MAX_ROWS}`;
     let cancelled = false;
+    let timer: number | undefined;
+    let controller: AbortController | null = null;
+    let failures = 0;
+    const base = 2000;
+    const schedule = () => {
+      if (cancelled) return;
+      const idle = live && connected ? 10000 : base;
+      const delay = Math.min(60000, idle * 2 ** failures);
+      timer = window.setTimeout(tick, delay);
+    };
     async function tick() {
+      if (cancelled) return;
+      if (document.visibilityState === "hidden") { schedule(); return; }
+      controller?.abort();
+      controller = new AbortController();
       try {
         const res = await fetch(`${apiUrl()}${path}`, {
           cache: "no-store",
           credentials: "include",
           headers: authHeaders(),
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
         });
-        if (!res.ok || cancelled || pausedRef.current) return;
+        if (cancelled || pausedRef.current) return;
+        if (!res.ok) { failures += 1; schedule(); return; }
         const body = await res.json();
-        if (!body || body._error || !Array.isArray(body.items)) return;
+        if (!body || body._error || !Array.isArray(body.items)) { failures += 1; schedule(); return; }
+        failures = 0;
         latestData.current = body;
         setData(body);
         if (live) setConnected(true);
       } catch {
+        if (cancelled) return;
+        failures += 1;
         if (live) setConnected(false);
       }
+      schedule();
     }
+    const onVisible = () => { if (document.visibilityState === "visible") { window.clearTimeout(timer); tick(); } };
+    document.addEventListener("visibilitychange", onVisible);
     tick();
-    const id = window.setInterval(tick, 2000);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      window.clearTimeout(timer);
+      controller?.abort();
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [autoRefresh, paused, live, lookback]);
+  }, [autoRefresh, paused, live, lookback, connected]);
 
   const rows = useMemo(
     () =>

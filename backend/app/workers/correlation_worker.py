@@ -135,7 +135,7 @@ def main() -> None:
     if settings.auto_create_schema:
         init_db()
     if settings.metrics_enabled:
-        start_http_server(settings.worker_metrics_port)
+        start_http_server(settings.metrics_port("correlation"))
     r = get_redis()
     for kind in ("rejections", "exchange"):
         ensure_group(kind, GROUP)

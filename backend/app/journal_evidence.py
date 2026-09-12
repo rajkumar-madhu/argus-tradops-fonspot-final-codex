@@ -71,8 +71,17 @@ def project(doc, kind, record_number):
     return values
 
 
-@lru_cache(maxsize=1)
 def snapshot(path):
+    """Masked per-kind projections, cached per file identity (mtime, size)."""
+    st = Path(path).stat()
+    return _snapshot(path, st.st_mtime_ns, st.st_size)
+
+
+snapshot.cache_clear = lambda: _snapshot.cache_clear()  # type: ignore[attr-defined]
+
+
+@lru_cache(maxsize=1)
+def _snapshot(path, _mtime_ns, _size):
     items = {kind: [] for kind in SCHEMAS}
     counts = Counter()
     lines = records = 0

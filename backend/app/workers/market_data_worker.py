@@ -129,7 +129,7 @@ def _publish_symbol_updates(snapshot: dict[str, Any], seen: dict[str, str]) -> i
 def _hold_idle(shutdown: GracefulShutdown) -> None:
     """Keep the process up (so a restart policy does not thrash it) until SIGTERM."""
     if settings.metrics_enabled:
-        start_http_server(settings.worker_metrics_port)
+        start_http_server(settings.metrics_port("market"))
     while not shutdown.wait(3600):
         pass
 
@@ -152,7 +152,7 @@ def main() -> None:
         return
 
     if settings.metrics_enabled:
-        start_http_server(settings.worker_metrics_port)
+        start_http_server(settings.metrics_port("market"))
 
     lease = RedisLeaderLease(settings.market_leader_key, settings.market_leader_ttl_seconds)
     session = MarketDataSession()

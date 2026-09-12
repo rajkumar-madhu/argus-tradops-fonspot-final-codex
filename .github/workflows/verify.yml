@@ -35,3 +35,21 @@ jobs:
           docker run --rm -v "$PWD:/repo:ro" tradeops-backend-test
           sh -c "pip install --user --no-cache-dir -r /repo/backend/requirements-dev.txt
           && python -m unittest discover -s /repo/backend/tests -v"
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every manifest parses
+        run: |
+          python3 -c "import sys,yaml,glob; [list(yaml.safe_load_all(open(f))) for f in glob.glob('k8s/**/*.yaml', recursive=True)]; print('ok')"
+      - name: Overlays render
+        run: |
+          kubectl kustomize deploy/uat > /tmp/uat.yaml
+          kubectl kustomize deploy/prod > /tmp/prod.yaml
+          # A release must pin digests; RELEASE_REQUIRED in a rendered overlay is a deploy that cannot pull.
+          if grep -q RELEASE_REQUIRED /tmp/uat.yaml; then echo "deploy/uat has unpinned images" >&2; exit 1; fi
+          grep -c "kind:" /tmp/uat.yaml
+      - name: Backend unit tests (host runner)
+        run: |
+          python3 -m pip install -q -r backend/requirements.txt -r backend/requirements-dev.txt
+          DATABASE_URL=postgresql+psycopg://u:p@localhost:5432/x python3 scripts/test-backend.py

@@ -164,8 +164,25 @@ def _rejection_row(snapshot: dict[str, Any], row: dict[str, Any]) -> dict[str, A
     return enriched
 
 
-@lru_cache(maxsize=1)
+def _file_identity(path: str) -> tuple[int, int]:
+    st = Path(path).stat()
+    return st.st_mtime_ns, st.st_size
+
+
 def load_journal(path: str) -> dict[str, Any]:
+    """Parsed journal, cached per file identity: a replaced file is re-read."""
+    return _load_journal(path, *_file_identity(path))
+
+
+def _cache_clear() -> None:
+    _load_journal.cache_clear()
+
+
+load_journal.cache_clear = _cache_clear  # type: ignore[attr-defined]
+
+
+@lru_cache(maxsize=1)
+def _load_journal(path: str, _mtime_ns: int, _size: int) -> dict[str, Any]:
     order_events: list[dict[str, Any]] = []
     session_events: list[dict[str, Any]] = []
     yel_docs: list[dict[str, Any]] = []

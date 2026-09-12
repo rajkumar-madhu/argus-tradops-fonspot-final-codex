@@ -4,7 +4,9 @@ import { Fragment, useId, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDownUp, ChevronLeft, ChevronRight, Download, Filter, Search } from 'lucide-react';
 import { csvCell, filterRows, sortRows, type FilterState } from '@/lib/table-filters';
 
-export type GridRow = { id: string; values: Record<string, any>; cells: ReactNode[] };
+/** `cells` may be a thunk: a 10,000-row feed then renders only the page on screen, not every cell up front. */
+export type GridRow = { id: string; values: Record<string, any>; cells: ReactNode[] | (() => ReactNode[]) };
+const cellsOf = (r: GridRow): ReactNode[] => (typeof r.cells === 'function' ? r.cells() : r.cells);
 const FACETS: Record<string, string> = {
   exchange: 'Exchange', product: 'Product', side: 'Side', status: 'Status', broker: 'Broker',
   segment: 'Segment', segments: 'Segments', access_type: 'Access type', region: 'Region',
@@ -74,7 +76,7 @@ export default function FilterableTable({ rows, columns, className = 'orders-tab
     </form>
     <div className="table-scroll" tabIndex={0} aria-label="Scrollable results">
       <table className={className}><thead><tr>{columns.map(c => <th key={c.key} aria-sort={sort.key === c.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" className="sort-button" onClick={() => {setSort({key:c.key,direction:sort.key===c.key&&sort.direction==='asc'?'desc':'asc'});setPage(1)}}>{c.label}<ArrowDownUp size={11}/></button></th>)}{onSelect && <th>Details</th>}</tr></thead>
-        <tbody>{shown.map(r => <Fragment key={r.id}><tr className={selectedId===r.id?'row-selected':undefined} aria-expanded={renderDetail ? selectedId===r.id : undefined} onClick={onSelect ? () => onSelect(r.values) : undefined}>{r.cells.map((cell,index) => <td key={columns[index].key}>{cell}</td>)}{onSelect && <td><button type="button" className="row-view" aria-label={`View ${r.values.order_id || r.values.symbol || r.id}`} onClick={e => {e.stopPropagation();onSelect(r.values)}}>{renderDetail && selectedId===r.id ? 'Hide' : 'View'}</button></td>}</tr>
+        <tbody>{shown.map(r => <Fragment key={r.id}><tr className={selectedId===r.id?'row-selected':undefined} aria-expanded={renderDetail ? selectedId===r.id : undefined} onClick={onSelect ? () => onSelect(r.values) : undefined}>{cellsOf(r).map((cell,index) => <td key={columns[index].key}>{cell}</td>)}{onSelect && <td><button type="button" className="row-view" aria-label={`View ${r.values.order_id || r.values.symbol || r.id}`} onClick={e => {e.stopPropagation();onSelect(r.values)}}>{renderDetail && selectedId===r.id ? 'Hide' : 'View'}</button></td>}</tr>
           {renderDetail && selectedId===r.id && <tr className="row-detail"><td colSpan={columns.length + Number(Boolean(onSelect))}>{renderDetail(r.values)}</td></tr>}</Fragment>)}
         {!shown.length && <tr><td colSpan={columns.length + Number(Boolean(onSelect))}><div className="empty-state"><b>{rows.length ? 'No matching rows' : 'No rows available'}</b><p>{rows.length ? 'Try a wider date range or reset the filters.' : 'No records were returned by this source.'}</p>{activeCount > 0 && <button type="button" onClick={reset}>Reset filters</button>}</div></td></tr>}
         </tbody>

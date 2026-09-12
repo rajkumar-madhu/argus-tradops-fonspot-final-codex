@@ -92,7 +92,7 @@ def main() -> None:
     configure_logging("collector")
     shutdown = GracefulShutdown().install()
     if settings.metrics_enabled:
-        start_http_server(settings.worker_metrics_port)
+        start_http_server(settings.metrics_port("collector"))
     lease = RedisLeaderLease(settings.collector_leader_key, settings.collector_leader_ttl_seconds)
     is_leader = False
     log.info("starting collector interval=%ss lookback=%s", settings.collector_interval_seconds, settings.collector_lookback)

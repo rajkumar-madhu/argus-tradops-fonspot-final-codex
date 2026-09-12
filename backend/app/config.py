@@ -66,6 +66,7 @@ class Settings:
     es_password: str | None = os.getenv("ELASTICSEARCH_PASSWORD") or None
     es_ca_certs: str | None = os.getenv("ELASTICSEARCH_CA_CERTS") or None
     es_verify_certs: bool = _bool("ELASTICSEARCH_VERIFY_CERTS", True)
+    es_request_timeout_seconds: float = _float("ELASTICSEARCH_REQUEST_TIMEOUT", 8.0)
 
     # Real Noren indices from the supplied Logstash pipeline.
     noren_order_index: str = os.getenv("NOREN_ORDER_INDEX", "noren-ordupd-intraday")
@@ -125,7 +126,19 @@ class Settings:
     metrics_enabled: bool = _bool("METRICS_ENABLED", True)
     prometheus_url: str = os.getenv("PROMETHEUS_URL", "").strip()
     prometheus_timeout_seconds: float = _float("PROMETHEUS_TIMEOUT_SECONDS", 2.0)
-    worker_metrics_port: int = _int("WORKER_METRICS_PORT", 9108)
+    # WORKER_METRICS_PORT overrides for all; otherwise each worker has its own
+    # default so co-located workers (Compose without env, a laptop) do not race
+    # for one port. Kubernetes and Compose set the env explicitly.
+    worker_metrics_port: int = _int("WORKER_METRICS_PORT", 0)
+    collector_metrics_port: int = _int("COLLECTOR_METRICS_PORT", 9108)
+    correlation_metrics_port: int = _int("CORRELATION_METRICS_PORT", 9109)
+    market_metrics_port: int = _int("MARKET_METRICS_PORT", 9110)
+
+    def metrics_port(self, worker: str) -> int:
+        if self.worker_metrics_port:
+            return self.worker_metrics_port
+        return {"collector": self.collector_metrics_port, "correlation": self.correlation_metrics_port,
+                "market": self.market_metrics_port}[worker]
     auto_create_schema: bool = _bool("AUTO_CREATE_SCHEMA", False)
 
     # TrueData market data (optional — served via market_data_worker → Redis snapshot)
