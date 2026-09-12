@@ -15,7 +15,7 @@
  */
 
 export { TOKEN_COOKIE } from "@/lib/session-shared";
-import { TOKEN_COOKIE } from "@/lib/session-shared";
+import { TOKEN_COOKIE, tokenRoles } from "@/lib/session-shared";
 
 export type SessionUser = {
   sub?: string;
@@ -56,15 +56,11 @@ export function decodeSession(token: string | null): SessionUser | null {
     const [, payload] = token.split(".");
     if (!payload) return null;
     const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-    const realmRoles: string[] = json?.realm_access?.roles || [];
-    const clientRoles: string[] = Object.values(json?.resource_access || {}).flatMap(
-      (entry: any) => entry?.roles || []
-    );
     return {
       sub: json.sub,
       username: json.preferred_username,
       email: json.email,
-      roles: Array.from(new Set([...realmRoles, ...clientRoles])),
+      roles: tokenRoles(json),
       expiresAt: Number(json.exp || 0) * 1000,
     };
   } catch {

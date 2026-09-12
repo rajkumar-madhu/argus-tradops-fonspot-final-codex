@@ -2,9 +2,10 @@ import { cookies } from "next/headers";
 import { TOKEN_COOKIE } from "@/lib/session-shared";
 import { serverRuntimeConfig } from "@/lib/runtime";
 
+import { forbiddenDetail, type ForbiddenDetail } from "@/lib/api-result";
 export { apiError } from "@/lib/api-result";
 
-export type ApiResult<T> = T & { _error?: string; _status?: number };
+export type ApiResult<T> = T & { _error?: string; _status?: number; _forbidden?: ForbiddenDetail };
 
 /**
  * Server-component fetch helper.
@@ -30,7 +31,8 @@ export async function getJSON<T>(path: string): Promise<ApiResult<T>> {
           : res.status === 403
             ? "Your role does not grant access to this view"
             : `API ${res.status}`;
-      return { _error: `${hint} (${path})`, _status: res.status } as ApiResult<T>;
+      const _forbidden = res.status === 403 ? forbiddenDetail(await res.json().catch(() => null)) : undefined;
+      return { _error: `${hint} (${path})`, _status: res.status, ...(_forbidden && { _forbidden }) } as ApiResult<T>;
     }
     return res.json();
   } catch (err) {

@@ -73,10 +73,22 @@ def current_user(request: Request, credentials: HTTPAuthorizationCredentials | N
     except Exception as exc:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+def forbidden_detail(permission: str, roles) -> dict:
+    """What a Keycloak admin needs to fix a 403: the permission, the roles that grant it,
+    and which TradeOps roles the token did carry. Other realm roles (a shared realm's
+    defaults) are left out; the caller already holds the token, so nothing here is new to them."""
+    return {
+        "message": "Insufficient permission",
+        "permission": permission,
+        "granted_by": sorted(r for r, perms in ROLE_PERMISSIONS.items() if "*" in perms or permission in perms),
+        "app_roles": sorted(r for r in roles if r in ROLE_PERMISSIONS),
+        "client_id": settings.keycloak_client_id,
+    }
+
 def require(permission: str) -> Callable:
     def dep(user=Depends(current_user)):
         perms=set(user["permissions"])
         if "*" not in perms and permission not in perms:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permission")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=forbidden_detail(permission, user.get("roles", [])))
         return user
     return dep
