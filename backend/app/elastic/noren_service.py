@@ -73,6 +73,27 @@ def _status_codes(status: str | None) -> list[int] | None:
     }.get(s)
 
 
+# Free-text order search is restricted to these fields. The previous
+# `query_string` with `UserId*`-style patterns let an `orders:read` caller write
+# `_exists_:PanNum` or `PanNum:ABC*` and confirm excluded values by hit count.
+# `simple_query_string` has no field syntax that can escape this list, and the
+# concrete names stop `RejReason*` from matching every `.keyword` sub-field.
+ORDER_SEARCH_FIELDS = [
+    "NorenOrdNum", "Eref", "ExchOrdNum", "TradingSymbol", "Token",
+    "UserId", "AcctId", "BrokerId", "Region", "ExchSeg", "RejReason", "RejBy",
+]
+
+
+def order_search_query(q: str) -> dict[str, Any]:
+    return {"simple_query_string": {
+        "query": q,
+        "fields": ORDER_SEARCH_FIELDS,
+        "default_operator": "and",
+        "analyze_wildcard": False,
+        "lenient": True,
+    }}
+
+
 def live_orders(*, size: int = 100, lookback: str = "24h", exchange: str | None = None,
                 status: str | None = None, broker: str | None = None, user_id: str | None = None,
                 symbol: str | None = None, q: str | None = None) -> dict[str, Any]:
@@ -93,8 +114,8 @@ def live_orders(*, size: int = 100, lookback: str = "24h", exchange: str | None 
     codes = _status_codes(status)
     if codes:
         filters.append({"terms": {"OrdStatus": codes}})
-    if q:
-        must.append({"query_string": {"query": q, "fields": ["TradingSymbol*", "UserId*", "AcctId*", "BrokerId*", "RejReason*", "NorenOrdNum"], "lenient": True}})
+    if q and q.strip():
+        must.append(order_search_query(q))
 
     body: dict[str, Any] = {
         "size": min(max(size, 1), 500),
