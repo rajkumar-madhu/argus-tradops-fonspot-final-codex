@@ -23,7 +23,7 @@ This revision adds the production controls that were intentionally left out of t
 1. Provision HA PostgreSQL and Redis/Sentinel (or managed equivalents).
 2. Create Vault paths and External Secrets objects.
 3. Apply `k8s/namespace.yaml`, config, secrets integration and NetworkPolicies.
-4. Run `k8s/migrate-job.yaml` for each release before rolling the API/workers.
+4. Run `k8s/migrate-job.yaml` for each release before rolling the API/workers. The Job deletes itself 10 minutes after finishing (`ttlSecondsAfterFinished`); to re-run sooner, `kubectl delete job tradeops-db-migrate` first — a Job's template is immutable and a second `apply` against a live Job fails.
 5. Deploy API, collectors and correlation workers.
 6. Install `ServiceMonitor` objects if Prometheus Operator is present.
 7. Alert on DLQ growth, collector leadership loss, Redis pending entries, worker failures and API error-rate/latency.

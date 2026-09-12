@@ -1,10 +1,12 @@
 from __future__ import annotations
+import math
 import re
 import hashlib
 from app.session_fields import SESSION_JOURNAL_FIELDS, REDACTED_SESSION_FIELDS
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any
-from app.config import settings
+from app.config import parse_price_divisors, settings
 
 
 def _first(doc: dict[str, Any], *names: str, default: Any = "") -> Any:
@@ -89,10 +91,82 @@ def _iso_from_unix(seconds: Any, nsecs: Any = 0) -> str:
         return ""
 
 
-def _price(value: Any) -> float | None:
+# Noren records prices as integers whose scale depends on the exchange segment.
+# Each entry below is established from the journal itself, not from general
+# knowledge; NOREN_FIELD_MAP.md lists the evidence. A segment with no entry
+# (BCD, NCDEX, or a missing ExchSeg) is left unnormalised and marked
+# "unverified" until NOREN_PRICE_DIVISORS names it.
+#
+# Paise: option strikes in TradingSymbol equal StrikePrice / 100, and the RMS's
+# own "Current:INR" and margin figures equal PriceToFill / 100.
+PAISE_SEGMENTS = ("NSE", "BSE", "NFO", "BFO", "MCX")
+# CDS: TickSize 25000 against the exchange's Rs 0.0025 tick for USDINR and
+# interest-rate futures, which puts USDINR at 94.88, not 948.8 or 9.488.
+_BUILTIN_SEGMENT_DIVISORS = {"CDS": 10_000_000.0}
+
+# Rupee order value is qty × price × value_multiplier, again from the RMS's
+# margin arithmetic. QtyToFill counts units on the equity and F&O segments. On
+# MCX it counts LotSize units and Scripupdate.PriceMultiplier converts to the
+# quote unit (GOLDM: 100 g lot, quoted per 10 g, multiplier 0.1). CDS carries a
+# Scripupdate.Multiplier but no RMS figure shows how it combines with qty, so
+# its rupee value stays unestablished.
+_UNIT_QTY_SEGMENTS = frozenset({"NSE", "BSE", "NFO", "BFO"})
+
+
+@lru_cache(maxsize=8)
+def _segment_divisors(default: float, overrides: str) -> dict[str, float]:
+    # A non-positive NOREN_PRICE_DIVISOR leaves the paise segments unverified.
+    usable = math.isfinite(default) and default > 0
+    table = {segment: default for segment in PAISE_SEGMENTS} if usable else {}
+    table.update(_BUILTIN_SEGMENT_DIVISORS)
+    table.update(parse_price_divisors(overrides))
+    return table
+
+
+def segment_divisors() -> dict[str, float]:
+    """Price divisor per exchange segment; segments absent are unverified."""
+    return dict(_segment_divisors(settings.noren_price_divisor, settings.noren_price_divisors))
+
+
+def price_divisor(segment: Any) -> float | None:
+    return _segment_divisors(settings.noren_price_divisor, settings.noren_price_divisors).get(str(segment or "").strip().upper())
+
+
+def scale_price(value: Any, segment: Any) -> float | None:
+    """Rupee price, or None when the value is absent or the segment's scale is unverified."""
+    divisor = price_divisor(segment)
+    if divisor is None or value in (None, ""):
+        return None
     try:
-        return round(float(value) / settings.noren_price_divisor, 4)
-    except Exception:
+        return round(float(value) / divisor, 4)
+    except (TypeError, ValueError):
+        return None
+
+
+def value_multiplier(doc: dict[str, Any]) -> float | None:
+    """Factor turning qty × price into rupees; None where that is not established."""
+    segment = str(doc.get("ExchSeg") or "").strip().upper()
+    if price_divisor(segment) is None:
+        return None
+    if segment in _UNIT_QTY_SEGMENTS:
+        return 1.0
+    if segment == "MCX":
+        scrip = doc.get("Scripupdate") if isinstance(doc.get("Scripupdate"), dict) else {}
+        try:
+            multiplier = float(scrip.get("PriceMultiplier"))
+        except (TypeError, ValueError):
+            return None
+        return multiplier if math.isfinite(multiplier) and multiplier > 0 else None
+    return None
+
+
+def rupee_value(price: Any, qty: Any, multiplier: Any) -> float | None:
+    """qty × price × multiplier, or None when any factor is missing."""
+    try:
+        if price is None or multiplier is None:
+            return None
+        return round(float(price) * float(qty or 0) * float(multiplier), 2)
+    except (TypeError, ValueError):
         return None
 
 
@@ -105,6 +179,43 @@ def _latency_ms(doc: dict[str, Any]) -> float | None:
     except Exception:
         pass
     return None
+
+
+# The RMS writes the price band into the rejection text and mask_reason keeps it
+# readable on purpose (it is market data, not client data). Parsed here into
+# structured numbers so an investigation view can draw the band the order broke,
+# instead of asking an operator to read it out of a sentence.
+_BAND_FIELD = re.compile(r"\b(Current|LowerCircuit|UpperCircuit):INR\s*(-?[\d,]+(?:\.\d+)?)")
+_FREEZE_QTY = re.compile(r"freeze qty\D*(?:set\D*)?(\d+)\D*(?:current\D*)?(\d+)?", re.IGNORECASE)
+
+
+def price_band(reason: str) -> dict[str, Any] | None:
+    """Circuit band from a rejection reason, or None when the text carries none.
+
+    ``breach`` says which side the quoted price fell outside, and is None when
+    the price sits inside the band (the RMS also rejects for reasons the band
+    alone does not explain).
+    """
+    found = {key: float(value.replace(",", "")) for key, value in _BAND_FIELD.findall(str(reason or ""))}
+    if not found:
+        return None
+    current, lower, upper = found.get("Current"), found.get("LowerCircuit"), found.get("UpperCircuit")
+    breach = None
+    if current is not None:
+        if upper is not None and current > upper:
+            breach = "above"
+        elif lower is not None and current < lower:
+            breach = "below"
+    return {"current": current, "lower": lower, "upper": upper, "breach": breach, "unit": "INR"}
+
+
+def freeze_quantity(reason: str) -> dict[str, Any] | None:
+    """Exchange freeze quantity from a rejection reason, when it names one."""
+    match = _FREEZE_QTY.search(str(reason or ""))
+    if not match:
+        return None
+    allowed, requested = match.group(1), match.group(2)
+    return {"allowed": int(allowed), "requested": int(requested) if requested else None}
 
 
 def rejection_code(reason: str) -> str:
@@ -175,11 +286,16 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
     account = str(doc.get("AcctId") or "")
     user_id = str(doc.get("UserId") or "")
     reason = str(doc.get("RejReason") or "").strip()
+    segment = doc.get("ExchSeg")
+    divisor = price_divisor(segment)
+    raw_fill = doc.get("FillAvgPrice") or doc.get("FillPrice")
     return {
         "order_id": str(doc.get("NorenOrdNum") or ""),
         "eref": str(doc.get("Eref") or ""),
         "exchange_order_id": str(doc.get("ExchOrdNum") or ""),
         "time": _iso_from_unix(doc.get("NorenTimeStamp"), doc.get("NorenNsecs")),
+        # Beats receive clock (Logstash leaves @timestamp alone); absent in journal files.
+        "ingested_at": str(doc.get("@timestamp") or "") or None,
         "exchange_time": _iso_from_unix(doc.get("ExchTimeStamp"), doc.get("ExchNsecs")),
         "original_time": _iso_from_unix(doc.get("NorenOrgTimeStamp"), doc.get("NorenOrgNsecs")),
         "status": order_status(doc),
@@ -199,8 +315,15 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
         "qty": doc.get("QtyToFill") or 0,
         "filled_qty": doc.get("TotalFillQty") or doc.get("FillQty") or 0,
         "cancelled_qty": doc.get("CancelledQty") or 0,
-        "price": _price(doc.get("PriceToFill")),
-        "fill_price": _price(doc.get("FillAvgPrice") or doc.get("FillPrice")),
+        # price/fill_price are rupees, or None when the segment's scale is
+        # unverified; the recorded integers stay in the *_raw fields either way.
+        "price": scale_price(doc.get("PriceToFill"), segment),
+        "fill_price": scale_price(raw_fill, segment),
+        "price_raw": doc.get("PriceToFill"),
+        "fill_price_raw": raw_fill,
+        "price_scale": "verified" if divisor else "unverified",
+        "price_divisor": divisor,
+        "value_multiplier": value_multiplier(doc),
         "latency_ms": _latency_ms(doc),
         # Code and category read the raw text; the reason itself is masked so no
         # order payload (lists, lifecycle, RCA, event bus) carries client codes,
@@ -208,6 +331,9 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
         "code": rejection_code(reason),
         "reason": mask_reason(reason) if mask_sensitive else reason,
         "rejection_category": rejection_category(reason),
+        # Structured market limits from the same text, for the investigation chart.
+        "price_band": price_band(reason),
+        "freeze_qty": freeze_quantity(reason),
         "source": "noren-ordupd",
     }
 

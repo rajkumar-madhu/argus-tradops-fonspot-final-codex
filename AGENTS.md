@@ -89,7 +89,8 @@ Every read path resolves to one of three sources, and the chosen one is echoed i
 
 `/api/journal/explore` backs `/logs` (the Journal Explorer): paged masked rows, facet counts and an event histogram for one `msg_type` at a time. It reuses `journal_routes.allowed()`, so permission is per message type — `ordupd` needs `orders:read`, sessions need `sessions:read`, `yel_connected` needs `exchange:read`. That matters because `/logs` itself is granted via `logs:read`, which `infra_sre` holds without holding `orders:read`: the route is reachable but order records are not. Raw log search (`/api/logs/search`) stays empty under a journal source by design — source rows carry PAN, IP and session fields, so the explorer serves the masked projection instead.
 
-Operator-facing UI must never render the word "demo": `frontend/lib/data-source.ts` maps sources to badges (`LIVE` / `FILE-BASED` / `OFFLINE`). Route new `source` values through those helpers.
+Operator-facing UI must never render the word "demo": `frontend/lib/data-source.ts` maps sources to badges. The vocabulary is five states, not three: `LIVE` (newest event within `TRADEOPS_FRESH_LIVE_SECONDS`), `DELAYED`, `STALE` (quiet during trading hours), `CLOSED` (quiet outside `TRADEOPS_TRADING_HOURS`), `FILE-BASED`, `OFFLINE`. `/api/freshness` (`app/freshness.py`) is the source of those states; `freshnessBadge()` renders them and a live→journal `fallback` on any payload is always `DELAYED`, never `LIVE`. Route new `source` values through those helpers.
+- Failures are never zero: `_reject_rate` returns `None`, `yel_health().connected` is `None` when the index holds no `yel_connected` event (a data gap, not a P1), `_with_data_source` stamps `fallback` on a payload it served from the journal, and `fmt()` renders a missing count as `—`.
 
 ### Backend (`backend/app/`)
 
@@ -132,7 +133,7 @@ Next.js 15 App Router, React 19, hand-written CSS in `app/globals.css`. No state
 
 - Event time is `NorenTimeStamp_N` (a date field Logstash derives from the UNIX `NorenTimeStamp`), **not** `@timestamp`. `@timestamp` is ingestion time and is the only usable sort for `yel_connected`.
 - Order status is derived from the numeric `OrdStatus` in `normalizer.order_status()`; `_status_codes()` in `noren_service.py` maps the reverse direction for filters. Both must stay in sync (56/65 rejected, 52 cancelled, 50 complete, 48 open, 54 trigger-pending, 109/110/115 pending).
-- Prices are divided by `NOREN_PRICE_DIVISOR` (default 100).
+- Prices are divided per exchange segment (`normalizer.price_divisor()`): `NOREN_PRICE_DIVISOR` (default 100) for NSE/BSE/NFO/BFO/MCX, 10⁷ for CDS, overridable via `NOREN_PRICE_DIVISORS="SEG=n,..."`. A segment without an established divisor is left unscaled (`price` null, `price_raw` kept, `price_scale: "unverified"`) — never guess one. Rupee value is qty × price × `value_multiplier` (1 on equity/F&O, `Scripupdate.PriceMultiplier` on MCX, null on CDS). Evidence in `NOREN_FIELD_MAP.md`.
 - Order identity is `NorenOrdNum`; list queries `collapse` on it and count via a `cardinality` agg, so `count` (unique orders) and `returned` (rows) differ deliberately.
 - Latency has two distinct meanings and `latency_kind` in the response says which: `oms_latency` (measured OMS→exchange confirmation) vs `journal_event_interval` (the gap between Noren original and current event timestamps — **not** a network measurement). Never relabel one as the other.
 

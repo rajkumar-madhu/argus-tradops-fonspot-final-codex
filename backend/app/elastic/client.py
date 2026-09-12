@@ -11,12 +11,15 @@ def get_es() -> Elasticsearch | None:
     if _client is not None:
         return _client
 
+    # Budget: the UI's server-side fetch gives up at 15 s, so 30 s x 4 attempts
+    # only ever produced a blank page after 2 minutes of retries. One retry on
+    # a connection error, none on a timeout, inside the page budget.
     kwargs: dict = {
         "hosts": [settings.es_url],
         "verify_certs": settings.es_verify_certs,
-        "request_timeout": 30,
-        "retry_on_timeout": True,
-        "max_retries": 3,
+        "request_timeout": settings.es_request_timeout_seconds,
+        "retry_on_timeout": False,
+        "max_retries": 1,
     }
     if settings.es_api_key:
         kwargs["api_key"] = settings.es_api_key

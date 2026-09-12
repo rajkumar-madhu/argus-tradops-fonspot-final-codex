@@ -268,6 +268,7 @@ export function formatGap(ms: number): string {
 type LifecycleEvent = {
   time?: string | null; status_code?: number | string | null; qty?: number | null;
   filled_qty?: number | null; price?: number | null; fill_price?: number | null; exchange_order_id?: string | null;
+  price_raw?: number | string | null; price_scale?: string | null;
 };
 
 /**
@@ -291,6 +292,10 @@ export function lifecycleSteps(events: LifecycleEvent[]) {
       filled: e.filled_qty ?? null,
       price: e.price ?? null,
       fillPrice: e.fill_price ?? null,
+      // Segment whose price scale the backend could not establish: price is
+      // null and only the recorded integer is available.
+      unverifiedScale: e.price_scale === "unverified",
+      priceRaw: e.price_raw ?? null,
       exchangeOrderId: e.exchange_order_id || "",
     };
   });

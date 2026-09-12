@@ -16,7 +16,8 @@ def initialize():
     if settings.csv_dir:
         _store=FileAnalytics(settings.csv_cache_path,settings.csv_dir,max_bytes=settings.csv_max_bytes,unit=settings.csv_latency_unit,max_rows=settings.csv_max_rows)
         _store.ingest()
-        from app.metrics import CSV_QUEUE_LAST_EVENT, CSV_QUEUE_HAS_DATA
+        from app.metrics import CSV_LAST_IMPORT, CSV_QUEUE_LAST_EVENT, CSV_QUEUE_HAS_DATA
+        CSV_LAST_IMPORT.set(datetime.now().timestamp())
         latest = {}
         for item in _store.queues()["items"]:
             stamp = datetime.fromisoformat(item["last_observed"]).timestamp() if item.get("last_observed") else 0

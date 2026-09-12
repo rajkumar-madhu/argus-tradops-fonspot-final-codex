@@ -8,10 +8,16 @@ import { fmt } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-/** Latencies arrive in microseconds. Show µs below 1ms, ms below 1s, else seconds. */
-function dur(us: number) {
-  const n = Number(us || 0);
-  if (us == null || !Number.isFinite(n) || n < 0) return '—';
+/**
+ * Duration in the unit the payload declares. /api/order-latency states `unit`
+ * ("us" for journal event intervals, which are Noren nanosecond clocks ÷ 1000).
+ * Without a declared unit the raw number is shown as source units — the same
+ * stance as the CSV latency page — rather than assumed to be microseconds.
+ */
+function dur(value: unknown, unit: string | undefined) {
+  const n = Number(value);
+  if (value == null || value === '' || !Number.isFinite(n) || n < 0) return '—';
+  if (unit !== 'us') return `${n.toLocaleString()} ${unit || 'source units'}`;
   if (n < 1000) return `${n.toFixed(0)} µs`;
   if (n < 1_000_000) return `${(n / 1000).toFixed(2)} ms`;
   return `${(n / 1_000_000).toFixed(2)} s`;
@@ -22,6 +28,7 @@ export default async function Page() {
   const err = apiError(d);
   const rows: any[] = d.items || [];
   const s: any = d.summary || {};
+  const unit: string | undefined = typeof d.unit === 'string' ? d.unit : undefined;
   const segments: any[] = d.by_segment || [];
   const journalInterval = d.latency_kind === 'journal_event_interval';
   const latencyLabel = journalInterval ? 'Event Interval' : 'OMS Latency';
@@ -63,22 +70,22 @@ export default async function Page() {
           <section className="kpi-grid four">
             <KpiCard
               label={`${latencyLabel} p50`}
-              value={dur(s.oms_p50_us)}
+              value={dur(s.oms_p50_us, unit)}
               sub={journalInterval ? 'Original to current event' : 'Median internal processing'}
               tone="blue"
               icon={<Zap size={18} />}
             />
             <KpiCard
               label={`${latencyLabel} p95`}
-              value={dur(s.oms_p95_us)}
-              delta={`max ${dur(s.oms_max_us)}`}
+              value={dur(s.oms_p95_us, unit)}
+              delta={`max ${dur(s.oms_max_us, unit)}`}
               tone="purple"
               icon={<Timer size={18} />}
             />
             <KpiCard
               label="Exchange Confirm p50"
               value={
-                d.confirmation_timing_available === false ? 'Unavailable' : dur(s.confirm_p50_us)
+                d.confirmation_timing_available === false ? 'Unavailable' : dur(s.confirm_p50_us, unit)
               }
               sub={`${fmt(s.confirmed_orders)} confirmed${journalInterval ? ' · order number present' : ''}`}
               tone="teal"
@@ -127,7 +134,7 @@ export default async function Page() {
             </div>
             <HBarList
               rows={segments.map((x, i) => ({
-                label: `${x.segment} — p50 ${dur(x.oms_p50_us)}${x.unconfirmed ? ` · ${x.unconfirmed} unconfirmed` : ''}`,
+                label: `${x.segment} — p50 ${dur(x.oms_p50_us, unit)}${x.unconfirmed ? ` · ${x.unconfirmed} unconfirmed` : ''}`,
                 value: fmt(x.orders),
                 pct: (Number(x.orders || 0) / maxSeg) * 100,
                 cls: ['bar-blue', 'bar-purple', 'bar-teal', 'bar-amber', 'bar-green'][i % 5],
@@ -173,7 +180,7 @@ export default async function Page() {
                 {
                   key: 'oms_latency_us',
                   label: latencyLabel,
-                  render: (r) => dur(r.oms_latency_us),
+                  render: (r) => dur(r.oms_latency_us, unit),
                 },
                 {
                   key: 'exch_status_label',
@@ -191,7 +198,7 @@ export default async function Page() {
                     d.confirmation_timing_available === false ? (
                       <span className="text-muted">Unavailable</span>
                     ) : r.confirmed ? (
-                      dur(r.confirm_latency_us)
+                      dur(r.confirm_latency_us, unit)
                     ) : (
                       <span className="text-muted">—</span>
                     ),

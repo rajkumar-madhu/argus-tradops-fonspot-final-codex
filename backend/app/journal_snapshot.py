@@ -18,8 +18,11 @@ from app.elastic.normalizer import (
     normalize_order,
     normalize_session_event,
     order_status,
+    price_divisor,
     rejection_category,
     rejection_code,
+    rupee_value,
+    scale_price,
 )
 
 ORDER_JOURNAL_FIELDS = (
@@ -84,15 +87,6 @@ def _timestamp(value: Any, nsecs: Any = 0) -> str:
         return str(value)
 
 
-def _price(value: Any) -> float | None:
-    if value in (None, ""):
-        return None
-    try:
-        return round(float(value) / settings.noren_price_divisor, 4)
-    except (TypeError, ValueError, ZeroDivisionError):
-        return None
-
-
 def _project_order_fields(
     doc: dict[str, Any],
     normalized: dict[str, Any],
@@ -105,8 +99,11 @@ def _project_order_fields(
     projected["NorenTimeStamp"] = normalized.get("time") or ""
     projected["ExchTimeStamp"] = normalized.get("exchange_time") or ""
     projected["FillTime"] = _timestamp(doc.get("FillTime"), doc.get("FillNsecs"))
+    # Same per-segment scale as normalize_order. Where the scale is unverified
+    # the recorded value is kept unnormalised; the row's price_scale says so.
+    segment = doc.get("ExchSeg")
     for field in _PRICE_FIELDS:
-        projected[field] = _price(doc.get(field))
+        projected[field] = scale_price(doc.get(field), segment) if price_divisor(segment) else doc.get(field)
     projected["AcctId"] = mask_account(str(doc.get("AcctId") or ""))
     projected["UserId"] = mask_id(str(doc.get("UserId") or ""), 4)
     projected["ExchUserId"] = mask_id(str(doc.get("ExchUserId") or ""), 4)
@@ -154,21 +151,33 @@ def _rejection_row(snapshot: dict[str, Any], row: dict[str, Any]) -> dict[str, A
     enriched = dict(row)
     if str(enriched.get("reason") or "").strip():
         return enriched
-    for event in reversed(snapshot["events"]):
-        if event.get("order_id") != enriched.get("order_id"):
-            continue
-        reason = str(event.get("reason") or "").strip()
-        if not reason:
-            continue
-        enriched["reason"] = reason
+    event = snapshot.get("last_reason", {}).get(enriched.get("order_id"))
+    if event:
+        enriched["reason"] = str(event.get("reason") or "").strip()
         enriched["code"] = event.get("code") or enriched.get("code")
         enriched["rejection_category"] = event.get("rejection_category") or enriched.get("rejection_category")
-        break
     return enriched
 
 
-@lru_cache(maxsize=1)
+def _file_identity(path: str) -> tuple[int, int]:
+    st = Path(path).stat()
+    return st.st_mtime_ns, st.st_size
+
+
 def load_journal(path: str) -> dict[str, Any]:
+    """Parsed journal, cached per file identity: a replaced file is re-read."""
+    return _load_journal(path, *_file_identity(path))
+
+
+def _cache_clear() -> None:
+    _load_journal.cache_clear()
+
+
+load_journal.cache_clear = _cache_clear  # type: ignore[attr-defined]
+
+
+@lru_cache(maxsize=1)
+def _load_journal(path: str, _mtime_ns: int, _size: int) -> dict[str, Any]:
     order_events: list[dict[str, Any]] = []
     session_events: list[dict[str, Any]] = []
     yel_docs: list[dict[str, Any]] = []
@@ -198,6 +207,12 @@ def load_journal(path: str) -> dict[str, Any]:
 
     order_events.sort(key=lambda row: row["time"])
     latest = {row["order_id"]: row for row in order_events if row["order_id"]}
+    # Latest non-empty rejection reason per order, so rejection views do not
+    # rescan every event for every rejected order.
+    last_reason: dict[str, dict[str, Any]] = {}
+    for event in order_events:
+        if str(event.get("reason") or "").strip():
+            last_reason[event["order_id"]] = event
     items = sorted(latest.values(), key=lambda row: row["time"], reverse=True)
 
     session_events.sort(key=lambda row: row["time"], reverse=True)
@@ -209,9 +224,17 @@ def load_journal(path: str) -> dict[str, Any]:
     complete = [row for row in items if row.get("status") == "COMPLETE"]
     open_orders = [row for row in items if row.get("status") in {"OPEN", "PENDING", "TRIGGER_PENDING"}]
 
+    loaded_at = datetime.now(timezone.utc)
+    try:
+        from app.metrics import JOURNAL_LOADED
+        JOURNAL_LOADED.set(loaded_at.timestamp())
+    except ImportError:
+        pass
     return {
+        "loaded_at": loaded_at.isoformat(),
         "items": items,
         "events": order_events,
+        "last_reason": last_reason,
         "sessions": session_events,
         "active_sessions": active_sessions,
         "yel_docs": yel_docs,
@@ -229,6 +252,20 @@ def load_journal(path: str) -> dict[str, Any]:
     }
 
 
+def _without_evidence(row: dict[str, Any]) -> dict[str, Any]:
+    """Drop the per-row journal projection; it is ~57% of a full list payload."""
+    return {k: v for k, v in row.items() if k not in ("journal_fields", "masked_fields")}
+
+
+_SEARCH_KEYS = ("order_id", "eref", "exchange_order_id", "symbol", "exchange", "broker", "account", "user",
+                "status", "side", "product", "type", "code", "rejection_category")
+
+
+def _search_text(row: dict[str, Any]) -> str:
+    """The same fields the ES path searches; str(row) also matched masked/withheld text."""
+    return " ".join(str(row.get(k) or "") for k in _SEARCH_KEYS).lower()
+
+
 def journal_orders(
     path: str,
     *,
@@ -237,6 +274,7 @@ def journal_orders(
     exchange: str | None = None,
     symbol: str | None = None,
     q: str | None = None,
+    evidence: bool = True,
 ) -> dict[str, Any]:
     snapshot = load_journal(path)
     items = snapshot["items"]
@@ -248,9 +286,10 @@ def journal_orders(
         items = [row for row in items if str(row.get("symbol", "")).lower() == symbol.lower()]
     if q:
         needle = q.lower()
-        items = [row for row in items if needle in str(row).lower()]
+        items = [row for row in items if needle in _search_text(row)]
+    shown = [_withhold_reason(row) for row in items[:size]]
     return {
-        "items": [_withhold_reason(row) for row in items[:size]],
+        "items": shown if evidence else [_without_evidence(row) for row in shown],
         "count": len(items),
         "returned": min(size, len(items)),
         "source": snapshot["source"],
@@ -407,8 +446,13 @@ def journal_overview(path: str) -> dict[str, Any]:
     total = snapshot["count"] or 0
     rejected = len(snapshot["rejected"])
     complete = len(snapshot["complete"])
+    last_event: dict[str, str] = {}
+    for row in snapshot["items"]:
+        name = row.get("exchange") or "Unknown"
+        if row.get("time") and row["time"] > last_event.get(name, ""):
+            last_event[name] = row["time"]
     exchanges = [
-        {"name": name, "events": count}
+        {"name": name, "events": count, "last_event": last_event.get(name)}
         for name, count in snapshot["exchange_counts"].most_common()
     ]
     symbols = len({row.get("symbol") for row in snapshot["items"] if row.get("symbol")})
@@ -440,8 +484,8 @@ def journal_trades(path: str, *, size: int = 100) -> dict[str, Any]:
     snapshot = load_journal(path)
     items = []
     for row in snapshot["complete"][:size]:
-        price = float(row.get("fill_price") or row.get("price") or 0)
-        qty = float(row.get("filled_qty") or row.get("qty") or 0)
+        price = row.get("fill_price") or row.get("price")
+        qty = row.get("filled_qty") or row.get("qty")
         items.append(
             {
                 "trade_id": f"T-{row.get('order_id')}",
@@ -450,9 +494,12 @@ def journal_trades(path: str, *, size: int = 100) -> dict[str, Any]:
                 "exchange": row.get("exchange"),
                 "symbol": row.get("symbol"),
                 "side": row.get("side"),
-                "qty": row.get("filled_qty") or row.get("qty"),
-                "price": row.get("fill_price") or row.get("price"),
-                "value": round(price * qty, 2),
+                "qty": qty,
+                "price": price,
+                "price_raw": row.get("fill_price_raw") or row.get("price_raw"),
+                "price_scale": row.get("price_scale"),
+                # None where the segment's rupee notional is not established.
+                "value": rupee_value(price, qty, row.get("value_multiplier")),
                 "account": row.get("account"),
                 "user": row.get("user"),
                 "broker": row.get("broker"),
@@ -507,7 +554,13 @@ def _float_field(value: Any) -> float:
 
 
 def load_order_latency_csv(path: str) -> list[dict[str, Any]]:
-    """Parse L_ORDERLATENCY*.csv into rows shaped for _latency_payload."""
+    """Parse L_ORDERLATENCY*.csv into rows shaped for _latency_payload (cached per file identity)."""
+    st = Path(path).stat()
+    return _load_order_latency_csv(path, st.st_mtime_ns, st.st_size)
+
+
+@lru_cache(maxsize=2)
+def _load_order_latency_csv(path: str, _mtime_ns: int, _size: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with Path(path).open(encoding="utf-8", newline="") as stream:
         for raw in csv.DictReader(stream):

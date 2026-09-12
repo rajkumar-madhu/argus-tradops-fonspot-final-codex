@@ -15,6 +15,7 @@ import {
   slowestHop,
   sourceChips,
   stateTone,
+  venueStates,
 } from '../lib/command-center.ts';
 
 const at = (hhmmss) => `2026-06-30T${hhmmss}+05:30`;
@@ -110,12 +111,16 @@ test('data quality sums per-file counters and returns null without files', () =>
 
 test('queue instances keep aliases separate and skip instances without data', () => {
   const q = queueInstances({ sources: [
-    { instance: 'NSE2', peak: 4470, latest: 1 },
+    { instance: 'NSE2', peak: 4470, latest: 1, max_depth: 4470, episodes: 3, rows_per_second: 139.2, longest_episode_seconds: 32 },
     { instance: 'NSE', peak: 341, latest: 36 },
     { instance: 'BFO', peak: null, state: 'No data received' },
   ] });
   assert.deepEqual(q.rows.map((r) => r.instance), ['NSE2', 'NSE']);
   assert.equal(q.empty, 1);
+  // Backlog-episode facts replace the mean of a per-message depth log, which meant nothing.
+  assert.deepEqual([q.rows[0].maxDepth, q.rows[0].episodes, q.rows[0].rowsPerSecond, q.rows[0].longestEpisodeSeconds], [4470, 3, 139.2, 32]);
+  assert.deepEqual([q.rows[1].maxDepth, q.rows[1].episodes], [341, null]);
+  assert.ok(!('average' in q.rows[0]));
 });
 
 test('a permission refusal is distinguished from an outage', () => {
@@ -134,4 +139,18 @@ test('source chips list only sources the API reports', () => {
   assert.deepEqual(live.map((c) => [c.name, c.tone]), [['Elasticsearch', 'ok']]);
   const file = sourceChips({ items: [{ name: 'a.csv', state: 'Ready' }] }, { journal: { status: 'Loaded' } }, 'journal snapshot');
   assert.deepEqual(file.map((c) => c.name), ['Journal.log', 'a.csv']);
+});
+
+test('venue state comes from the newest event per venue, judged like /api/freshness', () => {
+  const fresh = { generated_at: '2026-09-08T05:30:00Z', thresholds: { live_seconds: 60, delayed_seconds: 300 }, trading_open: true };
+  const rows = venueStates([
+    { name: 'NSE', events: 900, last_event: '2026-09-08T05:29:50Z' },
+    { name: 'NFO', events: 400, last_event: '2026-09-08T05:27:00Z' },
+    { name: 'BSE', events: 20, last_event: '2026-09-08T04:00:00Z' },
+    { name: 'CDS', events: 2 },
+  ], fresh);
+  assert.deepEqual(rows.map((r) => [r.name, r.state, r.ageSeconds]), [['NSE', 'live', 10], ['NFO', 'delayed', 180], ['BSE', 'stale', 5400], ['CDS', 'unknown', null]]);
+  const closed = venueStates([{ name: 'BSE', events: 20, last_event: '2026-09-08T04:00:00Z' }], { ...fresh, trading_open: false });
+  assert.equal(closed[0].state, 'closed', 'quiet outside the session is closed, not stale');
+  assert.deepEqual(venueStates(null, null), []);
 });

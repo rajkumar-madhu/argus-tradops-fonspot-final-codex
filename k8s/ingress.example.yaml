@@ -1,0 +1,39 @@
+# Example only (not in kustomization.yaml). The repo shipped no Ingress while
+# PRODUCTION_HARDENING.md prescribed ingress behaviour; UAT runs nginx at
+# tradeops-uat.finspot.in / tradeops-uat-api.finspot.in. Copy into an overlay
+# with the real hosts and TLS secret.
+#
+# SSE (/api/stream/*) needs response buffering off and a long read timeout;
+# the API already sends X-Accel-Buffering: no. /metrics stays cluster-only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tradeops
+  namespace: tradeops
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Deny the Prometheus endpoint from outside the cluster.
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location = /metrics { return 404; }
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [tradeops.example.com, tradeops-api.example.com]
+      secretName: tradeops-tls
+  rules:
+    - host: tradeops.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: tradeops-web, port: {number: 3000}}}
+    - host: tradeops-api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: tradeops-api, port: {number: 8000}}}
