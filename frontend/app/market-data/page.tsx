@@ -11,7 +11,7 @@ export default async function Page() {
 
   let journalOrders: any = null;
   if (!err && (data.source === "journal snapshot" || !(data.symbols || []).length)) {
-    journalOrders = await getJSON("/api/journal/orders?size=5000");
+    journalOrders = await getJSON("/api/journal/orders?size=5000&evidence=false");
   }
 
   return (

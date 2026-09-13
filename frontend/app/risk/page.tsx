@@ -19,7 +19,7 @@ export default async function Page() {
   const [risk, rejections, orders]: any[] = await Promise.all([
     getJSON("/api/risk"),
     getJSON("/api/rejections?lookback=24h"),
-    getJSON("/api/orders?size=10000&lookback=24h"),
+    getJSON("/api/orders?size=10000&evidence=false&lookback=24h"),
   ]);
   const err = apiError(risk);
   const source = String(risk?.source || rejections?.source || "");

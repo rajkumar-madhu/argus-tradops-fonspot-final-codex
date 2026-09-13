@@ -16,6 +16,7 @@ import time
 
 from app.auth import TOKEN_COOKIE, current_user, require
 from app.config import parse_cors_origins, settings
+from app.list_response import ListJSONResponse
 from app.elastic.service import (
     elk_status,
     latest_sessions,
@@ -575,13 +576,13 @@ def _journal_snapshot():
 
 
 @app.get("/api/journal/orders")
-def journal_orders(size: int = Query(500, ge=1, le=10000), user=Depends(require("orders:read"))):
+def journal_orders(size: int = Query(500, ge=1, le=10000), evidence: bool = Query(True), user=Depends(require("orders:read"))):
     from app.journal_snapshot import journal_orders as journal_orders_data
 
     path = _journal_path()
     if not path:
         raise HTTPException(503, "Journal snapshot is not configured")
-    return journal_orders_data(path, size=size)
+    return ListJSONResponse(journal_orders_data(path, size=size, evidence=evidence))
 
 
 @app.get("/api/journal/orders/{order_id}/lifecycle")
@@ -613,7 +614,7 @@ def orders(
     from app.journal_snapshot import journal_orders as journal_orders_data
 
     if _use_journal_data():
-        return journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence)
+        return ListJSONResponse(journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence))
     if DEMO_MODE:
         items = DEMO_ORDERS
         if status: items = [x for x in items if x["status"].lower() == status.lower()]
@@ -621,10 +622,10 @@ def orders(
         if symbol: items = [x for x in items if x["symbol"].lower() == symbol.lower()]
         if q: items = [x for x in items if q.lower() in str(x).lower()]
         return {"items":items[:size],"count":len(items),"source":"demo"}
-    return _with_data_source(
+    return ListJSONResponse(_with_data_source(
         lambda: live_orders(size=size, lookback=lookback, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q),
         lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence),
-    )
+    ))
 
 
 @app.get("/api/orders/{order_id}/lifecycle")
@@ -647,10 +648,10 @@ def rejections(lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"), user=Dep
     from app.journal_snapshot import journal_rejections as journal_rejections_data
 
     if _use_journal_data():
-        return journal_rejections_data(_journal_path())
+        return ListJSONResponse(journal_rejections_data(_journal_path()))
     if DEMO_MODE:
         return _demo_rejections()
-    return _with_data_source(lambda: rejection_summary(lookback=lookback), lambda: journal_rejections_data(_journal_path()))
+    return ListJSONResponse(_with_data_source(lambda: rejection_summary(lookback=lookback), lambda: journal_rejections_data(_journal_path())))
 
 
 @app.get("/api/rca/order/{order_id}")
