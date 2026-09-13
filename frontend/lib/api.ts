@@ -34,7 +34,11 @@ export async function getJSON<T>(path: string): Promise<ApiResult<T>> {
       const _forbidden = res.status === 403 ? forbiddenDetail(await res.json().catch(() => null)) : undefined;
       return { _error: `${hint} (${path})`, _status: res.status, ...(_forbidden && { _forbidden }) } as ApiResult<T>;
     }
-    return res.json();
+    const data = await res.json();
+    if (!data || typeof data !== 'object') {
+      return { _error: `Invalid API response (${path})` } as ApiResult<T>;
+    }
+    return data;
   } catch (err) {
     return { _error: err instanceof Error ? err.message : "Network error" } as ApiResult<T>;
   }

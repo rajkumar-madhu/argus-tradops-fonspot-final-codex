@@ -36,17 +36,24 @@ export function setToken(token: string, expiresInSeconds: number): void {
   const sameSite = isSecureContext() ? "None" : "Lax";
   const secure = isSecureContext() ? "; Secure" : "";
   document.cookie = `${TOKEN_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
+  // Browsers silently reject blocked or oversized cookies. Never call that a
+  // successful login: SSR would immediately request data without a token.
+  if (getToken() !== token) {
+    clearToken();
+    throw new Error("Your session could not be saved. Allow cookies for this site and restart sign-in. If this continues, ask an administrator to check the token size.");
+  }
 }
 
 export function getToken(): string | null {
   if (typeof document === "undefined") return null;
   const hit = document.cookie.split("; ").find((c) => c.startsWith(`${TOKEN_COOKIE}=`));
-  return hit ? decodeURIComponent(hit.slice(TOKEN_COOKIE.length + 1)) : null;
+  try { return hit ? decodeURIComponent(hit.slice(TOKEN_COOKIE.length + 1)) : null; }
+  catch { return null; }
 }
 
 export function clearToken(): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+  document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${isSecureContext() ? '; Secure' : ''}`;
 }
 
 /** Decodes claims for display/nav only. The backend is what actually verifies the signature. */

@@ -6,6 +6,7 @@ import { ArrowRight, KeyRound, LayoutDashboard, Shield } from "lucide-react";
 import AuthModeTabs from "@/components/AuthModeTabs";
 import AuthShell from "@/components/AuthShell";
 import { fetchAuthConfig, login } from "@/lib/oidc";
+import { safeReturnTo } from "@/lib/auth-routing";
 
 export default function SignIn() {
   const [busy, setBusy] = useState(false);
@@ -13,6 +14,7 @@ export default function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [email, setEmail] = useState("");
+  const [expired, setExpired] = useState(false);
 
   const checkConfig = useCallback(async () => {
     setChecking(true);
@@ -35,6 +37,7 @@ export default function SignIn() {
   }, []);
 
   useEffect(() => {
+    setExpired(new URLSearchParams(window.location.search).get('reason') === 'expired');
     void checkConfig();
   }, [checkConfig]);
 
@@ -42,7 +45,7 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      await login("/dashboard", email);
+      await login(safeReturnTo(new URLSearchParams(window.location.search).get('returnTo')), email);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
       setBusy(false);
@@ -91,6 +94,7 @@ export default function SignIn() {
           <span className="auth-hint">Used only to pre-fill your identity provider when supported</span>
         </label>
 
+        {expired && <p role="status">Your session has expired. Sign in again to continue.</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
 
         {authDisabled === true ? (

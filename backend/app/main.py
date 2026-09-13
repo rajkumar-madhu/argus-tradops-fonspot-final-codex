@@ -15,7 +15,7 @@ from prometheus_client import make_asgi_app
 import time
 
 from app.auth import TOKEN_COOKIE, current_user, require
-from app.config import settings
+from app.config import parse_cors_origins, settings
 from app.elastic.service import (
     elk_status,
     latest_sessions,
@@ -57,7 +57,7 @@ app.include_router(journal_routes.router)
 if settings.metrics_enabled:
     app.mount("/metrics", make_asgi_app())
 
-origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
+origins = parse_cors_origins(os.getenv("CORS_ORIGINS", "http://localhost:3000"))
 
 DEMO_MODE = settings.demo_mode
 
