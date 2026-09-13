@@ -21,7 +21,7 @@ export default async function DashboardPage({
   const [overview, orders, rejections, exchanges, yel, latency, queues, infra, ready, sessions, yelRecords, freshness] =
     await Promise.all([
       getJSON('/api/overview'),
-      getJSON(`/api/orders?size=${orderSize}&lookback=${lookback}`),
+      getJSON(`/api/orders?size=${orderSize}&evidence=false&lookback=${lookback}`),
       getJSON(`/api/rejections?lookback=${lookback}`),
       getJSON('/api/exchanges'),
       getJSON('/api/exchanges/yel'),

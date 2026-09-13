@@ -20,7 +20,7 @@ export default async function Page({
   // (500) from Elasticsearch.
   const initial: any = await getJSON(
     snapshot
-      ? '/api/journal/orders?size=10000'
+      ? '/api/journal/orders?size=10000&evidence=false'
       : `/api/orders?size=10000&evidence=false&lookback=${lookback}${params.order ? `&q=${encodeURIComponent(params.order)}` : ''}`,
   );
   const err = apiError(initial);

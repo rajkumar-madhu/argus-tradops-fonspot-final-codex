@@ -13,7 +13,7 @@ export default async function Page() {
   const [yel, infra, orders, rejections, latency] = await Promise.all([
     getJSON('/api/exchanges/yel'),
     getJSON('/api/infra'),
-    getJSON(isJournal ? '/api/journal/orders?size=10000' : '/api/orders?size=500&lookback=24h'),
+    getJSON(isJournal ? '/api/journal/orders?size=10000&evidence=false' : '/api/orders?size=500&evidence=false&lookback=24h'),
     getJSON('/api/rejections'),
     getJSON('/api/files/latency?limit=1'),
   ]);
