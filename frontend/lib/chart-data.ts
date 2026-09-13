@@ -41,7 +41,7 @@ export function tradeVolumeTrend(rows: { time: string; value: number }[]) {
   const values = keys.map((k) => bins.get(k) || 0);
   return {
     labels,
-    series: [{ name: "Turnover", points: values, cls: "s-executed" }],
+    series: [{ name: "Fills", points: values, cls: "s-executed" }],
   };
 }
 
