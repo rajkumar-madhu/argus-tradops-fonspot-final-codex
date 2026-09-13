@@ -1,10 +1,38 @@
 import math
+import json
 import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def parse_cors_origins(value: str) -> list[str]:
+    """Accept the documented comma list and the JSON array used by UAT GitOps."""
+    raw = value.strip()
+    if raw.startswith('['):
+        try:
+            entries = json.loads(raw)
+        except ValueError as exc:
+            raise ValueError('CORS_ORIGINS must be a comma-separated list or JSON string array') from exc
+        if not isinstance(entries, list) or any(not isinstance(item, str) for item in entries):
+            raise ValueError('CORS_ORIGINS must contain only origin strings')
+    else:
+        entries = raw.split(',')
+    # With credentialed requests, wildcard origins must not grant access.
+    from urllib.parse import urlsplit
+    origins = []
+    for item in entries:
+        origin = item.strip().rstrip('/')
+        if not origin:
+            continue
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
+            raise ValueError('CORS_ORIGINS entries must be explicit HTTP(S) origins')
+        if origin not in origins:
+            origins.append(origin)
+    return origins
 
 
 def _bool(name: str, default: bool = False) -> bool:

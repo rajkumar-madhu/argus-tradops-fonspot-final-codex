@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Shield, UserPlus } from "lucide-react";
 import AuthModeTabs from "@/components/AuthModeTabs";
 import AuthShell from "@/components/AuthShell";
-import { fetchAuthConfig, login, registrationUrl, type AuthConfig } from "@/lib/oidc";
+import { fetchAuthConfig, login, register, registrationUrl, type AuthConfig } from "@/lib/oidc";
 
 export default function SignUp() {
   const [busy, setBusy] = useState(false);
@@ -49,7 +49,11 @@ export default function SignUp() {
       return;
     }
     setBusy(true);
-    window.location.href = target;
+    try { await register('/dashboard'); }
+    catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration could not be started');
+      setBusy(false);
+    }
   }
 
   const registrationOpen = Boolean(cfg && registrationUrl(cfg));

@@ -75,6 +75,7 @@ function rejectionsPayload() {
 }
 
 const staticRoutes = {
+  "/api/auth/me": { sub: "preview-user", roles: ["super_admin"], permissions: ["*"] },
   "/health": { status: "ok", demo_mode: true, time: new Date().toISOString(), schema: "noren-v1" },
   "/api/auth/config": {
     auth_disabled: true,

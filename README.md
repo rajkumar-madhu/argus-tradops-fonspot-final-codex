@@ -59,3 +59,5 @@ Read [File analytics operation and data contract](docs/FILE_ANALYTICS.md) for ex
 See [Final verification evidence and limits](docs/FINAL_VERIFICATION.md) for executed checks, the tested preview and remaining release validation.
 
 Latest integrated local evidence: [9 September 2026 verification report](docs/FINAL_VERIFICATION_2026-09-09.md).
+
+Authentication troubleshooting and the UAT GitOps boundary: [13 September login investigation](docs/LOGIN_INVESTIGATION_2026-09-13.md).

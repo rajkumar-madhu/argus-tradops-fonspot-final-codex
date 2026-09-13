@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { hasLiveMarketFeed, isJournalSource } from "@/lib/data-source";
 import { apiUrl } from "@/lib/runtime";
+import { authHeaders, decodeSession, getToken, isExpired } from '@/lib/session';
+import { canSee } from '@/lib/auth';
 
 type IndexTick = {
   name: string;
@@ -55,11 +57,18 @@ export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "s
   const [journal, setJournal] = useState<JournalStrip | null>(null);
 
   useEffect(() => {
+    const session = decodeSession(getToken());
+    // AuthShell also renders this component. Public pages must not request
+    // protected data, and cross-origin APIs need the explicit bearer header.
+    if (isExpired(session)) return;
+    const headers = authHeaders();
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${apiUrl()}/api/market-data`, { cache: "no-store" });
-        if (res.ok) {
+        const res = canSee('/market-data', session!.roles)
+          ? await fetch(`${apiUrl()}/api/market-data`, { cache: "no-store", headers, credentials: 'include' })
+          : null;
+        if (res?.ok) {
           const data = await res.json();
           const symbols: MarketSymbol[] = Array.isArray(data?.symbols) ? data.symbols : [];
           if (!cancelled && hasLiveMarketFeed(data?.source, symbols.length)) {
@@ -74,7 +83,7 @@ export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "s
       try {
         // /api/overview carries the source itself. The old /health fallback 404'd behind
         // ingresses that route only /api/* to the backend (UAT does).
-        const overviewRes = await fetch(`${apiUrl()}/api/overview`, { cache: "no-store" });
+        const overviewRes = await fetch(`${apiUrl()}/api/overview`, { cache: "no-store", headers, credentials: 'include' });
         if (cancelled || !overviewRes.ok) return;
         const overview = await overviewRes.json();
         const source = String(overview?.source || "");

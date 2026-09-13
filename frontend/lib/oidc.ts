@@ -10,7 +10,8 @@
  */
 
 import { apiUrl } from "@/lib/runtime";
-import { clearToken, setToken } from "@/lib/session";
+import { clearToken, setToken, decodeSession, isExpired } from "@/lib/session";
+import { safeReturnTo } from "@/lib/auth-routing";
 import { keycloakRegistrationUrl } from "@/lib/oidc-registration";
 import { authorizeParams, tokenErrorMessage } from "@/lib/oidc-flow";
 
@@ -33,7 +34,7 @@ export function redirectUri(): string {
 
 /** The backend owns the Keycloak settings; the browser bootstraps them from there. */
 export async function fetchAuthConfig(): Promise<AuthConfig> {
-  const res = await fetch(`${apiUrl()}/api/auth/config`, { cache: "no-store" });
+  const res = await fetch(`${apiUrl()}/api/auth/config`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`Auth config unavailable (HTTP ${res.status})`);
   return res.json();
 }
@@ -58,8 +59,19 @@ async function challengeFor(verifier: string): Promise<string> {
 
 /** Kicks off login. Sends the browser to Keycloak; never returns. `loginHint` pre-fills the username. */
 export async function login(returnTo = "/dashboard", loginHint?: string): Promise<void> {
+  return startAuthorization(returnTo, loginHint, false);
+}
+
+/** Registration returns through exactly the same PKCE/state-checked callback. */
+export async function register(returnTo = "/dashboard"): Promise<void> {
+  return startAuthorization(returnTo, undefined, true);
+}
+
+async function startAuthorization(returnTo: string, loginHint: string | undefined, registration: boolean): Promise<void> {
+  returnTo = safeReturnTo(returnTo);
   const cfg = await fetchAuthConfig();
-  if (cfg.auth_disabled) {
+  if (registration && cfg.registration_allowed !== true) throw new Error("Self-registration is not enabled on this identity provider.");
+  if (cfg.auth_disabled === true) {
     window.location.href = returnTo;
     return;
   }
@@ -76,19 +88,20 @@ export async function login(returnTo = "/dashboard", loginHint?: string): Promis
     challenge: await challengeFor(verifier),
     loginHint,
   });
-  window.location.href = `${cfg.authorization_endpoint}?${params.toString()}`;
+  const endpoint = registration ? cfg.authorization_endpoint.replace(/\/auth$/, '/registrations') : cfg.authorization_endpoint;
+  window.location.href = `${endpoint}?${params.toString()}`;
 }
 
 /** Completes login on /auth/callback. Returns where the user should land. */
 export async function completeLogin(search: URLSearchParams): Promise<string> {
   const error = search.get("error");
-  if (error) throw new Error(search.get("error_description") || error);
+  if (error) throw new Error("Sign-in was not completed by the identity provider. Please restart sign-in.");
 
   const code = search.get("code");
   if (!code) throw new Error("Authorization code missing from callback");
 
   const expectedState = sessionStorage.getItem(`${VERIFIER_KEY}.state`);
-  if (expectedState && search.get("state") !== expectedState) {
+  if (!expectedState || search.get("state") !== expectedState) {
     throw new Error("State mismatch — possible cross-site request forgery");
   }
   const verifier = sessionStorage.getItem(VERIFIER_KEY);
@@ -106,13 +119,33 @@ export async function completeLogin(search: URLSearchParams): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) throw new Error(tokenErrorMessage(res.status, await res.text().catch(() => ""), cfg.client_id));
   const token = await res.json();
-  if (!token.access_token) throw new Error("Token endpoint returned no access_token");
-
-  setToken(token.access_token, Number(token.expires_in || 300));
-  const returnTo = sessionStorage.getItem(RETURN_KEY) || "/dashboard";
+  if (typeof token.access_token !== 'string' || isExpired(decodeSession(token.access_token))) {
+    throw new Error("Token endpoint returned an invalid or expired session. Please restart sign-in.");
+  }
+  // A successful IdP exchange does not establish that this API accepts the
+  // issuer/audience/signature. Verify before reporting success or saving it.
+  const me = await fetch(`${apiUrl()}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token.access_token}` },
+    cache: 'no-store', signal: AbortSignal.timeout(10000),
+  });
+  if (!me.ok) {
+    clearToken();
+    throw new Error(me.status === 401
+      ? "The API could not verify your session. Ask an administrator to check the identity provider configuration, then restart sign-in."
+      : `Session verification is unavailable (HTTP ${me.status}). Please restart sign-in.`);
+  }
+  const user = await me.json();
+  if (!user || typeof user.sub !== 'string' || !Array.isArray(user.roles) || !Array.isArray(user.permissions)) {
+    throw new Error("The API returned an invalid session response. Please restart sign-in.");
+  }
+  const remaining = (decodeSession(token.access_token)!.expiresAt - Date.now()) / 1000;
+  const lifetime = Number(token.expires_in);
+  setToken(token.access_token, Number.isFinite(lifetime) && lifetime > 0 ? Math.min(lifetime, remaining) : remaining);
+  const returnTo = safeReturnTo(sessionStorage.getItem(RETURN_KEY));
   sessionStorage.removeItem(VERIFIER_KEY);
   sessionStorage.removeItem(RETURN_KEY);
   sessionStorage.removeItem(`${VERIFIER_KEY}.state`);

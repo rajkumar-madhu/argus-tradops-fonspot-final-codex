@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canSee } from "@/lib/auth";
-import { decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
+import { clearToken, decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
+import { safeReturnTo } from "@/lib/auth-routing";
 import { logout } from "@/lib/oidc";
 import MarketTicker from "@/components/MarketTicker";
 import LiveStatusStrip from "@/components/LiveStatusStrip";
@@ -92,6 +93,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     const current = decodeSession(getToken());
     setSession(current);
     setChecked(true);
+    if (!current) return; // Auth-disabled local previews have no token.
+    const checkExpiry = () => {
+      if (isExpired(decodeSession(getToken()))) {
+        clearToken();
+        const destination = safeReturnTo(window.location.pathname + window.location.search);
+        window.location.replace(`/signin?reason=expired&returnTo=${encodeURIComponent(destination)}`);
+      }
+    };
+    // A suspended tab can miss its timer; checking focus closes that gap.
+    const timer = setTimeout(checkExpiry, Math.max(0, Math.min(current.expiresAt - Date.now(), 2147483647)));
+    window.addEventListener('focus', checkExpiry);
+    return () => { clearTimeout(timer); window.removeEventListener('focus', checkExpiry); };
   }, []);
 
   // Rail signals. One request per page load, never polled: the rail is not a
@@ -99,9 +112,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Every failure path (403 for a role without access, network error, unusable
   // payload) leaves the entry unset, and an unset entry renders no badge.
   useEffect(() => {
+    if (!checked) return;
     // No token is not a reason to stay silent: with AUTH_DISABLED the API
     // answers anyway, and with auth on a 401 simply leaves the chip unset.
     const token = getToken();
+    const current = decodeSession(token);
     const abort = new AbortController();
     const base = apiUrl();
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -115,6 +130,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     (async () => {
       const next: NavSignals = {};
       await Promise.all(Object.entries(SIGNAL_ROUTES).map(async ([href, route]) => {
+        if (token && (!current || isExpired(current) || !canSee(href, current.roles))) return;
         const count = parseSignalCount(await get(route));
         if (hasSignal(count)) next[href] = count as number;
       }));

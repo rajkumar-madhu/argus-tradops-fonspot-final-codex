@@ -161,3 +161,22 @@ Companion docs: `EVENT_BUS_ARCHITECTURE.md`, `PRODUCTION_HARDENING.md`, `NOREN_F
 ## CSV analytics extension
 
 `app/csv_store.py` owns read-only CSV ingestion; `app/file_analytics.py` adapts the UI contract and caches bounded latency queries. `app/file_routes.py` exposes authenticated GET-only source, latency, queue and export routes. See `docs/FILE_ANALYTICS.md` for units, freshness, duplicate semantics, startup and deployment. Use `python scripts/test-backend.py` from the repository root when a dependency package named `tests` shadows the non-package backend test files. `scripts/start-file-preview.sh` provides an isolated real file-backed console on 3102/8102 without killing unrelated listeners.
+
+## Authentication completion and protected routing
+
+The callback verifies the exchanged access token with `GET /api/auth/me` before
+persisting it, checks that the cookie was actually saved, and restricts return
+paths to application routes. Login and enabled self-registration both create
+PKCE verifier/state; the callback exchanges a code once under Strict Mode.
+`frontend/middleware.ts` authenticates protected requests through
+`INTERNAL_API_URL` and the existing role allowlist before rendering. A 401
+redirects to sign-in, a 403 renders a permission response, and verification
+outages return 503 without clearing the session. Standalone denial responses
+preserve HTTP status instead of relying on an App Router rewrite.
+
+`CORS_ORIGINS` supports comma-separated HTTP(S) origins or a JSON string array;
+wildcards and invalid entries fail closed. API URLs are origins without an
+additional `/api` suffix. See `docs/LOGIN_INVESTIGATION_2026-09-13.md` for the
+investigation, isolated fixture commands, validation limits and external UAT
+GitOps ownership. `scripts/auth-fixture.py` is a loopback-only synthetic OIDC
+fixture with in-memory signing keys and must never be deployed.

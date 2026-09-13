@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import AuthShell from "@/components/AuthShell";
 import { completeLogin } from "@/lib/oidc";
 
 export default function Callback() {
   const [error, setError] = useState<string | null>(null);
+  const completion = useRef<Promise<string> | null>(null);
 
   useEffect(() => {
-    completeLogin(new URLSearchParams(window.location.search))
+    // React Strict Mode replays effects in development. Authorization codes
+    // are single-use, so both effect subscriptions must share one exchange.
+    completion.current ??= completeLogin(new URLSearchParams(window.location.search));
+    completion.current
       .then((returnTo) => {
         // Full navigation, not router.push: server components must re-render with
         // the freshly set cookie.
