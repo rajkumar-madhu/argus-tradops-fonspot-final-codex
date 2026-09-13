@@ -1,9 +1,24 @@
 # Login and dashboard investigation — 13 September 2026
 
-Status: focused implementation, local functional validation and linux/amd64 container builds completed. No image was pushed and no
-UAT resource was changed. This report distinguishes reproduced application
-defects from the original UAT symptom, whose account-specific trigger has not
-been established without an authenticated UAT reproduction.
+Status: implementation and local validation completed. Source revision
+`c4f158f` and both amd64 images were published after the user requested the UAT
+fix. Draft PR: https://github.com/rajkumar-madhu/argus-tradops-fonspot-final-codex/pull/11.
+No UAT resource has been changed by this work. GitOps repository access still
+returns 404; deployment and credentialed UAT verification remain pending.
+Earlier observations below are historical unless this release update supersedes them.
+
+Published Harbor image indexes (remotely inspected; each contains linux/amd64):
+
+```text
+harbor.finspot.in/common-application/tradeops-backend@sha256:be825e16eb512262023471bffefd1db9aec9877180ea7c16e032acd05a224c77
+harbor.finspot.in/common-application/tradeops-frontend@sha256:687350b1081a51175c5b254fee0b648adb4cfcfc6e38304107c143a2ebfb9ff3
+```
+
+Both are also tagged `uat-20260913-c4f158f-auth-r1`. Publishing completed with
+exit 0 in job `job-mtzfjn14-379e7df0`. This is image publication, not rollout proof.
+The latest read-only UAT check found backend `uat-20260913-77a3098-r1` and frontend
+`uat-20260913-0082bb0-r1`; the backend changed outside this investigation.
+Argo still reports sync Unknown and health Healthy.
 
 ## Repository and scope
 
@@ -259,8 +274,8 @@ Target-platform validation: backend and frontend `linux/amd64` builds and
 architecture inspections passed (exit 0), recorded in job
 `job-mtzdtd8c-b7d95536`. Local tags are
 `argus-tradeops-auth-backend:20260913-amd64` and
-`argus-tradeops-auth-frontend:20260913-amd64`. These are local images; no
-registry release digest has been published. Real
+`argus-tradeops-auth-frontend:20260913-amd64`. These local builds were subsequently published with the immutable digests
+recorded at the top of this report. Real
 credentialed UAT login, IdP invalid-password behavior, live data and deployment
 remain unverified. The fixture emulates IdP rejection; it does not test a real
 Keycloak password policy. No frontend linter or backend lint/type-check command
@@ -342,14 +357,15 @@ Use `http://localhost:13103` in Chrome. The fixture provides labelled synthetic
 roles and rejects invalid/audience-mismatched sessions. Its state endpoint is
 only a local test control. Do not include the fixture in a release deployment.
 The local test API and production frontend were stopped cleanly after checks.
-The report's build evidence comes from this working tree, not a committed or
-pushed release; rebuilding a reviewed commit remains a release prerequisite.
+Builds covered the application sources committed as `c4f158f`; the later report
+update changes documentation only. CI/review and owning GitOps changes remain
+release prerequisites.
 
 ## Rollout and rollback — not executed
 
-The application changes must first be committed/reviewed and pass CI. The source
-commit, pushed digests, and owning GitOps release commit do not exist yet for
-this working tree. The following commands deliberately require those reviewed
+The application changes are committed and pushed in draft PR #11, and the
+image digests are recorded above. Review/CI and the owning GitOps release commit
+are still required. The following commands deliberately require those reviewed
 values; no digest or repository filename is invented. Do not run the sync step
 while Argo's source is unreadable or its sync status is Unknown.
 
@@ -393,10 +409,11 @@ kubectl --context fs-prod-cp-ps -n argus-tradeops-uat get deployments \
 Rollback is a new reviewed GitOps commit restoring the last working image refs,
 while retaining the working same-host `/api` route. Do not revert the ingress to
 its outdated last-applied state and do not use `kubectl rollout undo` against
-Argo-managed Deployments. The previously observed rollback image refs are:
+Argo-managed Deployments. The latest observed pre-release image refs, superseding the initial backend
+observation, are:
 
 ```text
-harbor.finspot.in/common-application/tradeops-backend:uat-20260913-0082bb0-r1
+harbor.finspot.in/common-application/tradeops-backend:uat-20260913-77a3098-r1
 harbor.finspot.in/common-application/tradeops-frontend:uat-20260913-0082bb0-r1
 ```
 
