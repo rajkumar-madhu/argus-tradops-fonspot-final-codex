@@ -1,13 +1,13 @@
 import RefreshButton from "@/components/RefreshButton";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, LineChart, RefreshCw, Scale, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Boxes, RefreshCw, Scale, Wallet } from "lucide-react";
 import Shell from "@/components/Shell";
 import PositionsFlow from "@/components/PositionsFlow";
 import { Donut, HBarList, VBarChart } from "@/components/Charts";
 import { DataTable, EmptyState, KpiCard } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
 import { sourceDisplayName } from "@/lib/data-source";
-import { dateShort, fmt, money } from "@/lib/format";
+import { dateShort, fmt } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,6 @@ export default async function Page() {
   const [d, trades]: any[] = await Promise.all([getJSON("/api/positions"), getJSON("/api/trades?size=10000")]);
   const err = apiError(d);
   const rows = d.items || [];
-  const netMtm = rows.reduce((s: number, r: any) => s + Number(r.mtm || 0), 0);
   const longs = rows.filter((r: any) => Number(r.net_qty) > 0);
   const shorts = rows.filter((r: any) => Number(r.net_qty) < 0);
   const byExchange: Record<string, number> = {};
@@ -24,8 +23,9 @@ export default async function Page() {
   });
   const exchRows = Object.entries(byExchange).map(([name, count]) => ({ name, count }));
   const maxExch = Math.max(1, ...exchRows.map((x) => x.count));
-  const mtmBars = rows
-    .map((r: any) => ({ label: String(r.symbol).slice(0, 10), value: Math.abs(Number(r.mtm || 0)), cls: Number(r.mtm) >= 0 ? "bar-green" : "bar-red" }))
+  const symbols = new Set(rows.map((r: any) => `${r.exchange}:${r.symbol}`)).size;
+  const qtyBars = rows
+    .map((r: any) => ({ label: String(r.symbol).slice(0, 10), value: Math.abs(Number(r.net_qty || 0)), cls: Number(r.net_qty) >= 0 ? "bar-green" : "bar-red" }))
     .sort((a: any, b: any) => b.value - a.value)
     .slice(0, 8);
 
@@ -51,33 +51,14 @@ export default async function Page() {
             <KpiCard label="Open Positions" value={fmt(rows.length)} delta="Net intraday book" tone="blue" icon={<Wallet size={18} />} />
             <KpiCard label="Long Legs" value={fmt(longs.length)} delta={`${fmt(longs.reduce((s: number, r: any) => s + Number(r.net_qty), 0))} net qty`} deltaTone="up" tone="green" icon={<ArrowUpRight size={18} />} />
             <KpiCard label="Short Legs" value={fmt(shorts.length)} delta={`${fmt(shorts.reduce((s: number, r: any) => s + Math.abs(Number(r.net_qty)), 0))} net qty`} deltaTone="down" tone="red" icon={<ArrowDownRight size={18} />} />
-            <KpiCard label="Total MTM" value={money(netMtm)} delta={netMtm >= 0 ? "▲ Mark-to-market" : "▼ Mark-to-market"} deltaTone={netMtm >= 0 ? "up" : "down"} tone="amber" icon={<LineChart size={18} />} />
+            <KpiCard label="Instruments" value={fmt(symbols)} delta={`${fmt(exchRows.length)} exchanges`} tone="amber" icon={<Boxes size={18} />} />
           </section>
 
           <section className="viz-row-3">
             <div className="panel">
-              <div className="panel-head"><b>Intraday MTM Trend</b></div>
-              <EmptyState title="History unavailable" body="The current source supplies a point-in-time position snapshot, not an intraday MTM series." />
+              <div className="panel-head"><b>Net Qty by Symbol</b></div>
+              <VBarChart bars={qtyBars} />
             </div>
-            <div className="panel">
-              <div className="panel-head"><b>MTM by Symbol</b></div>
-              <VBarChart bars={mtmBars} />
-            </div>
-            <div className="panel">
-              <div className="panel-head"><b>Exposure Mix</b></div>
-              <Donut
-                centerLabel="Positions"
-                centerValue={fmt(rows.length)}
-                slices={[
-                  { label: "Long", value: longs.length, cls: "seg-green", pct: rows.length ? `${((longs.length / rows.length) * 100).toFixed(0)}%` : "0%" },
-                  { label: "Short", value: shorts.length, cls: "seg-red", pct: rows.length ? `${((shorts.length / rows.length) * 100).toFixed(0)}%` : "0%" },
-                  { label: "Flat", value: Math.max(0, rows.length - longs.length - shorts.length), cls: "seg-neutral", pct: "—" },
-                ]}
-              />
-            </div>
-          </section>
-
-          <section className="overview-row-4">
             <div className="panel">
               <div className="panel-head"><b>By Exchange</b></div>
               {exchRows.length === 0 ? (
@@ -93,7 +74,21 @@ export default async function Page() {
                 />
               )}
             </div>
-            <div className="panel span-3">
+            <div className="panel">
+              <div className="panel-head"><b>Exposure Mix</b></div>
+              <Donut
+                centerLabel="Positions"
+                centerValue={fmt(rows.length)}
+                slices={[
+                  { label: "Long", value: longs.length, cls: "seg-green", pct: rows.length ? `${((longs.length / rows.length) * 100).toFixed(0)}%` : "0%" },
+                  { label: "Short", value: shorts.length, cls: "seg-red", pct: rows.length ? `${((shorts.length / rows.length) * 100).toFixed(0)}%` : "0%" },
+                  { label: "Flat", value: Math.max(0, rows.length - longs.length - shorts.length), cls: "seg-neutral", pct: "—" },
+                ]}
+              />
+            </div>
+          </section>
+
+          <section className="panel">
               <div className="panel-head"><b>Position Book</b><Link href="/risk">Risk limits ›</Link></div>
               <DataTable
                 className="compact"
@@ -106,14 +101,11 @@ export default async function Page() {
                   { key: "product", label: "Product" },
                   { key: "account", label: "Account", render: (r) => r.account || r.account_id || "—" },
                   { key: "net_qty", label: "Net Qty", render: (r) => <span className={Number(r.net_qty) >= 0 ? "text-green" : "text-red"}>{r.net_qty}</span> },
-                  { key: "avg_price", label: "Avg", render: (r) => money(r.avg_price) },
-                  { key: "ltp", label: "LTP", render: (r) => money(r.ltp) },
-                  { key: "mtm", label: "MTM", render: (r) => <span className={Number(r.mtm) >= 0 ? "text-green" : "text-red"}>{money(r.mtm)}</span> },
-                  { key: "day_pnl", label: "Day P&L", render: (r) => r.day_pnl == null ? "—" : money(r.day_pnl) },
+                  { key: "avg_price", label: "Avg", render: (r) => (r.avg_price == null ? "—" : fmt(r.avg_price)) },
+                  { key: "ltp", label: "LTP", render: (r) => (r.ltp == null ? "—" : fmt(r.ltp)) },
                   { key: "broker", label: "Broker" },
                 ]}
               />
-            </div>
           </section>
 
           <section className="bottom-grid overview-bottom">
