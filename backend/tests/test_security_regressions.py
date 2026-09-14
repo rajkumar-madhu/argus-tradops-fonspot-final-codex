@@ -33,9 +33,13 @@ class SecurityRegressions(unittest.TestCase):
         # SSE authenticates with ?access_token=<JWT>; uvicorn's access log prints
         # the raw query string, so leaving it on writes bearer tokens to pod logs.
         from pathlib import Path
-        cmd=[line for line in (Path(__file__).resolve().parents[1]/'Dockerfile').read_text().splitlines() if line.startswith('CMD')]
+        root = Path(__file__).resolve().parents[2]
+        cmd=[line for line in (root/'backend'/'Dockerfile').read_text().splitlines() if line.startswith('CMD')]
         self.assertEqual(len(cmd),1)
         self.assertIn('--no-access-log',cmd[0])
+        for rel in ('scripts/start-local.sh', 'scripts/start-file-preview.sh'):
+            script = (root/rel).read_text()
+            self.assertIn('--no-access-log', script, f'{rel} must disable access logs')
 
 
 class RejectionReasonMasking(unittest.TestCase):

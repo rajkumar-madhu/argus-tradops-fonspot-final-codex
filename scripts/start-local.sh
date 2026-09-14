@@ -22,7 +22,8 @@ case "${1:-start}" in
     echo "Starting backend on :$PORT_API ..."
     (
       cd "$BACKEND"
-      AUTH_DISABLED=true "$BACKEND/.venv/bin/uvicorn" app.main:app --host 127.0.0.1 --port "$PORT_API"
+      # --no-access-log: SSE may use ?access_token=; uvicorn access logs print the query string.
+      AUTH_DISABLED=true "$BACKEND/.venv/bin/uvicorn" app.main:app --host 127.0.0.1 --port "$PORT_API" --no-access-log
     ) &
     API_PID=$!
     sleep 2

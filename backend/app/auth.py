@@ -54,9 +54,11 @@ def _extract_token(request: Request, credentials: HTTPAuthorizationCredentials |
     cookie = request.cookies.get(TOKEN_COOKIE)
     if cookie:
         return cookie
-    # Last resort for EventSource. Query strings end up in access logs, so the UI
-    # only falls back to this when the cookie cannot be set (cross-site without
-    # SameSite=None; Secure).
+    # Last resort for EventSource (cannot set Authorization). Query strings land
+    # in access logs, so every uvicorn entrypoint must use --no-access-log
+    # (Dockerfile CMD, scripts/start-local.sh, scripts/start-file-preview.sh).
+    # The UI only falls back here when the cookie cannot be set (cross-site
+    # without SameSite=None; Secure).
     return request.query_params.get(TOKEN_QUERY_PARAM) or None
 
 def current_user(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
