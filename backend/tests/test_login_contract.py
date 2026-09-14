@@ -64,6 +64,15 @@ class LoginContractTests(unittest.TestCase):
             self.assertEqual(response.json()['detail'], 'Invalid or expired token')
             self.assertNotIn(token, response.text)
 
+    def test_unreachable_signing_keys_are_503_not_an_invalid_session(self):
+        def unreachable(_):
+            raise jwt.PyJWKClientConnectionError('Fail to fetch data from the url, err: "timed out"')
+        with patch.object(auth, 'jwks_client', return_value=SimpleNamespace(get_signing_key_from_jwt=unreachable)):
+            response = self.get('/api/auth/me', self.token())
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()['detail'], 'Identity provider unavailable')
+        self.assertNotIn('timed out', response.text)
+
     def test_valid_user_without_role_is_authenticated_but_dashboard_is_forbidden(self):
         token = self.token(roles=())
         self.assertEqual(self.get('/api/auth/me', token).status_code, 200)

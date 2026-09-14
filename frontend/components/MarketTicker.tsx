@@ -5,6 +5,7 @@ import { hasLiveMarketFeed, isJournalSource } from '@/lib/data-source';
 import { apiUrl } from '@/lib/runtime';
 import { authHeaders, decodeSession, getToken, isExpired } from '@/lib/session';
 import { canSee } from '@/lib/auth';
+import { fetchAuthConfig } from '@/lib/oidc';
 
 type IndexTick = {
   name: string;
@@ -57,20 +58,23 @@ export default function MarketTicker({ variant = 'bar' }: { variant?: 'bar' | 's
   const [journal, setJournal] = useState<JournalStrip | null>(null);
 
   useEffect(() => {
-    const session = decodeSession(getToken());
-    // Public auth pages use a static strip instead. This component must not
-    // request protected data unless a session is present.
-    if (isExpired(session)) return;
+    const token = getToken();
+    const session = decodeSession(token);
+    // AuthShell also renders this component. Public pages must not request
+    // protected data, and cross-origin APIs need the explicit bearer header.
+    if (token && isExpired(session)) return;
     const headers = authHeaders();
     let cancelled = false;
     (async () => {
+      // No token: only an AUTH_DISABLED API (dev preview, demo) will answer, and
+      // it answers as super_admin, so there is no role to check against.
+      if (!session) {
+        const authDisabled = await fetchAuthConfig().then(cfg => cfg.auth_disabled === true, () => false);
+        if (cancelled || !authDisabled) return;
+      }
       try {
-        const res = canSee('/market-data', session!.roles)
-          ? await fetch(`${apiUrl()}/api/market-data`, {
-              cache: 'no-store',
-              headers,
-              credentials: 'include',
-            })
+        const res = !session || canSee('/market-data', session.roles)
+          ? await fetch(`${apiUrl()}/api/market-data`, { cache: "no-store", headers, credentials: 'include' })
           : null;
         if (res?.ok) {
           const data = await res.json();

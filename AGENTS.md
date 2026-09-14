@@ -187,7 +187,12 @@ PKCE verifier/state; the callback exchanges a code once under Strict Mode.
 `frontend/middleware.ts` authenticates protected requests through
 `INTERNAL_API_URL` and the existing role allowlist before rendering. A 401
 redirects to sign-in, a 403 renders a permission response, and verification
-outages return 503 without clearing the session. Standalone denial responses
+outages return 503 without clearing the session. The API keeps that distinction honest:
+`auth.current_user` returns 503 (not 401) when Keycloak's signing keys cannot
+be fetched, because nothing is then known about the token. Browser-side expiry
+uses a clock offset recorded from `iat` at login (`session.recordClockSkew`), and
+the cookie lifetime comes from `expires_in`, so a skewed local clock neither
+rejects a login nor ends a session early. Standalone denial responses
 preserve HTTP status instead of relying on an App Router rewrite.
 
 `CORS_ORIGINS` supports comma-separated HTTP(S) origins or a JSON string array;

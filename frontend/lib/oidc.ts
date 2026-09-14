@@ -10,7 +10,7 @@
  */
 
 import { apiUrl } from "@/lib/runtime";
-import { clearToken, setToken, decodeSession, isExpired } from "@/lib/session";
+import { clearToken, setToken, decodeSession, recordClockSkew } from "@/lib/session";
 import { safeReturnTo } from "@/lib/auth-routing";
 import { keycloakRegistrationUrl } from "@/lib/oidc-registration";
 import { authorizeParams, tokenErrorMessage } from "@/lib/oidc-flow";
@@ -123,7 +123,9 @@ export async function completeLogin(search: URLSearchParams): Promise<string> {
   });
   if (!res.ok) throw new Error(tokenErrorMessage(res.status, await res.text().catch(() => ""), cfg.client_id));
   const token = await res.json();
-  if (typeof token.access_token !== 'string' || isExpired(decodeSession(token.access_token))) {
+  // Expiry is not judged here: this browser's clock may disagree with the IdP's,
+  // and /api/auth/me below checks `exp` on the server's clock.
+  if (typeof token.access_token !== 'string' || !decodeSession(token.access_token)?.expiresAt) {
     throw new Error("Token endpoint returned an invalid or expired session. Please restart sign-in.");
   }
   // A successful IdP exchange does not establish that this API accepts the
@@ -142,9 +144,12 @@ export async function completeLogin(search: URLSearchParams): Promise<string> {
   if (!user || typeof user.sub !== 'string' || !Array.isArray(user.roles) || !Array.isArray(user.permissions)) {
     throw new Error("The API returned an invalid session response. Please restart sign-in.");
   }
-  const remaining = (decodeSession(token.access_token)!.expiresAt - Date.now()) / 1000;
+  recordClockSkew(token.access_token);
+  // `expires_in` is relative, so it needs no clock at all; the skew-adjusted `exp`
+  // is only the fallback for an IdP that omits it.
   const lifetime = Number(token.expires_in);
-  setToken(token.access_token, Number.isFinite(lifetime) && lifetime > 0 ? Math.min(lifetime, remaining) : remaining);
+  const remaining = (decodeSession(token.access_token)!.expiresAt - Date.now()) / 1000;
+  setToken(token.access_token, Number.isFinite(lifetime) && lifetime > 0 ? lifetime : remaining);
   const returnTo = safeReturnTo(sessionStorage.getItem(RETURN_KEY));
   sessionStorage.removeItem(VERIFIER_KEY);
   sessionStorage.removeItem(RETURN_KEY);

@@ -57,23 +57,58 @@ export function clearToken(): void {
   document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${isSecureContext() ? '; Secure' : ''}`;
 }
 
-/** Decodes claims for display/nav only. The backend is what actually verifies the signature. */
-export function decodeSession(token: string | null): SessionUser | null {
+function tokenClaims(token: string | null): any {
   if (!token) return null;
   try {
     const [, payload] = token.split(".");
     if (!payload) return null;
-    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-    return {
-      sub: json.sub,
-      username: json.preferred_username,
-      email: json.email,
-      roles: tokenRoles(json),
-      expiresAt: Number(json.exp || 0) * 1000,
-    };
+    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
   } catch {
     return null;
   }
+}
+
+const CLOCK_SKEW_KEY = "tradeops.clock_skew_ms";
+
+/**
+ * `exp` is written by the identity provider's clock, so comparing it with this
+ * browser's clock logs a user out early (or keeps them late) by however far the
+ * two disagree. Call this once the API has accepted a freshly issued token: its
+ * `iat` is then "now" on the IdP clock, and the difference is the local offset.
+ */
+export function recordClockSkew(token: string): void {
+  const iat = Number(tokenClaims(token)?.iat);
+  try {
+    if (Number.isFinite(iat) && iat > 0) localStorage.setItem(CLOCK_SKEW_KEY, String(Date.now() - iat * 1000));
+    else localStorage.removeItem(CLOCK_SKEW_KEY);
+  } catch { /* storage blocked: fall back to the unadjusted local clock */ }
+}
+
+function clockSkewMs(): number {
+  try {
+    const skew = Number(localStorage.getItem(CLOCK_SKEW_KEY));
+    return Number.isFinite(skew) ? skew : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Decodes claims for display/nav only. The backend is what actually verifies the signature.
+ * `expiresAt` is on the local clock (adjusted by `recordClockSkew`), so it can be compared
+ * with `Date.now()` directly.
+ */
+export function decodeSession(token: string | null): SessionUser | null {
+  const json = tokenClaims(token);
+  if (!json || typeof json !== "object") return null;
+  const exp = Number(json.exp || 0);
+  return {
+    sub: json.sub,
+    username: json.preferred_username,
+    email: json.email,
+    roles: tokenRoles(json),
+    expiresAt: Number.isFinite(exp) && exp > 0 ? exp * 1000 + clockSkewMs() : 0,
+  };
 }
 
 export function isExpired(session: SessionUser | null): boolean {

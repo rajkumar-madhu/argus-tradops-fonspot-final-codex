@@ -72,6 +72,10 @@ def current_user(request: Request, credentials: HTTPAuthorizationCredentials | N
         payload = jwt.decode(token, key, algorithms=["RS256"], audience=settings.keycloak_client_id, issuer=settings.keycloak_issuer, options={"verify_aud": settings.keycloak_verify_audience})
         roles=_roles(payload); perms=_permissions(roles)
         return {"sub":payload.get("sub"),"preferred_username":payload.get("preferred_username"),"email":payload.get("email"),"roles":sorted(roles),"permissions":sorted(perms)}
+    except jwt.PyJWKClientConnectionError:
+        # The signing keys could not be fetched, so nothing is known about the token.
+        # A 401 here would make the UI guard delete a session that may be valid.
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Identity provider unavailable")
     except Exception as exc:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 

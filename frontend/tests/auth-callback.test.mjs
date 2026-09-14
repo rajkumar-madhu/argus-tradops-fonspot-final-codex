@@ -33,6 +33,19 @@ test('a token endpoint 200 is not login success when the backend refuses the tok
   await assert.rejects(f.oidc.completeLogin(search()), /session|token|sign.in/i);
   assert.equal(f.session.getToken(), null);
 });
+test('a browser clock minutes ahead of the IdP neither rejects the login nor shortens the session', async () => {
+  // The browser's sandbox clock cannot be moved, so move the IdP's instead: a token
+  // issued "now" by an IdP six minutes behind is already past `exp` locally.
+  const idpNow = Math.floor(Date.now() / 1000) - 6 * 60;
+  const skewed = { ...claims, iat: idpNow, exp: idpNow + 300 };
+  const fresh = `e30.${Buffer.from(JSON.stringify(skewed)).toString('base64url')}.fixture-signature`;
+  const f = fixture({ tokenResponse: { access_token: fresh, expires_in: 300 } });
+  assert.equal(await f.oidc.completeLogin(search()), '/dashboard');
+  assert.match(f.cookieWrites.at(-1), /Max-Age=300;/);
+  const session = f.session.decodeSession(f.session.getToken());
+  assert.equal(f.session.isExpired(session), false);
+  assert.ok(Math.abs(session.expiresAt - Date.now() - 300_000) < 5000);
+});
 test('a rejected cookie produces an actionable error instead of a signed-out dashboard', async () => {
   const f = fixture({ rejectCookies: true });
   await assert.rejects(f.oidc.completeLogin(search()), /cookie|session.*sav|session.*stor/i);

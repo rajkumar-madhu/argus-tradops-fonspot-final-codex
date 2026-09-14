@@ -3,10 +3,14 @@ import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
 import { browserModules } from './helpers/browser-modules.mjs';
 
-async function mount(roles) {
+async function mount(roles, { authDisabled = false } = {}) {
   const effects = [], calls = [];
   const f = browserModules({
-    fetch: async (url, init) => { calls.push({ url, init }); return Response.json({ source: 'journal snapshot', orders: 0, records: 0 }); },
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      if (url.endsWith('/api/auth/config')) return Response.json({ auth_disabled: authDisabled });
+      return Response.json({ source: 'journal snapshot', orders: 0, records: 0 });
+    },
     mocks: { react: { useEffect: fn => effects.push(fn), useState: initial => [initial, () => {}] } },
   });
   if (roles) {
@@ -15,11 +19,17 @@ async function mount(roles) {
   }
   f.load('@/components/MarketTicker').default({});
   for (const effect of effects) effect();
-  await setImmediate();
+  for (let i = 0; i < 5; i++) await setImmediate();
   return { calls, session: f.load('@/lib/session') };
 }
+const dataCalls = calls => calls.filter(c => !c.url.endsWith('/api/auth/config'));
 test('public sign-in ticker does not request authenticated data', async () => {
-  assert.equal((await mount()).calls.length, 0);
+  assert.equal(dataCalls((await mount()).calls).length, 0);
+});
+test('with auth disabled the ticker loads without a token instead of staying blank', async () => {
+  const { calls } = await mount(null, { authDisabled: true });
+  assert.deepEqual(dataCalls(calls).map(c => new URL(c.url).pathname), ['/api/market-data', '/api/overview']);
+  for (const { init } of dataCalls(calls)) assert.equal(init.headers.Authorization, undefined);
 });
 test('cross-origin market and overview reads carry the saved bearer token', async () => {
   const { calls, session } = await mount(['trading_ops']);

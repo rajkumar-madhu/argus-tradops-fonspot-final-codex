@@ -11,11 +11,14 @@ const nodeRequire = createRequire(import.meta.url);
 export function browserModules({ fetch, rejectCookies = false, origin = 'https://ui.example.test', apiUrl = 'https://api.example.test', mocks = {} } = {}) {
   const root = new URL('../../', import.meta.url).pathname;
   const storage = new Map();
+  const local = new Map();
   const cookies = new Map();
+  const cookieWrites = [];
   const document = {};
   Object.defineProperty(document, 'cookie', {
     get: () => [...cookies].map(([k, v]) => `${k}=${v}`).join('; '),
     set: value => {
+      cookieWrites.push(value);
       const [pair] = value.split(';');
       const i = pair.indexOf('=');
       const key = pair.slice(0, i);
@@ -30,6 +33,7 @@ export function browserModules({ fetch, rejectCookies = false, origin = 'https:/
     atob, btoa, crypto: webcrypto, setTimeout, clearTimeout,
     process: { env: { NEXT_PUBLIC_API_URL: apiUrl } },
     sessionStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
+    localStorage: { getItem: key => local.get(key) ?? null, setItem: (key, value) => local.set(key, String(value)), removeItem: key => local.delete(key) },
   });
   const modules = new Map();
   function load(name) {
@@ -47,5 +51,5 @@ export function browserModules({ fetch, rejectCookies = false, origin = 'https:/
     vm.runInContext(`(function(require,module,exports){${source}\n})`, sandbox)(require, module, module.exports);
     return module.exports;
   }
-  return { load, storage, cookies, location, document };
+  return { load, storage, local, cookies, cookieWrites, location, document };
 }
