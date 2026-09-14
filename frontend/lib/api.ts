@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { TOKEN_COOKIE } from "@/lib/session-shared";
 import { serverRuntimeConfig } from "@/lib/runtime";
+import { TENANT_COOKIE, tenantHeaders } from "@/lib/tenant";
 
 import { forbiddenDetail, type ForbiddenDetail } from "@/lib/api-result";
 export { apiError } from "@/lib/api-result";
@@ -14,15 +15,21 @@ export type ApiResult<T> = T & { _error?: string; _status?: number; _forbidden?:
  * route. `_status` is surfaced so a page can distinguish "not signed in" (401/403)
  * from a genuine backend failure.
  */
+/** Authorization plus the selected tenant, for any server-side call to the API. */
+export async function serverApiHeaders(): Promise<Record<string, string>> {
+  const jar = await cookies();
+  const token = jar.get(TOKEN_COOKIE)?.value;
+  return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...tenantHeaders(jar.get(TENANT_COOKIE)?.value) };
+}
+
 export async function getJSON<T>(path: string): Promise<ApiResult<T>> {
   const { apiUrl } = serverRuntimeConfig();
   const serverApiUrl = process.env.INTERNAL_API_URL || apiUrl;
   try {
-    const token = (await cookies()).get(TOKEN_COOKIE)?.value;
     const res = await fetch(`${serverApiUrl}${path}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(15000),
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: await serverApiHeaders(),
     });
     if (!res.ok) {
       const hint =

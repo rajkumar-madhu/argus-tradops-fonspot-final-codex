@@ -4,25 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canSee } from "@/lib/auth";
-import { clearToken, decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
+import { authHeaders, clearToken, decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
 import { safeReturnTo } from "@/lib/auth-routing";
 import { logout } from "@/lib/oidc";
 import MarketTicker from "@/components/MarketTicker";
 import LiveStatusStrip from "@/components/LiveStatusStrip";
 import { apiUrl } from "@/lib/runtime";
 import CommandPalette from "@/components/CommandPalette";
+import TenantSwitcher from "@/components/TenantSwitcher";
 import { buildNav, NAV_GROUPS, togglePinned } from "@/lib/nav-model";
 import { SIGNAL_ROUTES, formatSignal, hasSignal, parseSignalCount, type NavSignals } from "@/lib/nav-signals";
 import { sourceChip, type SourceChip } from "@/lib/data-source";
 import {
-  Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, ChevronLeft,
+  Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, Building2, ChevronLeft,
   ChevronRight, CircleDollarSign, ClipboardList, FileText, Gauge, HelpCircle, Layers3, LineChart,
   Lock, Network, Pin, Search, Server, Settings, ShieldCheck, Timer, Users, WalletCards, Menu,
 } from "lucide-react";
 
 /** `lib/nav-model` is React-free so it can be unit tested; icons are bound here. */
 const ICONS: Record<string, typeof BarChart3> = {
-  Activity, AlertTriangle, BarChart3, BookOpenCheck, Boxes, CircleDollarSign, ClipboardList,
+  Activity, AlertTriangle, BarChart3, BookOpenCheck, Boxes, Building2, CircleDollarSign, ClipboardList,
   FileText, Gauge, Layers3, LineChart, Network, Search, Server, Settings, ShieldCheck, Timer, Users,
   WalletCards,
 };
@@ -119,7 +120,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     const current = decodeSession(token);
     const abort = new AbortController();
     const base = apiUrl();
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const headers = authHeaders();
     const get = async (route: string) => {
       try {
         const res = await fetch(`${base}${route}`, { headers, signal: abort.signal, cache: "no-store", credentials: "include" });
@@ -252,6 +253,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <MarketTicker variant="bar"/>
           <div className="market-right">
             <Clock/>
+            {checked && <TenantSwitcher/>}
             <form action="/logs" className="topsearch"><Search size={14}/><input name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><button type="button" className="kbd-btn" onClick={() => setPaletteOpen(true)} aria-label="Open command palette" title="Command palette"><kbd>⌘/Ctrl K</kbd></button></form>
             <Link href="/incidents" className="bell" aria-label="Alerts and incidents"><Bell size={17}/></Link>
             {visible("/configuration") && <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>}

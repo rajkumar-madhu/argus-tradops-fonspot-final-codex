@@ -582,14 +582,19 @@ def _load_order_latency_csv(path: str, _mtime_ns: int, _size: int) -> list[dict[
 
 def resolve_order_latency_csv() -> str | None:
     """Optional L_ORDERLATENCY CSV beside the journal or at repo root."""
+    from app.tenancy import DEFAULT_ID, current_id, journal_path
+    is_default = current_id() == DEFAULT_ID
     explicit = settings.order_latency_path.strip()
-    if explicit and Path(explicit).is_file():
+    if is_default and explicit and Path(explicit).is_file():
         return explicit
-    if settings.journal_path:
-        parent = Path(settings.journal_path).resolve().parent
+    journal = journal_path()
+    if journal:
+        parent = Path(journal).resolve().parent
         matches = sorted(parent.glob("L_ORDERLATENCY*.csv"))
         if matches:
             return str(matches[-1])
+    if not is_default:
+        return None  # never fall through to files that belong to the default deployment
     repo_matches = sorted(Path(".").resolve().glob("L_ORDERLATENCY*.csv"))
     if repo_matches:
         return str(repo_matches[-1])

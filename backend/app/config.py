@@ -88,6 +88,14 @@ class Settings:
     csv_max_bytes: int = _int("TRADEOPS_CSV_MAX_BYTES", 268435456)
     csv_max_rows: int = _int("TRADEOPS_CSV_MAX_ROWS", 2000000)
     demo_mode: bool = _bool("TRADEOPS_DEMO_MODE", True)
+    # Multi-tenancy (app/tenancy.py). Off: one implicit "default" tenant built from the
+    # settings in this class, exactly as before. On: tenants come from the `tenants`
+    # table, users need a grant per tenant, and credentials are read from files under
+    # tenant_secrets_dir (a mounted Kubernetes Secret) -- never from the database.
+    multi_tenant: bool = _bool("TRADEOPS_MULTI_TENANT", False)
+    default_tenant_name: str = os.getenv("TRADEOPS_DEFAULT_TENANT_NAME", "Default")
+    tenant_secrets_dir: str = os.getenv("TRADEOPS_TENANT_SECRETS_DIR", "/etc/tradeops/tenant-secrets")
+    tenant_journal_dir: str = os.getenv("TRADEOPS_TENANT_JOURNAL_DIR", "")
     es_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     es_api_key: str | None = os.getenv("ELASTICSEARCH_API_KEY") or None
     es_username: str | None = os.getenv("ELASTICSEARCH_USERNAME") or None
@@ -223,8 +231,15 @@ def production_errors(config: Settings) -> list[str]:
     return errors
 
 
+def multi_tenant_errors(config: Settings) -> list[str]:
+    """Demo data is one hardcoded dataset; with several tenants it would be served to all of them."""
+    if config.multi_tenant and config.demo_mode:
+        return ["TRADEOPS_MULTI_TENANT requires TRADEOPS_DEMO_MODE=false"]
+    return []
+
+
 settings = Settings()
 parse_price_divisors(settings.noren_price_divisors)  # fail at startup, not on the first order
-_errors = production_errors(settings)
+_errors = production_errors(settings) + multi_tenant_errors(settings)
 if _errors:
-    raise RuntimeError("Invalid production configuration: " + "; ".join(_errors))
+    raise RuntimeError("Invalid configuration: " + "; ".join(_errors))

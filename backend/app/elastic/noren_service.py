@@ -14,7 +14,7 @@ from app.elastic.normalizer import mask_reason, normalize_order, normalize_sessi
 # Resolved field names are memoized manually rather than with lru_cache: a cached
 # *failure* would pin every filter to a non-existent sub-field for the lifetime of
 # the process. Only successful resolutions are stored.
-_FIELD_CACHE: dict[tuple[str, str], str] = {}
+_FIELD_CACHE: dict[tuple[str, str, str], str] = {}
 
 
 def _field(index: str, field: str) -> str:
@@ -22,7 +22,8 @@ def _field(index: str, field: str) -> str:
     es = get_es()
     if es is None:
         return field
-    key = (index, field)
+    from app.tenancy import current_id
+    key = (current_id(), index, field)  # two tenants' clusters may map the same field differently
     cached = _FIELD_CACHE.get(key)
     if cached is not None:
         return cached

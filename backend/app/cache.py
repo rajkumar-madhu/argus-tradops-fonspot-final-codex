@@ -24,7 +24,10 @@ def ttl_cache(seconds: float):
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            key = (fn.__module__, fn.__qualname__, args, tuple(sorted(kwargs.items())))
+            # The tenant is part of the key: the same arguments against two clients'
+            # clusters are two different answers, and serving one to the other is a leak.
+            from app.tenancy import current_id
+            key = (current_id(), fn.__module__, fn.__qualname__, args, tuple(sorted(kwargs.items())))
             now = time.monotonic()
             with _LOCK:
                 hit = _STORE.get(key)

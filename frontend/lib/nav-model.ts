@@ -54,6 +54,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/queue-monitor", label: "Queue Monitor", icon: "Layers3" },
       { href: "/data-quality", label: "Data Quality", icon: "Boxes" },
       { href: "/configuration", label: "Configuration", icon: "Settings" },
+      { href: "/admin/tenants", label: "Clients", icon: "Building2" },
     ],
   },
 ];

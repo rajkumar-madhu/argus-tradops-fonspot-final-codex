@@ -8,15 +8,18 @@ from app.config import settings
 from app.journal_evidence import SCHEMAS, PERMISSIONS, snapshot, selected_rows, export_csv
 from app.journal_explore import FACET_FIELDS, explore
 
+from app.tenancy import assert_access, journal_path
+
 router=APIRouter(prefix='/api/journal', tags=['Journal evidence'])
 Kind=Literal['ordupd','login','logout','yel_connected']
 
 
 def data():
-    if not settings.journal_path or not Path(settings.journal_path).is_file():
+    path=journal_path()
+    if not path:
         raise HTTPException(503,'Journal file unavailable')
     try:
-        return snapshot(settings.journal_path)
+        return snapshot(path)
     except (ValueError,OSError):
         raise HTTPException(503,'Journal could not be parsed completely') from None
 
@@ -25,6 +28,8 @@ def allowed(user,kind):
     perms=user.get('permissions',[])
     if '*' not in perms and PERMISSIONS[kind] not in perms:
         raise HTTPException(403,'Your role does not grant access to this message type')
+    # These routes take current_user rather than require(), so check the tenant here.
+    assert_access(user)
 
 
 @router.get('/catalog')
@@ -68,9 +73,10 @@ def explore_records(
     user=Depends(current_user),
 ):
     allowed(user, msg_type)
-    if not settings.journal_path or not Path(settings.journal_path).is_file():
+    path = journal_path()
+    if not path:
         raise HTTPException(503, 'Journal file unavailable')
     try:
-        return explore(settings.journal_path, msg_type, parse_facets(msg_type, facet), q, limit, offset)
+        return explore(path, msg_type, parse_facets(msg_type, facet), q, limit, offset)
     except (ValueError, OSError):
         raise HTTPException(503, 'Journal could not be parsed completely') from None

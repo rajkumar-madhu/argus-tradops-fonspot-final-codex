@@ -1,6 +1,7 @@
 import { ROLE_ROUTES } from './auth';
 
-const routes = new Set([...Object.values(ROLE_ROUTES).flat().filter(path => path !== '*'), '/configuration']);
+// Routes only super_admin reaches (via '*') are listed explicitly, or the middleware would not guard them.
+const routes = new Set([...Object.values(ROLE_ROUTES).flat().filter(path => path !== '*'), '/configuration', '/admin/tenants']);
 
 /** Canonical route used for both direct requests and nested resource pages. */
 export function protectedRoute(pathname: string): string | null {

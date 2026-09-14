@@ -535,6 +535,23 @@ const staticRoutes = {
     ],
     source: "demo",
   },
+  // Multi-tenant fixtures: two clients so the top-bar picker renders in the preview.
+  "/api/tenants": {
+    multi_tenant: true,
+    current: "default",
+    items: [
+      { id: "default", name: "Finspot UAT", is_default: true, sources: { elasticsearch: false, journal: true } },
+      { id: "acme-broking", name: "Acme Broking", is_default: false, sources: { elasticsearch: true, journal: false } },
+    ],
+  },
+  "/api/admin/tenants": {
+    multi_tenant: true,
+    items: [
+      { id: "default", name: "Finspot UAT", is_default: true, builtin: true, enabled: true, grants: 2, sources: { elasticsearch: false, journal: true } },
+      { id: "acme-broking", name: "Acme Broking", es_url: "https://es.acme-broking.example:9200", es_verify_certs: true, credentials_ref: "acme-broking", credentials_present: true, journal_path: null, journal_available: false, enabled: true, grants: 3 },
+      { id: "kbc", name: "KBC Securities", es_url: "https://es.kbc.example:9200", es_verify_certs: true, credentials_ref: "kbc", credentials_present: false, journal_path: null, journal_available: false, enabled: false, grants: 0 },
+    ],
+  },
   "/api/config": {
     demo_mode: true,
     auth_disabled: true,
@@ -582,8 +599,8 @@ function json(res, status, body) {
 function cors(req, res) {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, x-tradeops-tenant");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
 }
 
 function lifecycle(orderId) {

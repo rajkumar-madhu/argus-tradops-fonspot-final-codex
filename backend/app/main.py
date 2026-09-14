@@ -17,6 +17,7 @@ import time
 from app.auth import TOKEN_COOKIE, current_user, require
 from app.config import parse_cors_origins, settings
 from app.list_response import ListJSONResponse
+from app import tenancy
 from app.elastic.service import (
     elk_status,
     latest_sessions,
@@ -52,9 +53,12 @@ from app.elastic.noren_service import (
 
 from app import file_routes, journal_routes
 
-app = FastAPI(title="Argus TradeOps API", version="1.1.0")
+# tenancy.bind_request_tenant is async and app-wide on purpose: see app/tenancy.py.
+app = FastAPI(title="Argus TradeOps API", version="1.1.0", dependencies=[Depends(tenancy.bind_request_tenant)])
 app.include_router(file_routes.router)
 app.include_router(journal_routes.router)
+from app import tenant_routes  # noqa: E402
+app.include_router(tenant_routes.router)
 if settings.metrics_enabled:
     app.mount("/metrics", make_asgi_app())
 
@@ -70,21 +74,13 @@ def _journal_path() -> str | None:
     paths are ignored inside containers when the file is not present, so API
     handlers fall back to demo data instead of raising FileNotFoundError.
     """
-    path = (settings.journal_path or "").strip()
-    if not path:
-        return None
-    try:
-        if Path(path).is_file():
-            return path
-    except OSError:
-        return None
-    return None
+    return tenancy.journal_path()
 
 
 def _use_journal_data() -> bool:
     if not _journal_path():
         return False
-    if settings.journal_primary:
+    if tenancy.current().journal_primary:
         return True
     return DEMO_MODE
 
@@ -177,8 +173,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
+    # Writes exist only on /api/admin/tenants, and those refuse cookie-only requests
+    # (tenant_routes.header_token_required), so allowing the methods here is not a CSRF path.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID", "X-TradeOps-Tenant"],
     expose_headers=["X-Request-ID"],
 )
 
@@ -466,8 +464,15 @@ def freshness(user=Depends(require("dashboard:read"))):
     return summary(data_source="journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"))
 
 
+def _unavailable_for_tenant(feature: str) -> dict:
+    # The correlation worker writes these tables for the default tenant only.
+    return {"items": [], "count": 0, "source": "unavailable", "note": f"{feature} are not collected for this tenant yet"}
+
+
 @app.get("/api/incidents")
 def persisted_incidents(limit: int = Query(100, ge=1, le=500), status: str | None = None, user=Depends(require("incidents:read"))):
+    if tenancy.current_id() != tenancy.DEFAULT_ID:
+        return _unavailable_for_tenant("Persisted incidents")
     if DEMO_MODE:
         return {"items": [], "count": 0, "source": "demo"}
     items = list_incidents(limit=limit, status=status)
@@ -476,6 +481,8 @@ def persisted_incidents(limit: int = Query(100, ge=1, le=500), status: str | Non
 
 @app.get("/api/rca/cases")
 def persisted_rca_cases(limit: int = Query(100, ge=1, le=500), user=Depends(require("rca:read"))):
+    if tenancy.current_id() != tenancy.DEFAULT_ID:
+        return _unavailable_for_tenant("Persisted RCA cases")
     if DEMO_MODE:
         return {"items": [], "count": 0, "source": "demo"}
     items = list_rca(limit=limit)
@@ -484,6 +491,8 @@ def persisted_rca_cases(limit: int = Query(100, ge=1, le=500), user=Depends(requ
 
 @app.get("/api/rca/cases/{order_id}")
 def persisted_rca_case(order_id: str, user=Depends(require("rca:read"))):
+    if tenancy.current_id() != tenancy.DEFAULT_ID:
+        return {"order_id": order_id, "found": False, "source": "unavailable"}
     if DEMO_MODE:
         return {"order_id": order_id, "found": False, "source": "demo"}
     item = get_persisted_rca(order_id)
@@ -566,7 +575,7 @@ def sessions_login_trend(interval: str = Query("30m"), user=Depends(require("ses
 
 def _journal_snapshot():
     from app.journal_snapshot import load_journal
-    path = settings.journal_path
+    path = _journal_path()  # tenant-scoped; settings.journal_path is the default tenant's file
     if not path:
         raise HTTPException(503, "Journal snapshot is not configured")
     try:
@@ -943,10 +952,12 @@ def reports(user=Depends(require("reports:read"))):
 @app.get("/api/config")
 def runtime_config(user=Depends(require("dashboard:read"))):
     return {
+        "tenant": tenancy.current().public(),
+        "multi_tenant": tenancy.enabled(),
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
-        "csv_configured": bool(settings.csv_dir),
-        "journal_primary": settings.journal_primary,
+        "csv_configured": bool(settings.csv_dir) and tenancy.current_id() == tenancy.DEFAULT_ID,
+        "journal_primary": tenancy.current().journal_primary,
         "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
         "auth_disabled": settings.auth_disabled,
         "environment": settings.environment,
@@ -1022,14 +1033,17 @@ def search_logs(
 
 @app.get("/api/stream/orders")
 async def stream_orders(request: Request, interval: float = Query(2.0, ge=1.0, le=30.0), user=Depends(require("orders:read"))):
+    tenancy.require_default_tenant("Live streams")  # Redis streams are fed by the default tenant's collector
     return StreamingResponse(event_stream("orders", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/rejections")
 async def stream_rejections(request: Request, interval: float = Query(3.0, ge=1.0, le=30.0), user=Depends(require("rejections:read"))):
+    tenancy.require_default_tenant("Live streams")  # Redis streams are fed by the default tenant's collector
     return StreamingResponse(event_stream("rejections", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/exchange")
 async def stream_exchange(request: Request, interval: float = Query(5.0, ge=1.0, le=60.0), user=Depends(require("exchange:read"))):
+    tenancy.require_default_tenant("Live streams")  # Redis streams are fed by the default tenant's collector
     return StreamingResponse(event_stream("exchange", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/market")

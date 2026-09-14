@@ -8896,3 +8896,32 @@ table tbody tr:hover { background: #e6f0ec; }
    #8598aa (2.97:1) on white. Same families, AA-compliant. */
 .app-shell .cfg-text em { color: #0f7a37; }
 .app-shell .cfg-text em.zero { color: var(--muted); }
+
+/* ── Tenants: top-bar client picker and the Clients admin page ──
+   Tokens only; --brand-ink for text on white (AA), never --brand. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.tn-switch { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface, #fff); color: var(--ink); font-size: 12px; }
+.tn-switch select { border: 0; background: transparent; color: var(--ink); font-size: 12px; font-weight: 600; max-width: 180px; }
+.tn-switch select:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; }
+.tn-none { color: var(--amber-ink); font-weight: 600; }
+.tn-muted { color: var(--muted); font-size: 12px; }
+.tn-ok { color: #0f6b31; }
+.tn-warn { color: var(--amber-ink); }
+.tn-actions { white-space: nowrap; }
+.tn-actions .link-btn + .link-btn { margin-left: 6px; }
+.tn-result { margin-top: 6px; font-size: 12px; color: var(--ink-2, var(--ink)); white-space: normal; max-width: 280px; }
+.tn-grants { margin: 12px 14px 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface, #fff); }
+.tn-grants ul { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.tn-grants li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tn-row input, .tn-field input { height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); min-width: 220px; }
+.tn-row input:focus-visible, .tn-field input:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 1px; }
+.tn-form { padding: 12px 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px 16px; align-items: start; }
+.tn-field { display: grid; gap: 4px; font-size: 12px; color: var(--ink); }
+.tn-field span { font-weight: 600; }
+.tn-field input { min-width: 0; width: 100%; }
+.tn-field small { color: var(--muted); }
+.tn-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink); align-self: center; }
+.tn-pad { padding: 0 14px 14px; margin: 0; }
+.tn-pad code, .notice-strip code { font-size: 11px; }
+@media (max-width: 900px) { .tn-switch select { max-width: 110px; } }

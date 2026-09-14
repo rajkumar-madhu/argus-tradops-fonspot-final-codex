@@ -16,6 +16,7 @@
 
 export { TOKEN_COOKIE } from "@/lib/session-shared";
 import { TOKEN_COOKIE, tokenRoles } from "@/lib/session-shared";
+import { readTenantCookie, tenantCookie, tenantHeaders } from "@/lib/tenant";
 
 export type SessionUser = {
   sub?: string;
@@ -81,5 +82,15 @@ export function isExpired(session: SessionUser | null): boolean {
 
 export function authHeaders(): Record<string, string> {
   const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...tenantHeaders(getTenant()) };
+}
+
+export function getTenant(): string | null {
+  return typeof document === "undefined" ? null : readTenantCookie(document.cookie);
+}
+
+/** Select a tenant for this browser. Callers reload so server components refetch. */
+export function setTenant(id: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie = tenantCookie(id, isSecureContext());
 }
