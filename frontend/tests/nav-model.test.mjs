@@ -89,7 +89,7 @@ import { ROLE_ROUTES } from '../lib/auth.ts';
 // Routes only super_admin reaches, via the '*' wildcard. Listed explicitly so
 // adding a route to the rail and forgetting to grant it fails loudly instead of
 // rendering a link that 403s for every role but one.
-const ADMIN_ONLY = ['/configuration'];
+const ADMIN_ONLY = ['/configuration', '/admin/tenants'];
 
 test('every rail route is granted to a role, or is deliberately admin-only', () => {
   const granted = new Set(Object.values(ROLE_ROUTES).flat().filter(r => r !== '*'));

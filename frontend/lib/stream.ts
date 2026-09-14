@@ -1,7 +1,7 @@
 "use client";
 
 import { apiUrl } from "@/lib/runtime";
-import { getToken } from "@/lib/session";
+import { getTenant, getToken } from "@/lib/session";
 
 export type StreamKind = "orders" | "rejections" | "exchange" | "market";
 
@@ -23,5 +23,8 @@ export function openAuthenticatedEventSource(
   }
   const token = getToken();
   if (token) url.searchParams.set("access_token", token);
+  const tenant = getTenant();
+  if (tenant) url.searchParams.set("tenant", tenant); // EventSource cannot send the header
+
   return new EventSource(url.toString(), { withCredentials: true });
 }

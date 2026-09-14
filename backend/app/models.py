@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 
@@ -46,3 +46,34 @@ class RCACase(Base):
     source: Mapped[str] = mapped_column(String(64), nullable=False, default="noren-correlation")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class TenantRecord(Base):
+    """A client whose data TradeOps reads. Holds connection *references* only:
+    credentials live in files under TRADEOPS_TENANT_SECRETS_DIR (a mounted Secret),
+    named by ``credentials_ref``, and never in this table."""
+
+    __tablename__ = "tenants"
+
+    id: Mapped[str] = mapped_column(String(63), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    es_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    es_verify_certs: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    credentials_ref: Mapped[str | None] = mapped_column(String(63), nullable=True)
+    journal_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class TenantGrant(Base):
+    """User access to one tenant. ``principal`` is a lower-cased Keycloak username,
+    email or subject id. No foreign key: the built-in "default" tenant has no row."""
+
+    __tablename__ = "tenant_grants"
+    __table_args__ = (UniqueConstraint("tenant_id", "principal", name="uq_tenant_grant"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String(63), nullable=False, index=True)
+    principal: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)

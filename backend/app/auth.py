@@ -85,10 +85,18 @@ def forbidden_detail(permission: str, roles) -> dict:
         "client_id": settings.keycloak_client_id,
     }
 
-def require(permission: str) -> Callable:
+def require(permission: str, *, tenant_scoped: bool = True) -> Callable:
+    """Guard a route by permission and, unless ``tenant_scoped=False``, by access to
+    the requested tenant. Only tenant administration opts out: a super_admin whose
+    cookie names a disabled tenant must still reach the page that re-enables it."""
     def dep(user=Depends(current_user)):
         perms=set(user["permissions"])
         if "*" not in perms and permission not in perms:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=forbidden_detail(permission, user.get("roles", [])))
+        # The requested tenant was bound by tenancy.bind_request_tenant; refuse it
+        # here, before any data route runs, when the caller is not granted it.
+        if tenant_scoped:
+            from app.tenancy import assert_access
+            assert_access(user)
         return user
     return dep

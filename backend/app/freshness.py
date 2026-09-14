@@ -110,9 +110,9 @@ def elasticsearch_freshness(now: datetime) -> dict[str, Any]:
 
 
 def journal_freshness(now: datetime) -> dict[str, Any]:
-    from app.config import settings
-    path = (settings.journal_path or "").strip()
-    if not path or not Path(path).is_file():
+    from app.tenancy import journal_path
+    path = journal_path()
+    if not path:
         return {"state": "unavailable", "as_of": None, "age_seconds": None}
     from app.journal_snapshot import load_journal
     snap = load_journal(path)

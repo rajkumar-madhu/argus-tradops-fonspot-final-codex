@@ -37,6 +37,7 @@ export const ROUTE_KEYWORDS: Record<string, string[]> = {
   "/queue-monitor": ["queue", "backlog"],
   "/data-quality": ["quality", "duplicates", "freshness"],
   "/configuration": ["settings", "config", "help", "integrations"],
+  "/admin/tenants": ["tenants", "multi-tenant", "onboarding", "brokers", "access", "grants"],
 };
 
 /** A Noren order number is all digits; shorter numbers are more likely qty or price. */

@@ -40,7 +40,8 @@ def initialize():
 
 
 def store():
-    if _store is None:
+    from app.tenancy import DEFAULT_ID, current_id
+    if _store is None or current_id() != DEFAULT_ID:
         raise HTTPException(503,'File analytics is not configured. Configure the CSV source directory and restart the API.')
     return _store
 
