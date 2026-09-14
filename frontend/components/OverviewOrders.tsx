@@ -1,5 +1,6 @@
 "use client";
 import { DataTable } from '@/components/UI';
+import { timeIstDetail } from '@/lib/format';
 /** Server-loaded snapshot. Filtering does not add Elasticsearch polling. */
 export default function OverviewOrders({ rows }: { rows:any[]; today:string }) {
  return <section className="panel overview-orders">
@@ -11,7 +12,7 @@ export default function OverviewOrders({ rows }: { rows:any[]; today:string }) {
    <a href="/orders">Open orders ›</a>
   </div>
   <DataTable rows={rows} rowKey={r=>r.order_id} columns={[
-   {key:'time',label:'Time',render:r=>r.time_label}, {key:'order_id',label:'Order'},
+   {key:'time',label:'Date / Time (IST)',render:r=>r.time_label || timeIstDetail(r.time)}, {key:'order_id',label:'Order'},
    {key:'user',label:'User'}, {key:'account',label:'Account'}, {key:'exchange',label:'Exchange'},
    {key:'symbol',label:'Symbol'}, {key:'product',label:'Product'}, {key:'type',label:'Type'},
    {key:'side',label:'Side'}, {key:'qty',label:'Qty'}, {key:'price',label:'Price'},

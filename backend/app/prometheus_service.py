@@ -2,16 +2,26 @@
 from __future__ import annotations
 
 import json
+from base64 import b64encode
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from app.config import settings
 
 
+def _request_headers() -> dict[str, str]:
+    headers = {"Accept": "application/json", "User-Agent": "TradeOps-Observability/1.1"}
+    user = settings.prometheus_username
+    if user:
+        token = b64encode(f"{user}:{settings.prometheus_password}".encode("utf-8")).decode("ascii")
+        headers["Authorization"] = f"Basic {token}"
+    return headers
+
+
 def _query(prometheus_url: str, promql: str) -> list[dict]:
     url = f"{prometheus_url.rstrip('/')}/api/v1/query?query={quote(promql)}"
     try:
-        request = Request(url, headers={"Accept": "application/json"})
+        request = Request(url, headers=_request_headers())
         with urlopen(request, timeout=settings.prometheus_timeout_seconds) as response:
             payload = json.load(response)
         if payload.get("status") != "success":

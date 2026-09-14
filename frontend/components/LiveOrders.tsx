@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { fmt, orderPriceText, time24 } from '@/lib/format';
+import { fmt, orderPriceText, timeIstDetail } from '@/lib/format';
 import { istTime, lifecycleSteps } from '@/lib/journal-explore';
 import { apiUrl } from '@/lib/runtime';
 import { authHeaders } from '@/lib/session';
@@ -254,7 +254,7 @@ export default function LiveOrders({
           rowKey={(r) => r.order_id}
           onRowClick={(r) => setSelectedId(r.order_id)}
           columns={[
-            { key: 'time', label: 'Time (IST)', render: (r) => time24(r.time) },
+            { key: 'time', label: 'Date / Time (IST)', render: (r) => timeIstDetail(r.time) },
             { key: 'order_id', label: 'Order' },
             { key: 'account', label: 'Account' },
             { key: 'user', label: 'User' },
@@ -380,7 +380,7 @@ export default function LiveOrders({
             <table className="orders-table">
               <thead>
                 <tr>
-                  <th>Time (IST)</th>
+                  <th>Date / Time (IST)</th>
                   <th>Report</th>
                   <th>Code / category</th>
                 </tr>
@@ -388,7 +388,7 @@ export default function LiveOrders({
               <tbody>
                 {events.slice(-8).map((event: any, index: number) => (
                   <tr key={index}>
-                    <td>{time24(event.time)}</td>
+                    <td>{timeIstDetail(event.time)}</td>
                     <td>{event.report_type ?? '—'}</td>
                     <td>{event.code || event.rejection_category || event.status || '—'}</td>
                   </tr>
@@ -457,7 +457,7 @@ export default function LiveOrders({
           <table className="orders-table">
             <thead>
               <tr>
-                <th>Time (IST)</th>
+                <th>Date / Time (IST)</th>
                 <th>Status</th>
                 <th>Code</th>
                 <th>Report</th>
@@ -469,7 +469,7 @@ export default function LiveOrders({
             <tbody>
               {events.map((event: any, index: number) => (
                 <tr key={index}>
-                  <td>{time24(event.time)}</td>
+                  <td>{timeIstDetail(event.time)}</td>
                   <td>
                     <Status value={event.status} />
                   </td>

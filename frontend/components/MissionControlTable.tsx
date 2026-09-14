@@ -17,7 +17,7 @@ import {
 import { apiUrl } from "@/lib/runtime";
 import { authHeaders } from "@/lib/session";
 import { openAuthenticatedEventSource } from "@/lib/stream";
-import { time24 } from "@/lib/format";
+import { timeIstDetail } from "@/lib/format";
 import { journalFieldText } from "@/lib/order-journal-fields";
 
 const MAX_ROWS = 200;
@@ -207,7 +207,7 @@ export default function MissionControlTable({
     () =>
       (data.items || []).map((o: any) => ({
         ...o,
-        time_label: o.time_label || time24(o.time),
+        time_label: o.time_label || timeIstDetail(o.time),
       })),
     [data],
   );
@@ -377,7 +377,7 @@ export default function MissionControlTable({
           renderDetail={(r) => <OrderRecord order={r} />}
           filtersOpen={false}
           columns={[
-            { key: "time", label: "Time", render: (r) => r.time_label },
+            { key: "time", label: "Date / Time (IST)", render: (r) => r.time_label },
             {
               key: "order_id",
               label: "Order No",

@@ -115,12 +115,14 @@ export function journalWindowLabel(from?: string, to?: string): string {
 }
 
 /** Journal row clock — e.g. "30 Jun, 09:23:37" in IST. */
-export function timeIstDetail(v: string): string {
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return v || "—";
+export function timeIstDetail(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  const raw = typeof v === "string" || typeof v === "number" ? v : String(v);
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return typeof v === "string" ? v || "—" : "—";
   const day = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit" }).format(d);
   const mon = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", month: "short" }).format(d);
-  const clock = time24(v);
+  const clock = time24(String(raw));
   return `${day} ${mon}, ${clock}`;
 }
 
