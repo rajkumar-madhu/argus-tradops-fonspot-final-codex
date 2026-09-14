@@ -41,6 +41,34 @@ class SecurityRegressions(unittest.TestCase):
             script = (root/rel).read_text()
             self.assertIn('--no-access-log', script, f'{rel} must disable access logs')
 
+    def test_only_collector_loop_polls_elasticsearch(self):
+        # The collector is the only worker that may periodically call the live ES
+        # summary queries. Correlation may still call on-demand rca(); API routes
+        # may query ES per request. A second loop poller multiplies ES load with
+        # every replica. See AGENTS.md "only collector polls Elasticsearch on a loop".
+        from pathlib import Path
+        import ast
+
+        poll_names = {"live_orders", "rejection_summary", "yel_health"}
+        workers = Path(__file__).resolve().parents[1] / "app" / "workers"
+        offenders = []
+        for path in sorted(workers.glob("*.py")):
+            if path.name in {"__init__.py", "collector.py", "shutdown.py"}:
+                continue
+            tree = ast.parse(path.read_text(), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                if not (node.module or "").startswith("app.elastic"):
+                    continue
+                for alias in node.names:
+                    if alias.name in poll_names:
+                        offenders.append(f"{path.name}:{alias.name}")
+        self.assertEqual(offenders, [], f"non-collector workers must not import loop-poll ES queries: {offenders}")
+        collector = (workers / "collector.py").read_text()
+        for name in poll_names:
+            self.assertIn(name, collector, f"collector must still call {name}")
+
 
 class RejectionReasonMasking(unittest.TestCase):
     def test_client_identity_and_money_are_masked(self):
