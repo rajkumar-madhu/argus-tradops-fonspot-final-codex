@@ -22,7 +22,7 @@ docker compose up -d postgres redis migrate backend collector correlation-worker
 cd backend
 pip install -r requirements.txt
 alembic upgrade head
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8001 --no-access-log  # required: SSE may use ?access_token=
 python -m app.workers.collector
 python -m app.workers.correlation_worker
 python -m app.workers.market_data_worker   # requires TRUEDATA_ENABLED=true + credentials
@@ -68,12 +68,12 @@ Ports: API container 8000 → host **8001**. Worker metrics: collector 9108, cor
 
 ```text
 Noren Journal → Filebeat → Logstash (noren_filebeat.conf) → Elasticsearch noren-<msg_type>-intraday
-  → collector (leader-elected, the ONLY ES poller) → Redis Streams
+  → collector (leader-elected, the ONLY loop poller of ES) → Redis Streams
   → correlation worker (consumer group) → PostgreSQL incidents/rca_cases
   → FastAPI (reads Redis for SSE, ES for on-demand queries) → Next.js
 ```
 
-The key invariant: **only `app/workers/collector.py` polls Elasticsearch on a loop.** SSE endpoints (`app/live.py`) read Redis streams, so browser count does not multiply ES load. API replicas are stateless readers.
+The key invariant: **only `app/workers/collector.py` polls Elasticsearch on a loop.** SSE endpoints (`app/live.py`) read Redis streams, so browser count does not multiply ES load. API replicas and the correlation worker may still issue **on-demand** ES queries (lists, lifecycle, RCA); never add a second periodic poller.
 
 ### The three data sources
 
@@ -90,12 +90,13 @@ Every read path resolves to one of three sources, and the chosen one is echoed i
 `/api/journal/explore` backs `/logs` (the Journal Explorer): paged masked rows, facet counts and an event histogram for one `msg_type` at a time. It reuses `journal_routes.allowed()`, so permission is per message type — `ordupd` needs `orders:read`, sessions need `sessions:read`, `yel_connected` needs `exchange:read`. That matters because `/logs` itself is granted via `logs:read`, which `infra_sre` holds without holding `orders:read`: the route is reachable but order records are not. Raw log search (`/api/logs/search`) stays empty under a journal source by design — source rows carry PAN, IP and session fields, so the explorer serves the masked projection instead.
 
 Operator-facing UI must never render the word "demo": `frontend/lib/data-source.ts` maps sources to badges. The vocabulary is five states, not three: `LIVE` (newest event within `TRADEOPS_FRESH_LIVE_SECONDS`), `DELAYED`, `STALE` (quiet during trading hours), `CLOSED` (quiet outside `TRADEOPS_TRADING_HOURS`), `FILE-BASED`, `OFFLINE`. `/api/freshness` (`app/freshness.py`) is the source of those states; `freshnessBadge()` renders them and a live→journal `fallback` on any payload is always `DELAYED`, never `LIVE`. Route new `source` values through those helpers.
+
 - Failures are never zero: `_reject_rate` returns `None`, `yel_health().connected` is `None` when the index holds no `yel_connected` event (a data gap, not a P1), `_with_data_source` stamps `fallback` on a payload it served from the journal, and `fmt()` renders a missing count as `—`.
 
 ### Backend (`backend/app/`)
 
 - `config.py` — a single frozen `Settings` dataclass whose defaults are evaluated **at import time**. `settings` is a module-level singleton; env changes require a process restart, and anything importing `app.config` inherits the env as it was at startup.
-- `main.py` — all HTTP routes (~950 lines), each following the three-source pattern above. The bulk list routes (`/api/orders`, `/api/journal/orders`, `/api/rejections`) return `ListJSONResponse` (`app/list_response.py`), which serialises with `json.dumps` instead of FastAPI's `jsonable_encoder` — ~8x cheaper on a 10 000-row payload and what made `/api/orders` take seconds on a CPU-capped pod. Both order list routes take `evidence=false` to drop the per-row `journal_fields` (about half the bytes); a frontend test (`tests/list-payloads.test.mjs`) requires it on every fetch of ≥1000 rows unless that file renders `journal_fields`. Prometheus middleware labels by matched route template via `_metrics_path()`, never the raw URL — order ids in a metric label would be unbounded cardinality *and* a data leak.
+- `main.py` — all HTTP routes (~950 lines), each following the three-source pattern above. The bulk list routes (`/api/orders`, `/api/journal/orders`, `/api/rejections`) return `ListJSONResponse` (`app/list_response.py`), which serialises with `json.dumps` instead of FastAPI's `jsonable_encoder` — ~8x cheaper on a 10 000-row payload and what made `/api/orders` take seconds on a CPU-capped pod. Both order list routes take `evidence=false` to drop the per-row `journal_fields` (about half the bytes); a frontend test (`tests/list-payloads.test.mjs`) requires it on every fetch of ≥1000 rows unless that file renders `journal_fields`. Prometheus middleware labels by matched route template via `_metrics_path()`, never the raw URL — order ids in a metric label would be unbounded cardinality _and_ a data leak.
 - `auth.py` — Keycloak RS256 JWT verification. Token from `Authorization` header, `tradeops_token` cookie, or `access_token` query param (SSE fallback). `require("<perm>")` guards each route; its 403 `detail` is an object (`forbidden_detail`: the permission, the roles that grant it, the TradeOps roles the token did carry, the client id) that `lib/api-result.ts` turns into an admin-actionable message. Roles count only from the realm and the `KEYCLOAK_CLIENT_ID` client — the rail's `tokenRoles()` (`lib/session-shared.ts`) reads the same two places via `azp`, so it never links to a page the API refuses. `AUTH_DISABLED=true` short-circuits to `super_admin`. Mirror new permissions in `frontend/lib/auth.ts` `ROLE_ROUTES` — `tests/test_auth.py` asserts that parity.
 - `readiness.py` — `/health/ready`. Bounded checks (2s timeouts) on ES, Redis and the `incidents` table; returns `ready` immediately in demo mode. Responses must never carry exception text (connection strings leak credentials) — a test pins this.
 - `elastic/noren_service.py` — all Noren-shaped ES queries. `_field(index, field)` resolves `X` vs `X.keyword` via `field_caps`; only **successful** resolutions are cached (transient failures are not pinned).
@@ -155,7 +156,7 @@ Next.js 15 App Router, React 19, hand-written CSS in `app/globals.css`. No state
 
 ## Configuration and deployment
 
-- `backend/.env` (from `.env.example`) drives Compose. It currently ships with `TRADEOPS_DEMO_MODE=true` — set it to `false` plus a real `ELASTICSEARCH_URL`/`ELASTICSEARCH_API_KEY` to hit live data, or set `TRADEOPS_JOURNAL_PATH`/`TRADEOPS_JOURNAL_PRIMARY` for the file-backed snapshot.
+- `backend/.env` (from `.env.example`) drives Compose. The example is **local-only**: `TRADEOPS_DEMO_MODE=true` and `AUTH_DISABLED=true`. For live data set both to `false` plus a real `ELASTICSEARCH_URL`/`ELASTICSEARCH_API_KEY`, or keep auth off locally and use `TRADEOPS_JOURNAL_PATH`/`TRADEOPS_JOURNAL_PRIMARY`. Production must set `TRADEOPS_ENV=production` (startup refuses demo/auth-bypass); see `k8s/configmap.yaml`.
 - `AUTO_CREATE_SCHEMA` defaults to `false`; schema comes from Alembic (`backend/alembic/versions/`), and `k8s/migrate-job.yaml` must run before each API/worker rollout. `db.init_db()` exists for local convenience only.
 - `k8s/` holds the production manifests (restricted security contexts, NetworkPolicy starter, External Secrets example, PDB/HPA, ServiceMonitors); `k8s/ha/` has CloudNativePG and Redis HA references. `k8s/data-services.yaml` is single-node and not for production. Images are `your-registry/tradeops-backend:latest` placeholders — pin digests before deploying.
 - Every manifest hardcodes `namespace: tradeops` (33 lines across 12 files), so `kubectl apply -n <other>` is rejected outright. `deploy/prod/` and `deploy/uat/` are kustomize overlays over `k8s/kustomization.yaml` that set the namespace and the image digests: `kustomize edit set image your-registry/tradeops-backend=<ref>@sha256:<digest>` then `kubectl apply -k deploy/uat`. They sit outside `k8s/` because kustomize treats a base containing its own overlay as a cycle. `deploy/uat` guesses `tradeops-uat` — confirm the real namespace before applying. The `RELEASE_REQUIRED` tag is left in the base so a forgotten digest fails at image pull.

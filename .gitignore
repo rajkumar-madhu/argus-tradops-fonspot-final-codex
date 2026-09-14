@@ -7,6 +7,7 @@ frontend/tsconfig.tsbuildinfo
 __pycache__/
 *.pyc
 backend/.env
+backend/.venv/
 
 # Local env overrides
 frontend/.env.local
