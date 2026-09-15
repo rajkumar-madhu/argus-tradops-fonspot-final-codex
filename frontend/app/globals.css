@@ -5366,7 +5366,8 @@ table.compact td {
   gap: 6px;
 }
 .query-window button,
-.query-window select {
+.query-window select,
+.query-window input[type='date'] {
   background: white;
   color: var(--text);
   border: 1px solid var(--border);

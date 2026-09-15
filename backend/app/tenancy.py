@@ -80,6 +80,7 @@ class Tenant:
             "id": self.id,
             "name": self.name,
             "is_default": self.is_default,
+            "journal_primary": self.journal_primary,
             "sources": {"elasticsearch": bool(self.es_url), "journal": bool(self.journal_path)},
         }
 

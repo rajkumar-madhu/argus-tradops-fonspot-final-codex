@@ -1,7 +1,7 @@
 import Shell from '@/components/Shell';
 import CommandCenter from '@/components/CommandCenter';
 import DashboardView from '@/components/DashboardView';
-import { queryWindow } from '@/components/QueryWindow';
+import { apiWindowQuery, queryDay, windowLabel, windowSelectValue } from '@/components/QueryWindow';
 import { getJSON } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -9,9 +9,13 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ lookback?: string }>;
+  searchParams: Promise<{ lookback?: string; day?: string }>;
 }) {
-  const lookback = queryWindow((await searchParams).lookback);
+  const params = await searchParams;
+  const lookback = windowSelectValue(params.lookback, params.day);
+  const day = queryDay(params.day);
+  const qs = apiWindowQuery(params.lookback, params.day);
+  const windowText = windowLabel(params.lookback, params.day);
   // Align with /api/orders Query(le=10000); keep default batch large enough for desk KPIs.
   const orderSize = 10000;
   const fileSources: any = await getJSON('/api/files/sources');
@@ -32,10 +36,10 @@ export default async function DashboardPage({
     yelRecords,
     freshness,
   ] = await Promise.all([
-    getJSON(`/api/overview?lookback=${lookback}`),
-    getJSON(`/api/orders?size=${orderSize}&evidence=false&lookback=${lookback}`),
-    getJSON(`/api/rejections?lookback=${lookback}`),
-    getJSON(`/api/exchanges?lookback=${lookback}`),
+    getJSON(`/api/overview?${qs}`),
+    getJSON(`/api/orders?size=${orderSize}&evidence=false&${qs}`),
+    getJSON(`/api/rejections?${qs}`),
+    getJSON(`/api/exchanges?${qs}`),
     getJSON('/api/exchanges/yel'),
     getJSON('/api/files/latency?limit=1'),
     getJSON('/api/files/queues?limit=1'),
@@ -50,7 +54,10 @@ export default async function DashboardPage({
   return (
     <Shell>
       <DashboardView
-        lookback={lookback}
+        lookback={windowText}
+        day={day}
+        selectValue={lookback}
+        windowQuery={qs}
         overview={overview}
         orders={orders}
         rejections={rejections}

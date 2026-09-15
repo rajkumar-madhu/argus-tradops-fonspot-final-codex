@@ -17,6 +17,7 @@ import time
 from app.auth import TOKEN_COOKIE, current_user, require
 from app.config import parse_cors_origins, settings
 from app.list_response import ListJSONResponse
+from app.query_window import DAY_QUERY_PATTERN, LOOKBACK_QUERY_PATTERN
 from app import tenancy
 from app.elastic.service import (
     elk_status,
@@ -522,15 +523,17 @@ def auth_me(user=Depends(current_user)):
 
 
 @app.get("/api/overview")
-def overview(lookback: str = Query("7d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("dashboard:read"))):
+def overview(
+    lookback: str | None = Query(None, pattern=LOOKBACK_QUERY_PATTERN),
+    day: str | None = Query(None, pattern=DAY_QUERY_PATTERN),
+    user=Depends(require("dashboard:read")),
+):
     from app.journal_snapshot import journal_overview as journal_overview_data
 
-    if not isinstance(lookback, str):
-        lookback = "7d"
     if _use_journal_data():
         return journal_overview_data(_journal_path())
     if not DEMO_MODE:
-        return _with_data_source(lambda: noren_overview(lookback=lookback), lambda: journal_overview_data(_journal_path()))
+        return _with_data_source(lambda: noren_overview(lookback=lookback, day=day), lambda: journal_overview_data(_journal_path()))
     rejected = len([x for x in DEMO_ORDERS if x["status"] == "REJECTED"])
     return {
         "orders": len(DEMO_ORDERS), "complete": 0, "rejected": rejected,
@@ -615,7 +618,8 @@ def orders(
     symbol: str | None = None,
     q: str | None = None,
     size: int = Query(100, ge=1, le=10000),
-    lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
+    lookback: str | None = Query(None, pattern=LOOKBACK_QUERY_PATTERN),
+    day: str | None = Query(None, pattern=DAY_QUERY_PATTERN),
     # The per-row journal projection is over half the payload of a large list.
     # A feed that only needs the table can skip it and read the evidence from
     # the lifecycle route for the one order an operator opens.
@@ -634,7 +638,7 @@ def orders(
         if q: items = [x for x in items if q.lower() in str(x).lower()]
         return {"items":items[:size],"count":len(items),"source":"demo"}
     return ListJSONResponse(_with_data_source(
-        lambda: live_orders(size=size, lookback=lookback, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q),
+        lambda: live_orders(size=size, lookback=lookback, day=day, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q),
         lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence),
     ))
 
@@ -655,14 +659,18 @@ def order_history(order_id: str, lookback: str = Query("30d", pattern=r"^[0-9]+[
 
 
 @app.get("/api/rejections")
-def rejections(lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("rejections:read"))):
+def rejections(
+    lookback: str | None = Query(None, pattern=LOOKBACK_QUERY_PATTERN),
+    day: str | None = Query(None, pattern=DAY_QUERY_PATTERN),
+    user=Depends(require("rejections:read")),
+):
     from app.journal_snapshot import journal_rejections as journal_rejections_data
 
     if _use_journal_data():
         return ListJSONResponse(journal_rejections_data(_journal_path()))
     if DEMO_MODE:
         return _demo_rejections()
-    return ListJSONResponse(_with_data_source(lambda: rejection_summary(lookback=lookback), lambda: journal_rejections_data(_journal_path())))
+    return ListJSONResponse(_with_data_source(lambda: rejection_summary(lookback=lookback, day=day), lambda: journal_rejections_data(_journal_path())))
 
 
 @app.get("/api/rca/order/{order_id}")
@@ -692,11 +700,13 @@ def exchange_yel(user=Depends(require("exchange:read"))):
 
 
 @app.get("/api/exchanges")
-def exchanges(lookback: str = Query("30d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("exchange:read"))):
+def exchanges(
+    lookback: str | None = Query(None, pattern=LOOKBACK_QUERY_PATTERN),
+    day: str | None = Query(None, pattern=DAY_QUERY_PATTERN),
+    user=Depends(require("exchange:read")),
+):
     from app.journal_snapshot import journal_exchanges as journal_exchanges_data
-
-    if not isinstance(lookback, str):
-        lookback = "30d"
+    from app.query_window import resolve_window
 
     def _journal():
         data = journal_exchanges_data(_journal_path())
@@ -718,8 +728,9 @@ def exchanges(lookback: str = Query("30d", pattern=r"^[0-9]+[mhdw]$"), user=Depe
         return {"items": DEMO_EXCHANGES, "count": len(DEMO_EXCHANGES), "source": "demo"}
 
     def _live():
-        overview_data = noren_overview(lookback=lookback)
-        if not overview_data.get("exchanges") and lookback != "30d":
+        overview_data = noren_overview(lookback=lookback, day=day)
+        lb, calendar_day = resolve_window(lookback, day)
+        if not overview_data.get("exchanges") and calendar_day is None and lb != "30d":
             overview_data = noren_overview(lookback="30d")
         items = []
         for row in overview_data.get("exchanges") or []:
@@ -740,7 +751,8 @@ def exchanges(lookback: str = Query("30d", pattern=r"^[0-9]+[mhdw]$"), user=Depe
 @app.get("/api/order-book")
 def order_book(
     size: int = Query(100, ge=1, le=10000),
-    lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
+    lookback: str | None = Query(None, pattern=LOOKBACK_QUERY_PATTERN),
+    day: str | None = Query(None, pattern=DAY_QUERY_PATTERN),
     user=Depends(require("orders:read")),
 ):
     from app.journal_snapshot import journal_orders as journal_orders_data
@@ -751,7 +763,7 @@ def order_book(
         items = [x for x in DEMO_ORDERS if x["status"] in {"OPEN", "PENDING", "TRIGGER_PENDING"}]
         return {"items": items[:size], "count": len(items), "source": "demo"}
     return _with_data_source(
-        lambda: live_orders(size=size, lookback=lookback, status="OPEN"),
+        lambda: live_orders(size=size, lookback=lookback, day=day, status="OPEN"),
         lambda: journal_orders_data(_journal_path(), size=size, status="OPEN"),
     )
 
@@ -759,7 +771,8 @@ def order_book(
 @app.get("/api/trades")
 def trades(
     size: int = Query(100, ge=1, le=10000),
-    lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
+    lookback: str | None = Query(None, pattern=LOOKBACK_QUERY_PATTERN),
+    day: str | None = Query(None, pattern=DAY_QUERY_PATTERN),
     user=Depends(require("trades:read")),
 ):
     from app.journal_snapshot import journal_trades as journal_trades_data
@@ -770,7 +783,7 @@ def trades(
         return {"items": DEMO_TRADES[:size], "count": len(DEMO_TRADES), "source": "demo"}
 
     def _live_trades():
-        data = live_orders(size=size, lookback=lookback, status="COMPLETE")
+        data = live_orders(size=size, lookback=lookback, day=day, status="COMPLETE")
         items = [
             {
                 "trade_id": f"T-{o.get('order_id')}",

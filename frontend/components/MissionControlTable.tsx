@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import type { FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, RotateCcw, Search } from "lucide-react";
-import { DataTable } from "@/components/UI";
+import Link from 'next/link';
+import type { FormEvent, ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pause, Play, RotateCcw, Search } from 'lucide-react';
+import { DataTable } from '@/components/UI';
 import {
   MISSION_TABS,
   applyMissionFacets,
@@ -13,12 +13,12 @@ import {
   isLiveSource,
   type MissionFacets,
   type MissionTab,
-} from "@/lib/mission-control";
-import { apiUrl } from "@/lib/runtime";
-import { authHeaders } from "@/lib/session";
-import { openAuthenticatedEventSource } from "@/lib/stream";
-import { timeIstDetail } from "@/lib/format";
-import { journalFieldText } from "@/lib/order-journal-fields";
+} from '@/lib/mission-control';
+import { apiUrl } from '@/lib/runtime';
+import { authHeaders } from '@/lib/session';
+import { openAuthenticatedEventSource } from '@/lib/stream';
+import { timeIstDetail } from '@/lib/format';
+import { journalFieldText } from '@/lib/order-journal-fields';
 
 const MAX_ROWS = 200;
 const EMPTY_FACETS: MissionFacets = {};
@@ -44,12 +44,12 @@ function mergeOrder(prev: any, incoming: any) {
 }
 
 function Status({ value }: { value: string }) {
-  return <span className={`order-status ${String(value || "").toLowerCase()}`}>{value}</span>;
+  return <span className={`order-status ${String(value || '').toLowerCase()}`}>{value}</span>;
 }
 
 function Side({ value }: { value: string }) {
-  const side = String(value || "").toUpperCase();
-  return <span className={`order-side ${side === "SELL" ? "sell" : "buy"}`}>{side || "—"}</span>;
+  const side = String(value || '').toUpperCase();
+  return <span className={`order-side ${side === 'SELL' ? 'sell' : 'buy'}`}>{side || '—'}</span>;
 }
 
 /**
@@ -58,15 +58,16 @@ function Side({ value }: { value: string }) {
  */
 function OrderRecord({ order }: { order: any }) {
   const fields: Record<string, unknown> = order.journal_fields || {};
-  const shown = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  const shown = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== '');
   const masked: string[] = Array.isArray(order.masked_fields) ? order.masked_fields : [];
   return (
     <div className="jx-detail mission-record" onClick={(e) => e.stopPropagation()}>
       <div className="jx-detail-head mission-record-head">
         <span>
           Order <b>{order.order_id}</b>
-          {order.source_row ? ` · source line ${order.source_row}` : ""} · {shown.length} of {Object.keys(fields).length} fields populated
-          {masked.length ? ` · ${masked.length} masked` : ""} · masked at projection
+          {order.source_row ? ` · source line ${order.source_row}` : ''} · {shown.length} of{' '}
+          {Object.keys(fields).length} fields populated
+          {masked.length ? ` · ${masked.length} masked` : ''} · masked at projection
         </span>
         <span className="mission-row-actions">
           <Link href={`/orders/${encodeURIComponent(order.order_id)}`}>Investigate ›</Link>
@@ -78,12 +79,19 @@ function OrderRecord({ order }: { order: any }) {
           {shown.map(([k, v]) => (
             <div key={k} className="jx-field">
               <dt>{k}</dt>
-              <dd>{typeof v === "object" ? JSON.stringify(v) : journalFieldText(k, v, order.price_scale)}</dd>
+              <dd>
+                {typeof v === 'object'
+                  ? JSON.stringify(v)
+                  : journalFieldText(k, v, order.price_scale)}
+              </dd>
             </div>
           ))}
         </dl>
       ) : (
-        <p className="mission-record-empty">This source returned no journal fields for the order; open the lifecycle view for its events.</p>
+        <p className="mission-record-empty">
+          This source returned no journal fields for the order; open the lifecycle view for its
+          events.
+        </p>
       )}
     </div>
   );
@@ -92,14 +100,14 @@ function OrderRecord({ order }: { order: any }) {
 export default function MissionControlTable({
   initial,
   source,
-  lookback = "24h",
+  windowQuery = '',
 }: {
   initial: any;
   source: string;
-  lookback?: string;
+  windowQuery?: string;
 }) {
   const live = isLiveSource(source);
-  const [tab, setTab] = useState<MissionTab>("live");
+  const [tab, setTab] = useState<MissionTab>('live');
   const [data, setData] = useState<any>(initial || {});
   const [connected, setConnected] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -108,7 +116,7 @@ export default function MissionControlTable({
   const [draft, setDraft] = useState<MissionFacets>(EMPTY_FACETS);
   const [openId, setOpenId] = useState<string | undefined>();
   const latestData = useRef<any>(initial || {});
-  const isJournal = source === "journal snapshot";
+  const isJournal = source === 'journal snapshot';
   const pausedRef = useRef(false);
 
   useEffect(() => {
@@ -126,8 +134,8 @@ export default function MissionControlTable({
       setConnected(false);
       return;
     }
-    const es = openAuthenticatedEventSource("orders", { interval: 2 });
-    es.addEventListener("orders", (e: MessageEvent) => {
+    const es = openAuthenticatedEventSource('orders', { interval: 2 });
+    es.addEventListener('orders', (e: MessageEvent) => {
       setConnected(true);
       try {
         const order = JSON.parse(e.data);
@@ -138,7 +146,7 @@ export default function MissionControlTable({
         /* keep last good state */
       }
     });
-    es.addEventListener("error", () => setConnected(false));
+    es.addEventListener('error', () => setConnected(false));
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
     return () => es.close();
@@ -152,7 +160,7 @@ export default function MissionControlTable({
   useEffect(() => {
     if (!autoRefresh || paused) return;
     const path = live
-      ? `/api/orders?size=${MAX_ROWS}&lookback=${encodeURIComponent(lookback)}`  // keeps journal_fields: OrderRecord renders them inline
+      ? `/api/orders?size=${MAX_ROWS}${windowQuery ? `&${windowQuery}` : ''}`
       : `/api/journal/orders?size=${MAX_ROWS}`;
     let cancelled = false;
     let timer: number | undefined;
@@ -167,20 +175,31 @@ export default function MissionControlTable({
     };
     async function tick() {
       if (cancelled) return;
-      if (document.visibilityState === "hidden") { schedule(); return; }
+      if (document.visibilityState === 'hidden') {
+        schedule();
+        return;
+      }
       controller?.abort();
       controller = new AbortController();
       try {
         const res = await fetch(`${apiUrl()}${path}`, {
-          cache: "no-store",
-          credentials: "include",
+          cache: 'no-store',
+          credentials: 'include',
           headers: authHeaders(),
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
         });
         if (cancelled || pausedRef.current) return;
-        if (!res.ok) { failures += 1; schedule(); return; }
+        if (!res.ok) {
+          failures += 1;
+          schedule();
+          return;
+        }
         const body = await res.json();
-        if (!body || body._error || !Array.isArray(body.items)) { failures += 1; schedule(); return; }
+        if (!body || body._error || !Array.isArray(body.items)) {
+          failures += 1;
+          schedule();
+          return;
+        }
         failures = 0;
         latestData.current = body;
         setData(body);
@@ -192,16 +211,21 @@ export default function MissionControlTable({
       }
       schedule();
     }
-    const onVisible = () => { if (document.visibilityState === "visible") { window.clearTimeout(timer); tick(); } };
-    document.addEventListener("visibilitychange", onVisible);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        window.clearTimeout(timer);
+        tick();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
     tick();
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
       controller?.abort();
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [autoRefresh, paused, live, lookback, connected]);
+  }, [autoRefresh, paused, live, windowQuery, connected]);
 
   const rows = useMemo(
     () =>
@@ -212,10 +236,10 @@ export default function MissionControlTable({
     [data],
   );
 
-  const exchanges = useMemo(() => facetOptions(rows, "exchange"), [rows]);
-  const products = useMemo(() => facetOptions(rows, "product"), [rows]);
-  const statuses = useMemo(() => facetOptions(rows, "status"), [rows]);
-  const sides = useMemo(() => facetOptions(rows, "side"), [rows]);
+  const exchanges = useMemo(() => facetOptions(rows, 'exchange'), [rows]);
+  const products = useMemo(() => facetOptions(rows, 'product'), [rows]);
+  const statuses = useMemo(() => facetOptions(rows, 'status'), [rows]);
+  const sides = useMemo(() => facetOptions(rows, 'side'), [rows]);
 
   const visible = useMemo(() => {
     const byTab = filterOrdersByTab(rows, tab);
@@ -240,11 +264,11 @@ export default function MissionControlTable({
           <p className="sub">
             {live
               ? connected
-                ? "LIVE · SSE + 2s refresh · collector order events"
-                : "Connecting to order stream…"
+                ? 'LIVE · SSE + 2s refresh · collector order events'
+                : 'Connecting to order stream…'
               : autoRefresh
-                ? "FILE-BASED · 2s refresh of journal snapshot (not a live market feed)"
-                : "FILE-BASED · snapshot paused"}
+                ? 'FILE-BASED · 2s refresh of journal snapshot (not a live market feed)'
+                : 'FILE-BASED · snapshot paused'}
           </p>
         </div>
         <div className="mission-table-actions">
@@ -263,7 +287,7 @@ export default function MissionControlTable({
             aria-pressed={paused}
           >
             {paused ? <Play size={14} /> : <Pause size={14} />}
-            {paused ? "Resume" : "Pause"}
+            {paused ? 'Resume' : 'Pause'}
           </button>
           <Link href="/orders">Full Live Orders ›</Link>
         </div>
@@ -276,7 +300,7 @@ export default function MissionControlTable({
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            className={tab === t.id ? "active" : undefined}
+            className={tab === t.id ? 'active' : undefined}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -289,55 +313,63 @@ export default function MissionControlTable({
         <label>
           Exchange
           <select
-            value={draft.exchange || ""}
+            value={draft.exchange || ''}
             onChange={(e) => setDraft((d) => ({ ...d, exchange: e.target.value || undefined }))}
           >
             <option value="">All</option>
             {exchanges.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
         </label>
         <label>
           Product
           <select
-            value={draft.product || ""}
+            value={draft.product || ''}
             onChange={(e) => setDraft((d) => ({ ...d, product: e.target.value || undefined }))}
           >
             <option value="">All</option>
             {products.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
         </label>
         <label>
           Status
           <select
-            value={draft.status || ""}
+            value={draft.status || ''}
             onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value || undefined }))}
           >
             <option value="">All</option>
             {statuses.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
         </label>
         <label>
           Side
           <select
-            value={draft.side || ""}
+            value={draft.side || ''}
             onChange={(e) => setDraft((d) => ({ ...d, side: e.target.value || undefined }))}
           >
             <option value="">All</option>
             {sides.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
         </label>
         <label>
           Symbol
           <input
-            value={draft.symbol || ""}
+            value={draft.symbol || ''}
             placeholder="Search symbol"
             onChange={(e) => setDraft((d) => ({ ...d, symbol: e.target.value || undefined }))}
           />
@@ -345,7 +377,7 @@ export default function MissionControlTable({
         <label>
           User
           <input
-            value={draft.user || ""}
+            value={draft.user || ''}
             placeholder="User"
             onChange={(e) => setDraft((d) => ({ ...d, user: e.target.value || undefined }))}
           />
@@ -353,7 +385,7 @@ export default function MissionControlTable({
         <label>
           Account
           <input
-            value={draft.account || ""}
+            value={draft.account || ''}
             placeholder="Account"
             onChange={(e) => setDraft((d) => ({ ...d, account: e.target.value || undefined }))}
           />
@@ -377,45 +409,58 @@ export default function MissionControlTable({
           renderDetail={(r) => <OrderRecord order={r} />}
           filtersOpen={false}
           columns={[
-            { key: "time", label: "Date / Time (IST)", render: (r) => r.time_label },
+            { key: 'time', label: 'Date / Time (IST)', render: (r) => r.time_label },
             {
-              key: "order_id",
-              label: "Order No",
+              key: 'order_id',
+              label: 'Order No',
               render: (r) => (
                 <Link className="link-btn" href={`/orders?order=${encodeURIComponent(r.order_id)}`}>
                   {r.order_id}
                 </Link>
               ),
             },
-            { key: "user", label: "User" },
-            { key: "account", label: "Account" },
-            { key: "exchange", label: "Exch" },
-            { key: "symbol", label: "Symbol" },
-            { key: "product", label: "Product" },
-            { key: "type", label: "Type" },
-            { key: "side", label: "Side", render: (r) => <Side value={String(r.side || "")} /> },
-            { key: "qty", label: "Qty" },
-            { key: "price", label: "Price" },
-            { key: "filled_qty", label: "Filled" },
+            { key: 'user', label: 'User' },
+            { key: 'account', label: 'Account' },
+            { key: 'exchange', label: 'Exch' },
+            { key: 'symbol', label: 'Symbol' },
+            { key: 'product', label: 'Product' },
+            { key: 'type', label: 'Type' },
+            { key: 'side', label: 'Side', render: (r) => <Side value={String(r.side || '')} /> },
+            { key: 'qty', label: 'Qty' },
+            { key: 'price', label: 'Price' },
+            { key: 'filled_qty', label: 'Filled' },
             {
-              key: "status",
-              label: "Status",
-              render: (r) => <Status value={String(r.status || "—")} />,
+              key: 'status',
+              label: 'Status',
+              render: (r) => <Status value={String(r.status || '—')} />,
             },
             {
-              key: "latency_ms",
+              key: 'latency_ms',
               // From the journal this is the gap between the order's original and
               // current Noren timestamps, not a network or OMS latency.
-              label: isJournal ? "Event gap" : "Latency",
-              render: (r) => (r.latency_ms == null ? "—" : `${Number(r.latency_ms).toLocaleString("en-IN", { maximumFractionDigits: 1 })} ms`),
+              label: isJournal ? 'Event gap' : 'Latency',
+              render: (r) =>
+                r.latency_ms == null
+                  ? '—'
+                  : `${Number(r.latency_ms).toLocaleString('en-IN', { maximumFractionDigits: 1 })} ms`,
             },
             {
-              key: "details",
-              label: "Actions",
+              key: 'details',
+              label: 'Actions',
               render: (r) => (
                 <span className="mission-row-actions">
-                  <Link href={`/orders?order=${encodeURIComponent(r.order_id)}`} onClick={(e) => e.stopPropagation()}>Lifecycle</Link>
-                  <Link href={`/rca?order_id=${encodeURIComponent(r.order_id)}`} onClick={(e) => e.stopPropagation()}>RCA</Link>
+                  <Link
+                    href={`/orders?order=${encodeURIComponent(r.order_id)}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Lifecycle
+                  </Link>
+                  <Link
+                    href={`/rca?order_id=${encodeURIComponent(r.order_id)}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    RCA
+                  </Link>
                 </span>
               ),
             },
@@ -423,7 +468,8 @@ export default function MissionControlTable({
         />
       )}
       <p className="mission-table-footnote">
-        Read-only · Click a row for its full masked record · Argus TradeOps never places, cancels, or edits orders.
+        Read-only · Click a row for its full masked record · Argus TradeOps never places, cancels,
+        or edits orders.
       </p>
     </section>
   );

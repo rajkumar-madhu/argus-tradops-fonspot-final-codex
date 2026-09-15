@@ -73,8 +73,10 @@ def reset_field_cache() -> None:
     """Drop resolved field names, e.g. after an index template change."""
     _FIELD_CACHE.clear()
 
-def _range(field: str, lookback: str) -> dict[str, Any]:
-    return {"range": {field: {"gte": f"now-{lookback}"}}}
+def _range(field: str, lookback: str | None = None, day: str | None = None) -> dict[str, Any]:
+    from app.query_window import es_range
+
+    return es_range(field, lookback, day)
 
 
 def _order_sort(desc: bool = True) -> list[dict[str, Any]]:
@@ -120,14 +122,14 @@ def order_search_query(q: str) -> dict[str, Any]:
     }}
 
 
-def live_orders(*, size: int = 100, lookback: str = "24h", exchange: str | None = None,
-                status: str | None = None, broker: str | None = None, user_id: str | None = None,
-                symbol: str | None = None, q: str | None = None) -> dict[str, Any]:
+def live_orders(*, size: int = 100, lookback: str | None = None, day: str | None = None,
+                exchange: str | None = None, status: str | None = None, broker: str | None = None,
+                user_id: str | None = None, symbol: str | None = None, q: str | None = None) -> dict[str, Any]:
     es = get_es()
     if es is None:
         return {"items": [], "count": 0, "source": "demo"}
 
-    filters: list[dict[str, Any]] = [_range(settings.noren_timestamp_field, lookback)]
+    filters: list[dict[str, Any]] = [_range(settings.noren_timestamp_field, lookback, day)]
     must: list[dict[str, Any]] = []
     if exchange:
         filters.append({"term": {_field(settings.noren_order_index, "ExchSeg"): exchange}})
@@ -188,8 +190,8 @@ def order_lifecycle(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
 
 
 @ttl_cache(3.0)  # below the collector interval (2 s), so a new rejection waits at most one tick
-def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
-                      max_orders: int | None = 200) -> dict[str, Any]:
+def rejection_summary(*, lookback: str | None = None, day: str | None = None,
+                      scan_limit: int | None = None, max_orders: int | None = 200) -> dict[str, Any]:
     """Summarise rejected orders.
 
     ``max_orders`` caps the ``orders`` list for API/UI payload size. Pass ``None``
@@ -203,7 +205,7 @@ def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
     body = {
         "size": limit,
         "query": {"bool": {"filter": [
-            _range(settings.noren_timestamp_field, lookback),
+            _range(settings.noren_timestamp_field, lookback, day),
             {"terms": {"OrdStatus": [56, 65]}},
         ]}},
         "sort": _order_sort(True),
@@ -244,7 +246,7 @@ def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
         "rejected_unique_orders": len(unique),
         "truncated": max_orders is not None and len(unique) > max_orders,
         "categories": [{"name": k, "count": v} for k, v in categories.most_common()],
-        "reject_rate": _reject_rate(len(unique), lookback=lookback),
+        "reject_rate": _reject_rate(len(unique), lookback=lookback, day=day),
         "scanned_events": len(docs),
         "scan_limit": limit,
         "scan_limit_reached": len(docs) >= limit,
@@ -253,7 +255,7 @@ def rejection_summary(*, lookback: str = "24h", scan_limit: int | None = None,
     }
 
 
-def _reject_rate(rejected_orders: int, *, lookback: str) -> float | None:
+def _reject_rate(rejected_orders: int, *, lookback: str | None = None, day: str | None = None) -> float | None:
     """Rejected unique orders as a percentage of all unique orders in the window."""
     es = get_es()
     if es is None or not rejected_orders:
@@ -261,7 +263,7 @@ def _reject_rate(rejected_orders: int, *, lookback: str) -> float | None:
     try:
         body = {
             "size": 0,
-            "query": {"bool": {"filter": [_range(settings.noren_timestamp_field, lookback)]}},
+            "query": {"bool": {"filter": [_range(settings.noren_timestamp_field, lookback, day)]}},
             "aggs": {"orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}}},
         }
         total = es.search(index=settings.noren_order_index, body=body).get("aggregations", {}).get("orders", {}).get("value", 0)
@@ -297,14 +299,14 @@ def rca(order_id: str, *, lookback: str = "30d") -> dict[str, Any]:
 
 
 @ttl_cache(5.0)
-def active_sessions(*, lookback: str = "24h", size: int = 2000) -> dict[str, Any]:
+def active_sessions(*, lookback: str | None = None, day: str | None = None, size: int = 2000) -> dict[str, Any]:
     es = get_es()
     if es is None:
         return {"items": [], "count": 0, "source": "demo"}
     index = f"{settings.noren_login_index},{settings.noren_logout_index}"
     body = {
         "size": min(size, 5000),
-        "query": {"range": {settings.noren_timestamp_field: {"gte": f"now-{lookback}"}}},
+        "query": _range(settings.noren_timestamp_field, lookback, day),
         "sort": _order_sort(True),
         "_source": {"excludes": ["Userdetails.Dob", "Userdetails.UserName", "Userdetails.LastLoginIp", "Userdetails.LastLoginMac", "Userdetails.UserSessOtp", "Question2fas", "LoginProcId"]},
     }
@@ -324,8 +326,8 @@ def active_sessions(*, lookback: str = "24h", size: int = 2000) -> dict[str, Any
     return {"items": active[:500], "count": len(active), "source": "elasticsearch", "index": index}
 
 
-def session_summary(*, lookback: str = "24h") -> dict[str, Any]:
-    data = active_sessions(lookback=lookback)
+def session_summary(*, lookback: str | None = None, day: str | None = None) -> dict[str, Any]:
+    data = active_sessions(lookback=lookback, day=day)
     items = data.get("items", [])
     brokers = Counter(x.get("broker") or "Unknown" for x in items)
     access = Counter(x.get("access_type") or "Unknown" for x in items)
@@ -365,13 +367,13 @@ def yel_health() -> dict[str, Any]:
 
 
 @ttl_cache(5.0)
-def overview(*, lookback: str = "24h") -> dict[str, Any]:
+def overview(*, lookback: str | None = None, day: str | None = None) -> dict[str, Any]:
     es = get_es()
     if es is None:
         return {"source": "demo"}
     body = {
         "size": 0,
-        "query": {"range": {settings.noren_timestamp_field: {"gte": f"now-{lookback}"}}},
+        "query": _range(settings.noren_timestamp_field, lookback, day),
         "aggs": {
             "orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}},
             "rejected": {"filter": {"terms": {"OrdStatus": [56, 65]}}, "aggs": {"orders": {"cardinality": {"field": "NorenOrdNum", "precision_threshold": 40000}}}},
@@ -387,7 +389,7 @@ def overview(*, lookback: str = "24h") -> dict[str, Any]:
     total = a.get("orders", {}).get("value", 0)
     rej = a.get("rejected", {}).get("orders", {}).get("value", 0)
     complete = a.get("complete", {}).get("orders", {}).get("value", 0)
-    sessions = session_summary(lookback=lookback)
+    sessions = session_summary(lookback=lookback, day=day)
     yel = yel_health()
     return {
         "orders": total,

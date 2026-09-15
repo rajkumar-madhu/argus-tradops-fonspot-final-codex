@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {TENANT_COOKIE, TENANT_HEADER, normalizeTenant, readTenantCookie, switcherModel, tenantCookie, tenantHeaders} from '../lib/tenant.ts';
+import {TENANT_COOKIE, TENANT_HEADER, liveTenantId, normalizeTenant, readTenantCookie, switcherModel, tenantCookie, tenantHeaders} from '../lib/tenant.ts';
 
 test('tenant ids are slugs; anything else is dropped, never coerced', () => {
   assert.equal(normalizeTenant(' ACME '), 'acme');
@@ -40,6 +40,22 @@ test('switcher: several tenants show the picker; a stale cookie is replaced', ()
   const m = switcherModel(payload, 'gone');
   assert.equal(m.show, true);
   assert.equal(m.adopt, 'default');
+});
+
+test('switcher: first visit prefers a live ES client over a journal-primary default', () => {
+  const payload = {
+    multi_tenant: true,
+    current: 'default',
+    items: [
+      {id: 'default', name: 'Lemonn', is_default: true, journal_primary: true, sources: {elasticsearch: true, journal: true}},
+      {id: 'finspot-ind', name: 'Finspot-ind', is_default: false, journal_primary: false, sources: {elasticsearch: true, journal: false}},
+    ],
+  };
+  assert.equal(liveTenantId(payload.items), 'finspot-ind');
+  assert.equal(switcherModel(payload, null).adopt, 'finspot-ind', 'no cookie: land on live OMS');
+  assert.equal(switcherModel(payload, 'gone').adopt, 'finspot-ind', 'stale cookie: recover to live OMS');
+  assert.equal(switcherModel(payload, 'default').adopt, null, 'explicit journal client is kept');
+  assert.equal(switcherModel(payload, 'finspot-ind').adopt, null, 'already on live: no loop');
 });
 
 test('switcher: no grants is reported, not silently defaulted', () => {

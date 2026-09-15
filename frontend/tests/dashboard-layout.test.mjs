@@ -9,13 +9,10 @@ const page = readFileSync(path.join(root, 'app/dashboard/page.tsx'), 'utf8');
 const view = readFileSync(path.join(root, 'components/DashboardView.tsx'), 'utf8');
 
 test('Exchange Health uses the same query window as overview, orders and rejections', () => {
-  assert.match(page, /getJSON\(`\/api\/overview\?lookback=\$\{lookback\}`\)/);
-  assert.match(
-    page,
-    /getJSON\(`\/api\/orders\?size=\$\{orderSize\}&evidence=false&lookback=\$\{lookback\}`\)/,
-  );
-  assert.match(page, /getJSON\(`\/api\/rejections\?lookback=\$\{lookback\}`\)/);
-  assert.match(page, /getJSON\(`\/api\/exchanges\?lookback=\$\{lookback\}`\)/);
+  assert.match(page, /getJSON\(`\/api\/overview\?\$\{qs\}`\)/);
+  assert.match(page, /getJSON\(`\/api\/orders\?size=\$\{orderSize\}&evidence=false&\$\{qs\}`\)/);
+  assert.match(page, /getJSON\(`\/api\/rejections\?\$\{qs\}`\)/);
+  assert.match(page, /getJSON\(`\/api\/exchanges\?\$\{qs\}`\)/);
   assert.doesNotMatch(page, /getJSON\('\/api\/exchanges'\)/);
 });
 

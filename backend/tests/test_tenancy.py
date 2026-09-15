@@ -86,6 +86,16 @@ class TenancyTestCase(unittest.TestCase):
 class AccessPolicyTests(TenancyTestCase):
     user = {"sub": "u-1", "preferred_username": "Priya", "email": "priya@acme.in", "permissions": ["orders:read"]}
 
+    def test_public_payload_includes_journal_primary(self):
+        self.multi(journal_primary=True, journal_path="/data/journal/Journal.log", es_url="http://localhost:9200")
+        pub = tenancy.default_tenant().public()
+        self.assertTrue(pub["journal_primary"])
+        self.assertEqual(pub["sources"], {"elasticsearch": True, "journal": True})
+        live = T("finspot-ind", es_url="http://es.example:9200", credentials_ref="finspot-ind")
+        self.assertFalse(live.journal_primary)
+        self.assertFalse(live.public()["journal_primary"])
+        self.assertEqual(live.public()["sources"], {"elasticsearch": True, "journal": False})
+
     def test_single_tenant_mode_only_knows_default(self):
         self.assertEqual(tenancy.allowed_ids(self.user), ["default"])
         self.assertTrue(tenancy.assert_access(self.user).is_default)

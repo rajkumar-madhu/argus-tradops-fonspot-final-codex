@@ -1,4 +1,4 @@
-import QueryWindow, { queryWindow } from '@/components/QueryWindow';
+import QueryWindow, { apiWindowQuery, queryDay, windowSelectValue } from '@/components/QueryWindow';
 import Shell from '@/components/Shell';
 import LiveOrders from '@/components/LiveOrders';
 import { ApiErrorState, PageHead } from '@/components/UI';
@@ -8,20 +8,22 @@ import { sourceDisplayName } from '@/lib/data-source';
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; order?: string; lookback?: string }>;
+  searchParams: Promise<{ source?: string; order?: string; lookback?: string; day?: string }>;
 }) {
   const params = await searchParams;
   const snapshot = params.source === 'journal';
-  const lookback = queryWindow(params.lookback);
+  const qs = apiWindowQuery(params.lookback, params.day);
+  const selectValue = windowSelectValue(params.lookback, params.day);
+  const day = queryDay(params.day);
   // Totals for the KPI row come from the overview, not from the loaded page of rows.
-  const overviewPromise = getJSON(`/api/overview?lookback=${lookback}`);
+  const overviewPromise = getJSON(`/api/overview?${qs}`);
   // Search and filters run over the loaded rows, so load as many as the route
   // allows: every order of a journal snapshot, and up to the backend's own cap
   // (500) from Elasticsearch.
   const initial: any = await getJSON(
     snapshot
       ? '/api/journal/orders?size=10000&evidence=false'
-      : `/api/orders?size=10000&evidence=false&lookback=${lookback}${params.order ? `&q=${encodeURIComponent(params.order)}` : ''}`,
+      : `/api/orders?size=10000&evidence=false&${qs}${params.order ? `&q=${encodeURIComponent(params.order)}` : ''}`,
   );
   const err = apiError(initial);
   const overview: any = await overviewPromise;
@@ -47,7 +49,7 @@ export default async function Page({
               Local journal snapshot
             </a>
           </nav>
-          {!snapshot && <QueryWindow value={lookback} source={initial.source} />}
+          {!snapshot && <QueryWindow value={selectValue} day={day} source={initial.source} />}
         </div>
         {err ? (
           <ApiErrorState title="Unable to load orders" data={initial} />
