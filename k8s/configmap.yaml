@@ -27,5 +27,11 @@ data:
   PROMETHEUS_URL: ""
   PROMETHEUS_TIMEOUT_SECONDS: "8"
   TRADEOPS_DEFAULT_TENANT_NAME: "Lemonn"
+  # Leave false until tenant_grants includes Lemonn operators (default needs a
+  # grant once this is true). Flip to "true" only after tradeops-tenant-secrets
+  # is applied; the API pod already mounts that Secret and the journal dir.
+  TRADEOPS_MULTI_TENANT: "false"
+  TRADEOPS_TENANT_SECRETS_DIR: "/etc/tradeops/tenant-secrets"
+  TRADEOPS_TENANT_JOURNAL_DIR: "/data/tenant-journals"
   TRUEDATA_SYMBOLS: "RELIANCE-EQ,NIFTY-I,BANKNIFTY-I"
   MARKET_FLUSH_INTERVAL_SECONDS: "1"

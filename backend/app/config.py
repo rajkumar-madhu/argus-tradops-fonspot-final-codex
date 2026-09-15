@@ -234,10 +234,25 @@ def production_errors(config: Settings) -> list[str]:
 
 
 def multi_tenant_errors(config: Settings) -> list[str]:
-    """Demo data is one hardcoded dataset; with several tenants it would be served to all of them."""
+    """Demo data is one hardcoded dataset; with several tenants it would be served to all of them.
+
+    Production also requires the secret and journal mounts the API reads from:
+    a tenant row names a credentials_ref, never an inline key.
+    """
+    errors: list[str] = []
     if config.multi_tenant and config.demo_mode:
-        return ["TRADEOPS_MULTI_TENANT requires TRADEOPS_DEMO_MODE=false"]
-    return []
+        errors.append("TRADEOPS_MULTI_TENANT requires TRADEOPS_DEMO_MODE=false")
+    if config.multi_tenant and config.environment == "production":
+        from pathlib import Path
+
+        secrets = Path(config.tenant_secrets_dir)
+        if not secrets.is_dir():
+            errors.append("TRADEOPS_TENANT_SECRETS_DIR must be a mounted directory in production")
+        if config.tenant_journal_dir:
+            journals = Path(config.tenant_journal_dir)
+            if not journals.is_dir():
+                errors.append("TRADEOPS_TENANT_JOURNAL_DIR must be a mounted directory when set")
+    return errors
 
 
 settings = Settings()

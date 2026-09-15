@@ -38,6 +38,19 @@ This revision adds the production controls that were intentionally left out of t
 - Worker liveness probes hit the metrics port, which proves the process is up but not that its loop is progressing. Alert on `tradeops_collector_runs_total` not increasing and on `tradeops_redis_stream_pending` growing (a quiet market legitimately produces no worker messages) rather than tightening the probe: a single ES call can legitimately take minutes under retries, and a heartbeat probe would restart healthy pods during an ES outage.
 - Back up PostgreSQL and test restore/RTO regularly; Redis Streams should not be the only durable incident/RCA store.
 
+## Multi-tenancy
+
+The production ConfigMap leaves `TRADEOPS_MULTI_TENANT=false`. The API pod already mounts `/etc/tradeops/tenant-secrets` (optional Secret `tradeops-tenant-secrets`) and `/data/tenant-journals`, so enabling the flag does not need a second volume change.
+
+To serve a second client:
+
+1. Keep `TRADEOPS_ENV=production`, demo off and auth on (startup already refuses the opposite).
+2. Apply `k8s/tenant-secrets.example.yaml` with real read-only keys, or the ExternalSecret in `k8s/external-secrets.example.yaml`. Files must be named `<credentials_ref>.es_api_key` (or `.es_username` + `.es_password`).
+3. Grant Lemonn operators `default` in `tenant_grants` _before_ flipping the flag: once it is on, even the built-in tenant needs a row (super_admin still sees every tenant).
+4. Set `TRADEOPS_MULTI_TENANT=true` and restart the API. Startup refuses a missing secrets directory in production.
+5. Create the extra tenant on `/admin/tenants`. Replace the journal `emptyDir` with a read-only PVC if that tenant serves a file; paths must stay inside `TRADEOPS_TENANT_JOURNAL_DIR`.
+6. Collector, correlation and CSV stay on `default` only. Other tenants get on-demand ES/journal reads, not live SSE, stored RCA or `/api/files/*`. Market ticks are shared. Widen NetworkPolicy Elasticsearch egress if the new cluster is a different address.
+
 ## File analytics and release validation
 
 Read [FILE_ANALYTICS.md](docs/FILE_ANALYTICS.md) for bounded source ingestion, request IDs, safe error handling, startup cache readiness and immutable release rendering. Workload templates use RELEASE_REQUIRED placeholders; only rendered manifests with real published digests are deployable. File snapshot readiness does not assert live dependency health.

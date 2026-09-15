@@ -15,11 +15,11 @@ spec:
   # API's preStop 5 s + graceful 20 s and the workers' lease release.
   strategy:
     type: RollingUpdate
-    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
-  selector: {matchLabels: {app: tradeops-api}}
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector: { matchLabels: { app: tradeops-api } }
   template:
     metadata:
-      labels: {app: tradeops-api}
+      labels: { app: tradeops-api }
     spec:
       terminationGracePeriodSeconds: 30
       automountServiceAccountToken: false
@@ -29,30 +29,30 @@ spec:
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
-        seccompProfile: {type: RuntimeDefault}
+        seccompProfile: { type: RuntimeDefault }
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
-          labelSelector: {matchLabels: {app: tradeops-api}}
+          labelSelector: { matchLabels: { app: tradeops-api } }
       containers:
         - name: api
           image: your-registry/tradeops-backend:RELEASE_REQUIRED
           envFrom:
-            - configMapRef: {name: tradeops-config}
-            - secretRef: {name: tradeops-secrets}
-          ports: [{name: http, containerPort: 8000}]
+            - configMapRef: { name: tradeops-config }
+            - secretRef: { name: tradeops-secrets }
+          ports: [{ name: http, containerPort: 8000 }]
           startupProbe:
-            httpGet: {path: /health, port: http}
+            httpGet: { path: /health, port: http }
             failureThreshold: 60
             periodSeconds: 5
           readinessProbe:
-            httpGet: {path: /health/ready, port: http}
+            httpGet: { path: /health/ready, port: http }
             timeoutSeconds: 10
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet: {path: /health, port: http}
+            httpGet: { path: /health, port: http }
             initialDelaySeconds: 15
             periodSeconds: 20
           lifecycle:
@@ -60,20 +60,40 @@ spec:
             # SIGTERM drain; without it, requests routed in that window are refused.
             # SSE clients reconnect to a surviving replica.
             preStop:
-              exec: {command: ["sleep", "5"]}
+              exec: { command: ["sleep", "5"] }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            capabilities: {drop: ["ALL"]}
+            capabilities: { drop: ["ALL"] }
           resources:
-            requests: {cpu: 200m, memory: 256Mi}
-            limits: {cpu: "1", memory: 1Gi}
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
           volumeMounts:
-            - {name: tmp, mountPath: /tmp}
+            - { name: tmp, mountPath: /tmp }
+            - {
+                name: tenant-secrets,
+                mountPath: /etc/tradeops/tenant-secrets,
+                readOnly: true,
+              }
+            - {
+                name: tenant-journals,
+                mountPath: /data/tenant-journals,
+                readOnly: true,
+              }
       volumes:
         # readOnlyRootFilesystem is on, so anything that writes a temp file needs
         # an explicit writable mount.
         - name: tmp
+          emptyDir: {}
+        # Optional: missing Secret becomes an empty dir so the API still starts.
+        # Keys are files named <credentials_ref>.es_api_key (see tenant-secrets.example.yaml).
+        - name: tenant-secrets
+          secret:
+            secretName: tradeops-tenant-secrets
+            optional: true
+            defaultMode: 288
+        # Swap for a read-only PVC when a non-default tenant serves a journal file.
+        - name: tenant-journals
           emptyDir: {}
 ---
 apiVersion: v1
@@ -81,7 +101,7 @@ kind: Service
 metadata:
   name: tradeops-api
   namespace: tradeops
-  labels: {app: tradeops-api}
+  labels: { app: tradeops-api }
 spec:
-  selector: {app: tradeops-api}
-  ports: [{name: http, port: 8000, targetPort: http}]
+  selector: { app: tradeops-api }
+  ports: [{ name: http, port: 8000, targetPort: http }]

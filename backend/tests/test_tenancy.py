@@ -374,7 +374,7 @@ class ConfigTests(unittest.TestCase):
     def test_multi_tenant_refuses_demo_mode(self):
         from app.config import Settings, multi_tenant_errors
         self.assertTrue(multi_tenant_errors(Settings(multi_tenant=True, demo_mode=True)))
-        self.assertEqual(multi_tenant_errors(Settings(multi_tenant=True, demo_mode=False)), [])
+        self.assertEqual(multi_tenant_errors(Settings(multi_tenant=True, demo_mode=False, environment="development")), [])
         self.assertEqual(multi_tenant_errors(Settings(multi_tenant=False, demo_mode=True)), [])
 
 

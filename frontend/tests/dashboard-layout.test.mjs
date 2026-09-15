@@ -8,6 +8,17 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const page = readFileSync(path.join(root, 'app/dashboard/page.tsx'), 'utf8');
 const view = readFileSync(path.join(root, 'components/DashboardView.tsx'), 'utf8');
 
+test('Exchange Health uses the same query window as overview, orders and rejections', () => {
+  assert.match(page, /getJSON\(`\/api\/overview\?lookback=\$\{lookback\}`\)/);
+  assert.match(
+    page,
+    /getJSON\(`\/api\/orders\?size=\$\{orderSize\}&evidence=false&lookback=\$\{lookback\}`\)/,
+  );
+  assert.match(page, /getJSON\(`\/api\/rejections\?lookback=\$\{lookback\}`\)/);
+  assert.match(page, /getJSON\(`\/api\/exchanges\?lookback=\$\{lookback\}`\)/);
+  assert.doesNotMatch(page, /getJSON\('\/api\/exchanges'\)/);
+});
+
 test('CSV coverage is a quiet banner inside Mission Control, not above the page', () => {
   assert.doesNotMatch(page, /dashboard-source-strip/);
   assert.match(page, /fileSources=\{fileSources\}/);
