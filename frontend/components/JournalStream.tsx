@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import {
-  cellText, columnHeader, displayValue, isUntranslated, istStamp, istTime, lifecycleSteps,
+  cellText, columnHeader, columnTracks, displayValue, isUntranslated, istStamp, istTime, lifecycleSteps,
   statusTone, summaryColumns, timeHint,
 } from "@/lib/journal-explore";
+import { priceText, UNVERIFIED_PRICE_SCALE } from "@/lib/format";
 import { apiUrl } from "@/lib/runtime";
 import { authHeaders } from "@/lib/session";
 
@@ -31,12 +32,12 @@ export default function JournalStream({ rows, columns, msgType }: {
       className="jx-stream"
       role="table"
       aria-label="Journal records"
-      style={{ ["--jx-cols" as string]: String(summary.length) }}
+      style={{ ["--jx-cols" as string]: String(summary.length), ["--jx-template" as string]: columnTracks(summary) }}
     >
       <div className="jx-row jx-head" role="row">
         <span className="jx-caret" aria-hidden="true" />
         {summary.map((column) => (
-          <span key={column} role="columnheader">{columnHeader(column)}</span>
+          <span key={column} role="columnheader" title={column}>{columnHeader(column)}</span>
         ))}
       </div>
       {rows.map((row) => {
@@ -159,7 +160,7 @@ function OrderOverview({ fields }: { fields: Record<string, unknown> }) {
           </span>
         </div>
         <span className="jx-order-links">
-          {orderId && <Link href={`/orders?order=${encodeURIComponent(orderId)}`}>Lifecycle view ›</Link>}
+          {orderId && <Link href={`/orders/${encodeURIComponent(orderId)}`}>Investigate ›</Link>}
           {orderId && <Link href={`/rca?order_id=${encodeURIComponent(orderId)}`}>RCA ›</Link>}
         </span>
       </div>
@@ -171,7 +172,7 @@ function OrderOverview({ fields }: { fields: Record<string, unknown> }) {
         <div>
           <dt>Price</dt>
           <dd>
-            {price !== null ? `₹${Number(price).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : `${cellText(fields.PriceToFill)} (raw)`}
+            {price !== null ? `₹${priceText(price)}` : `${cellText(fields.PriceToFill)} (raw${last?.unverifiedScale ? ` · ${UNVERIFIED_PRICE_SCALE}` : ""})`}
           </dd>
         </div>
         <div><dt>Filled</dt><dd>{cellText(filled ?? 0)} / {qty}</dd></div>
@@ -211,8 +212,8 @@ function OrderOverview({ fields }: { fields: Record<string, unknown> }) {
                 <b>{s.status}</b>
                 <span>
                   {s.filled ?? 0}/{s.qty ?? "—"} filled
-                  {s.price !== null ? ` · ₹${Number(s.price).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : ""}
-                  {s.fillPrice !== null ? ` · fill ₹${Number(s.fillPrice).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : ""}
+                  {s.price !== null ? ` · ₹${priceText(s.price)}` : s.unverifiedScale && s.priceRaw !== null ? ` · ${s.priceRaw} raw, ${UNVERIFIED_PRICE_SCALE}` : ""}
+                  {s.fillPrice !== null ? ` · fill ₹${priceText(s.fillPrice)}` : ""}
                 </span>
                 <small>{s.gap}</small>
               </li>

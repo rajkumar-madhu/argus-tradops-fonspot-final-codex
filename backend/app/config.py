@@ -1,9 +1,38 @@
+import math
+import json
 import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def parse_cors_origins(value: str) -> list[str]:
+    """Accept the documented comma list and the JSON array used by UAT GitOps."""
+    raw = value.strip()
+    if raw.startswith('['):
+        try:
+            entries = json.loads(raw)
+        except ValueError as exc:
+            raise ValueError('CORS_ORIGINS must be a comma-separated list or JSON string array') from exc
+        if not isinstance(entries, list) or any(not isinstance(item, str) for item in entries):
+            raise ValueError('CORS_ORIGINS must contain only origin strings')
+    else:
+        entries = raw.split(',')
+    # With credentialed requests, wildcard origins must not grant access.
+    from urllib.parse import urlsplit
+    origins = []
+    for item in entries:
+        origin = item.strip().rstrip('/')
+        if not origin:
+            continue
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
+            raise ValueError('CORS_ORIGINS entries must be explicit HTTP(S) origins')
+        if origin not in origins:
+            origins.append(origin)
+    return origins
 
 
 def _bool(name: str, default: bool = False) -> bool:
@@ -24,6 +53,29 @@ def _float(name: str, default: float) -> float:
         return default
 
 
+def parse_price_divisors(text: str) -> dict[str, float]:
+    """``"CDS=10000000,BCD=10000000"`` into ``{"CDS": 1e7, "BCD": 1e7}``.
+
+    A malformed entry raises: a wrong divisor would silently rescale every
+    price in that segment, so it must stop the process instead.
+    """
+    divisors: dict[str, float] = {}
+    for item in str(text or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        segment, sep, value = item.partition("=")
+        segment = segment.strip().upper()
+        try:
+            divisor = float(value)
+        except ValueError:
+            divisor = 0.0
+        if not sep or not segment.replace("_", "").isalnum() or not math.isfinite(divisor) or divisor <= 0:
+            raise ValueError(f"NOREN_PRICE_DIVISORS: invalid entry {item!r}; expected SEGMENT=positive number")
+        divisors[segment] = divisor
+    return divisors
+
+
 @dataclass(frozen=True)
 class Settings:
     environment: str = os.getenv("TRADEOPS_ENV", "development").strip().lower()
@@ -36,12 +88,21 @@ class Settings:
     csv_max_bytes: int = _int("TRADEOPS_CSV_MAX_BYTES", 268435456)
     csv_max_rows: int = _int("TRADEOPS_CSV_MAX_ROWS", 2000000)
     demo_mode: bool = _bool("TRADEOPS_DEMO_MODE", True)
+    # Multi-tenancy (app/tenancy.py). Off: one implicit "default" tenant built from the
+    # settings in this class, exactly as before. On: tenants come from the `tenants`
+    # table, users need a grant per tenant, and credentials are read from files under
+    # tenant_secrets_dir (a mounted Kubernetes Secret) -- never from the database.
+    multi_tenant: bool = _bool("TRADEOPS_MULTI_TENANT", False)
+    default_tenant_name: str = os.getenv("TRADEOPS_DEFAULT_TENANT_NAME", "Default")
+    tenant_secrets_dir: str = os.getenv("TRADEOPS_TENANT_SECRETS_DIR", "/etc/tradeops/tenant-secrets")
+    tenant_journal_dir: str = os.getenv("TRADEOPS_TENANT_JOURNAL_DIR", "")
     es_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     es_api_key: str | None = os.getenv("ELASTICSEARCH_API_KEY") or None
     es_username: str | None = os.getenv("ELASTICSEARCH_USERNAME") or None
     es_password: str | None = os.getenv("ELASTICSEARCH_PASSWORD") or None
     es_ca_certs: str | None = os.getenv("ELASTICSEARCH_CA_CERTS") or None
     es_verify_certs: bool = _bool("ELASTICSEARCH_VERIFY_CERTS", True)
+    es_request_timeout_seconds: float = _float("ELASTICSEARCH_REQUEST_TIMEOUT", 8.0)
 
     # Real Noren indices from the supplied Logstash pipeline.
     noren_order_index: str = os.getenv("NOREN_ORDER_INDEX", "noren-ordupd-intraday")
@@ -52,7 +113,11 @@ class Settings:
     noren_history_index: str = os.getenv("NOREN_HISTORY_INDEX", "noren-*-history")
     noren_timestamp_field: str = os.getenv("NOREN_TIMESTAMP_FIELD", "NorenTimeStamp_N")
     noren_ingest_timestamp_field: str = os.getenv("NOREN_INGEST_TIMESTAMP_FIELD", "@timestamp")
+    # Default divisor for the paise-scaled segments (NSE, BSE, NFO, BFO, MCX).
+    # NOREN_PRICE_DIVISORS adds or overrides per segment ("CDS=10000000"); a
+    # segment in neither is left unnormalised. See NOREN_FIELD_MAP.md.
     noren_price_divisor: float = _float("NOREN_PRICE_DIVISOR", 100.0)
+    noren_price_divisors: str = os.getenv("NOREN_PRICE_DIVISORS", "")
     noren_query_scan_limit: int = _int("NOREN_QUERY_SCAN_LIMIT", 5000)
 
     # Backward-compatible generic ELK settings used by Logs Explorer.
@@ -96,8 +161,22 @@ class Settings:
     sse_heartbeat_seconds: float = _float("SSE_HEARTBEAT_SECONDS", 15.0)
     metrics_enabled: bool = _bool("METRICS_ENABLED", True)
     prometheus_url: str = os.getenv("PROMETHEUS_URL", "").strip()
+    prometheus_username: str = os.getenv("PROMETHEUS_USERNAME", "").strip()
+    prometheus_password: str = os.getenv("PROMETHEUS_PASSWORD", "")
     prometheus_timeout_seconds: float = _float("PROMETHEUS_TIMEOUT_SECONDS", 2.0)
-    worker_metrics_port: int = _int("WORKER_METRICS_PORT", 9108)
+    # WORKER_METRICS_PORT overrides for all; otherwise each worker has its own
+    # default so co-located workers (Compose without env, a laptop) do not race
+    # for one port. Kubernetes and Compose set the env explicitly.
+    worker_metrics_port: int = _int("WORKER_METRICS_PORT", 0)
+    collector_metrics_port: int = _int("COLLECTOR_METRICS_PORT", 9108)
+    correlation_metrics_port: int = _int("CORRELATION_METRICS_PORT", 9109)
+    market_metrics_port: int = _int("MARKET_METRICS_PORT", 9110)
+
+    def metrics_port(self, worker: str) -> int:
+        if self.worker_metrics_port:
+            return self.worker_metrics_port
+        return {"collector": self.collector_metrics_port, "correlation": self.correlation_metrics_port,
+                "market": self.market_metrics_port}[worker]
     auto_create_schema: bool = _bool("AUTO_CREATE_SCHEMA", False)
 
     # TrueData market data (optional — served via market_data_worker → Redis snapshot)
@@ -154,7 +233,15 @@ def production_errors(config: Settings) -> list[str]:
     return errors
 
 
+def multi_tenant_errors(config: Settings) -> list[str]:
+    """Demo data is one hardcoded dataset; with several tenants it would be served to all of them."""
+    if config.multi_tenant and config.demo_mode:
+        return ["TRADEOPS_MULTI_TENANT requires TRADEOPS_DEMO_MODE=false"]
+    return []
+
+
 settings = Settings()
-_errors = production_errors(settings)
+parse_price_divisors(settings.noren_price_divisors)  # fail at startup, not on the first order
+_errors = production_errors(settings) + multi_tenant_errors(settings)
 if _errors:
-    raise RuntimeError("Invalid production configuration: " + "; ".join(_errors))
+    raise RuntimeError("Invalid configuration: " + "; ".join(_errors))

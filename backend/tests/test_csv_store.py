@@ -102,3 +102,38 @@ class CsvStoreTests(unittest.TestCase):
         self.write('ORDERLATENCY_day.csv',[['A','',0,0,1788839160,0],['x'*129,'NSE',1,2,1788839160,0]])
         self.store.ingest()
         self.assertEqual(self.store.latency()['count'],0)
+
+    def test_sqlite_progress_interrupt_does_not_abort_ingest(self):
+        """Progress-handler deadlines raise OperationalError: interrupted.
+
+        Startup used to die on that path; ingest must mark the file and keep
+        serving the rolled-back cache instead.
+        """
+        from contextlib import contextmanager
+
+        self.write(
+            'ORDERLATENCY_day.csv',
+            [[str(i), 'NSE', i, i, 1788839160 + i, 1788839160 + i] for i in range(2000)],
+        )
+        self.store.ingest()
+        self.assertEqual(self.store.latency()['count'], 2000)
+        # Force a re-ingest so DELETE/INSERT hits the progress handler.
+        self.write('ORDERLATENCY_day.csv', [['Z', 'NSE', 1, 2, 1788839260, 1788839260]])
+
+        real = self.store.connection
+
+        @contextmanager
+        def interruptible(max_seconds=20):
+            with real(max_seconds=max_seconds) as db:
+                # Interrupt only the bulk-ingest connection (the 300 s budget). Reads
+                # use the default budget and must keep serving the rolled-back cache.
+                if max_seconds > 20:
+                    db.set_progress_handler(lambda: 1, 1)
+                yield db
+
+        self.store.connection = interruptible
+        report = self.store.ingest()
+        file_state = next(f['state'] for f in report['files'] if f['name'] == 'ORDERLATENCY_day.csv')
+        self.assertEqual(file_state, 'Ingestion interrupted')
+        # Rolled-back re-ingest leaves the previous accepted rows intact.
+        self.assertEqual(self.store.latency()['count'], 2000)

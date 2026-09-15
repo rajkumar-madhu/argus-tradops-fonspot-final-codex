@@ -4,6 +4,7 @@ import Shell from '@/components/Shell';
 import JournalLatencyPage from '@/components/JournalLatencyPage';
 import FileAnalyticsControls from '@/components/FileAnalyticsControls';
 import ObservedTrend from '@/components/ObservedTrend';
+import StageTiming from '@/components/StageTiming';
 import {PageHead,EmptyState,KpiCard} from '@/components/UI';
 import {getJSON,apiError} from '@/lib/api';
 import {fileQuery,metric,type FileQuery} from '@/lib/file-analytics';
@@ -21,6 +22,7 @@ export default async function Page({searchParams}:{searchParams:Promise<FileQuer
  <section className="panel"><div className="panel-head"><b>Latency distribution</b><span>Same filters as the event table and export</span></div><div className="table-scroll" tabIndex={0} aria-label="Latency percentile comparison"><table className="orders-table"><thead><tr><th>Measurement ({unit})</th><th>Valid samples</th>{['p50','p90','p95','p99','max'].map(p=><th key={p}>{p}</th>)}</tr></thead><tbody>{[['oms','OMS processing'],['confirmation','Reported exchange confirmation']].map(([key,name])=><tr key={key}><td>{name}</td><td>{metric(s[key]?.samples)}</td>{['p50','p90','p95','p99','max'].map(p=><td key={p}>{metric(s[key]?.[p])}</td>)}</tr>)}</tbody></table></div></section>
  <section className="panel"><div className="panel-head"><b>Mean OMS timing over time</b><span>{d.bucket_seconds}-second event buckets · UTC</span></div><ObservedTrend label="Mean OMS timing" unit={unit} points={(d.trend||[]).map((r:any)=>({time:r.time,value:r.oms}))}/></section>
  <section className="panel"><div className="panel-head"><b>Segment comparison</b><span>Filtered observations</span></div><div className="table-scroll"><table className="orders-table"><thead><tr><th>Segment</th><th>Events</th><th>Valid samples</th><th>p50 ({unit})</th><th>p95 ({unit})</th><th>Maximum ({unit})</th></tr></thead><tbody>{(d.by_segment||[]).map((r:any)=><tr key={r.segment}><td>{r.segment}</td><td>{metric(r.count)}</td><td>{metric(r.oms?.samples)}</td><td>{metric(r.oms?.p50)}</td><td>{metric(r.oms?.p95)}</td><td>{metric(r.oms?.max)}</td></tr>)}</tbody></table></div></section>
+ <StageTiming query={q}/>
  <section className="panel"><div className="panel-head"><b>Event evidence</b><a className="btn" href={`/api/exports/latency?${fileQuery(q,{limit:'',offset:''})}`}>Export all matching rows</a></div>
  <div className="table-scroll" tabIndex={0} aria-label="Scrollable latency events"><table className="orders-table"><thead><tr><th>Order</th><th>Segment</th><th>Event time (UTC)</th><th>OMS ({unit})</th><th>Confirmation ({unit})</th><th>OMS status</th><th>Source file</th></tr></thead><tbody>{(d.items||[]).map((r:any)=><tr key={`${r.file}:${r.fingerprint}`}><td><Link href={`/orders?order=${encodeURIComponent(r.order_id)}`}>{r.order_id}</Link></td><td>{r.segment}</td><td>{r.event_time?.replace('T',' ').replace('+00:00','')}</td><td>{metric(r.oms)}</td><td>{metric(r.confirmation)}</td><td>{r.oms_status??'Not supplied'}</td><td>{r.file}</td></tr>)}</tbody></table></div>
  {!d.count&&<EmptyState title="No matching events" body="Widen the time range or reset your filters."/>}

@@ -35,3 +35,10 @@ CSV_DURATION = Histogram('tradeops_csv_ingestion_seconds', 'CSV ingestion durati
 CSV_ROWS = Counter('tradeops_csv_rows_total', 'CSV rows by validation outcome', ['kind', 'outcome'])
 CSV_QUEUE_LAST_EVENT = Gauge('tradeops_csv_queue_last_event_timestamp_seconds', 'Last observed queue event; zero means no samples', ['instance'])
 CSV_QUEUE_HAS_DATA = Gauge('tradeops_csv_queue_has_data', 'Whether a discovered queue instance has samples', ['instance'])
+
+# Freshness. Set by the collector (ES) and at load/import time (journal, CSV);
+# "how old is the newest thing we have" is what an operator needs to trust a tile.
+ES_LATEST_EVENT = Gauge('tradeops_es_latest_event_timestamp_seconds', 'Newest Noren event time seen by the collector')
+ES_INGEST_LAG = Gauge('tradeops_es_ingest_lag_seconds', 'Ingest clock minus event clock of the newest orders seen by the collector')
+JOURNAL_LOADED = Gauge('tradeops_journal_loaded_timestamp_seconds', 'When the journal snapshot was parsed into memory')
+CSV_LAST_IMPORT = Gauge('tradeops_csv_last_import_timestamp_seconds', 'When the CSV cache was last rebuilt')

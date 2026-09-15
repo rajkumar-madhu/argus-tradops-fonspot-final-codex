@@ -1,7 +1,8 @@
 import { healthTone } from "@/lib/health-state";
 import { sourceDisplayName } from "@/lib/data-source";
 import FilterableTable from "@/components/FilterableTable";
-import { fmt } from "@/lib/format";
+import { fmt, orderPriceText } from "@/lib/format";
+import { apiErrorGuidance } from "@/lib/api-result";
 
 export function Card({ title, children, action }: { title?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -78,6 +79,19 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
+/** A failed read, explained for the operator: sign in, ask for a role, or retry. */
+export function ApiErrorState({ title, data }: { title: string; data: Parameters<typeof apiErrorGuidance>[0] }) {
+  const guidance = apiErrorGuidance(data);
+  if (!guidance) return null;
+  return (
+    <div className="empty-state">
+      <b>{guidance.kind === "signed-out" ? "Sign in to view this" : title}</b>
+      <p>{guidance.body}</p>
+      {guidance.kind === "signed-out" && <a className="btn primary" href="/signin">Sign in</a>}
+    </div>
+  );
+}
+
 export function DataTable({
   columns,
   rows,
@@ -130,7 +144,7 @@ export function OrderDetailPanel({ order }: { order: any }) {
     ["Side", order.side],
     ["Qty", order.qty],
     ["Filled", order.filled_qty ?? 0],
-    ["Price", order.price ?? "—"],
+    ["Price", orderPriceText(order)],
     ["Status", order.status],
     ["Status Code", order.status_code],
     ["Latency", order.latency_ms == null ? "—" : `${order.latency_ms} ms`],

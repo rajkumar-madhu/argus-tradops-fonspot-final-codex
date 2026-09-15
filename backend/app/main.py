@@ -15,7 +15,9 @@ from prometheus_client import make_asgi_app
 import time
 
 from app.auth import TOKEN_COOKIE, current_user, require
-from app.config import settings
+from app.config import parse_cors_origins, settings
+from app.list_response import ListJSONResponse
+from app import tenancy
 from app.elastic.service import (
     elk_status,
     latest_sessions,
@@ -34,6 +36,8 @@ from app.elastic.normalizer import (
     OMS_STATUS_MAPPING_CONFIRMED,
     exch_confirm_label,
     oms_status_label,
+    rupee_value,
+    segment_divisors,
 )
 from app.elastic.noren_service import (
     active_sessions,
@@ -49,21 +53,16 @@ from app.elastic.noren_service import (
 
 from app import file_routes, journal_routes
 
-app = FastAPI(title="Argus TradeOps API", version="1.1.0")
+# tenancy.bind_request_tenant is async and app-wide on purpose: see app/tenancy.py.
+app = FastAPI(title="Argus TradeOps API", version="1.1.0", dependencies=[Depends(tenancy.bind_request_tenant)])
 app.include_router(file_routes.router)
 app.include_router(journal_routes.router)
+from app import tenant_routes  # noqa: E402
+app.include_router(tenant_routes.router)
 if settings.metrics_enabled:
     app.mount("/metrics", make_asgi_app())
 
-origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if x.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
-    expose_headers=["X-Request-ID"],
-)
+origins = parse_cors_origins(os.getenv("CORS_ORIGINS", "http://localhost:3000"))
 
 DEMO_MODE = settings.demo_mode
 
@@ -75,37 +74,44 @@ def _journal_path() -> str | None:
     paths are ignored inside containers when the file is not present, so API
     handlers fall back to demo data instead of raising FileNotFoundError.
     """
-    path = (settings.journal_path or "").strip()
-    if not path:
-        return None
-    try:
-        if Path(path).is_file():
-            return path
-    except OSError:
-        return None
-    return None
+    return tenancy.journal_path()
 
 
 def _use_journal_data() -> bool:
     if not _journal_path():
         return False
-    if settings.journal_primary:
+    if tenancy.current().journal_primary:
         return True
     return DEMO_MODE
 
 
 def _with_data_source(live_fn, journal_fn):
+    """Live first; journal fallback, but never a *silent* one.
+
+    An Elasticsearch outage used to render as journal data with nothing in the
+    payload saying so. A fallback now carries ``fallback`` so the UI can label
+    the screen DELAYED/FILE-BASED instead of LIVE. Exception text is not
+    included: client errors carry the cluster URL.
+    """
     if _use_journal_data():
         return journal_fn()
     try:
         result = live_fn()
         if isinstance(result, dict) and result.get("source") == "demo" and _journal_path():
-            return journal_fn()
+            return _fallback(journal_fn(), "elasticsearch not configured")
         return result
     except Exception:
+        logging.getLogger("tradeops.api").warning(json.dumps({"event": "live_source_failed", "fallback": bool(_journal_path())}))
         if _journal_path():
-            return journal_fn()
+            return _fallback(journal_fn(), "elasticsearch unavailable")
         raise
+
+
+def _fallback(payload, reason: str):
+    if isinstance(payload, dict):
+        return {**payload, "fallback": {"from": "elasticsearch", "reason": reason,
+                                        "at": datetime.now(timezone.utc).isoformat()}}
+    return payload
 
 
 def _metrics_path(request: Request) -> str:
@@ -147,6 +153,9 @@ async def metrics_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if not request.url.path.startswith("/metrics"):
         path = _metrics_path(request)
         elapsed = time.perf_counter() - started
@@ -154,6 +163,22 @@ async def metrics_middleware(request: Request, call_next):
         API_LATENCY.labels(method=request.method, path=path).observe(elapsed)
         logging.getLogger("tradeops.api").info(json.dumps({"event":"request", "request_id":request_id, "route":path, "status":response.status_code, "duration_seconds":round(elapsed,4)}))
     return response
+
+
+# Registered after the metrics/error middleware so it is the OUTERMOST layer:
+# add_middleware wraps whatever is already there. Registered first, the 503 the
+# error path synthesises never passed through CORS, and a browser reported a
+# dependency outage as a CORS failure instead of a 503 it could render.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    # Writes exist only on /api/admin/tenants, and those refuse cookie-only requests
+    # (tenant_routes.header_token_required), so allowing the methods here is not a CSRF path.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID", "X-TradeOps-Tenant"],
+    expose_headers=["X-Request-ID"],
+)
 
 
 @app.on_event("startup")
@@ -174,11 +199,11 @@ def startup() -> None:
 
 # Synthetic demo values only. No records from the supplied Journal.log are embedded in the product package.
 DEMO_ORDERS = [
-    {"order_id":"DEMO-1001","eref":"501","exchange_order_id":"","time":"2026-09-07T09:15:01+00:00","exchange":"NSE","symbol":"ALPHA-EQ","side":"BUY","qty":10,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":125.5,"filled_qty":0,"cancelled_qty":0,"latency_ms":3.8,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1002","eref":"502","exchange_order_id":"","time":"2026-09-07T09:15:02+00:00","exchange":"BSE","symbol":"BETA","side":"SELL","qty":25,"product":"M","type":"MKT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":0,"filled_qty":0,"cancelled_qty":0,"latency_ms":5.1,"code":"RMS","reason":"RED:Margin Shortfall","rejection_category":"RMS / Margin","source":"demo"},
-    {"order_id":"DEMO-1003","eref":"503","exchange_order_id":"","time":"2026-09-07T09:15:04+00:00","exchange":"NSE","symbol":"GAMMA-EQ","side":"BUY","qty":50,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":412.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":2.9,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1004","eref":"504","exchange_order_id":"EX-77821","time":"2026-09-07T09:14:58+00:00","exchange":"NFO","symbol":"NIFTY24SEPFUT","side":"SELL","qty":75,"product":"M","type":"LMT","status":"PENDING","status_code":109,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":24150.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":4.2,"code":"","reason":"","rejection_category":"","source":"demo"},
-    {"order_id":"DEMO-1005","eref":"505","exchange_order_id":"","time":"2026-09-07T09:16:11+00:00","exchange":"NSE","symbol":"DELTA-EQ","side":"BUY","qty":100,"product":"C","type":"LMT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":890.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":6.4,"code":"EXCH","reason":"RED:Price out of permissible range","rejection_category":"Exchange Validation","source":"demo"},
+    {"order_id":"DEMO-1001","eref":"501","exchange_order_id":"","time":"2026-09-07T09:15:01+00:00","exchange":"NSE","symbol":"ALPHA-EQ","side":"BUY","qty":10,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":125.5,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":3.8,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1002","eref":"502","exchange_order_id":"","time":"2026-09-07T09:15:02+00:00","exchange":"BSE","symbol":"BETA","side":"SELL","qty":25,"product":"M","type":"MKT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":5.1,"code":"RMS","reason":"RED:Margin Shortfall","rejection_category":"RMS / Margin","source":"demo"},
+    {"order_id":"DEMO-1003","eref":"503","exchange_order_id":"","time":"2026-09-07T09:15:04+00:00","exchange":"NSE","symbol":"GAMMA-EQ","side":"BUY","qty":50,"product":"C","type":"LMT","status":"OPEN","status_code":48,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":412.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":2.9,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1004","eref":"504","exchange_order_id":"EX-77821","time":"2026-09-07T09:14:58+00:00","exchange":"NFO","symbol":"NIFTY24SEPFUT","side":"SELL","qty":75,"product":"M","type":"LMT","status":"PENDING","status_code":109,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":24150.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":4.2,"code":"","reason":"","rejection_category":"","source":"demo"},
+    {"order_id":"DEMO-1005","eref":"505","exchange_order_id":"","time":"2026-09-07T09:16:11+00:00","exchange":"NSE","symbol":"DELTA-EQ","side":"BUY","qty":100,"product":"C","type":"LMT","status":"REJECTED","status_code":56,"account":"AC***-DMO","user":"USER***","broker":"DMO","region":"HO-DMO","price":890.0,"price_scale":"verified","value_multiplier":1.0,"filled_qty":0,"cancelled_qty":0,"latency_ms":6.4,"code":"EXCH","reason":"RED:Price out of permissible range","rejection_category":"Exchange Validation","source":"demo"},
 ]
 
 DEMO_SESSIONS = [
@@ -401,10 +426,15 @@ def _demo_rejections() -> dict[str, Any]:
     }
 
 
+_STARTED_AT = time.time()
+
+
 @app.get("/health")
 def health():
+    """Liveness only: the process answers. Dependencies are /health/ready."""
     return {
         "status": "ok",
+        "uptime_seconds": round(time.time() - _STARTED_AT, 1),
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
         "csv_configured": bool(settings.csv_dir),
@@ -427,8 +457,22 @@ def event_bus_status(user=Depends(require("dashboard:read"))):
     return redis_status()
 
 
+@app.get("/api/freshness")
+def freshness(user=Depends(require("dashboard:read"))):
+    """Age of the newest data per source, classified live/delayed/stale/closed/batch."""
+    from app.freshness import summary
+    return summary(data_source="journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"))
+
+
+def _unavailable_for_tenant(feature: str) -> dict:
+    # The correlation worker writes these tables for the default tenant only.
+    return {"items": [], "count": 0, "source": "unavailable", "note": f"{feature} are not collected for this tenant yet"}
+
+
 @app.get("/api/incidents")
 def persisted_incidents(limit: int = Query(100, ge=1, le=500), status: str | None = None, user=Depends(require("incidents:read"))):
+    if tenancy.current_id() != tenancy.DEFAULT_ID:
+        return _unavailable_for_tenant("Persisted incidents")
     if DEMO_MODE:
         return {"items": [], "count": 0, "source": "demo"}
     items = list_incidents(limit=limit, status=status)
@@ -437,6 +481,8 @@ def persisted_incidents(limit: int = Query(100, ge=1, le=500), status: str | Non
 
 @app.get("/api/rca/cases")
 def persisted_rca_cases(limit: int = Query(100, ge=1, le=500), user=Depends(require("rca:read"))):
+    if tenancy.current_id() != tenancy.DEFAULT_ID:
+        return _unavailable_for_tenant("Persisted RCA cases")
     if DEMO_MODE:
         return {"items": [], "count": 0, "source": "demo"}
     items = list_rca(limit=limit)
@@ -445,6 +491,8 @@ def persisted_rca_cases(limit: int = Query(100, ge=1, le=500), user=Depends(requ
 
 @app.get("/api/rca/cases/{order_id}")
 def persisted_rca_case(order_id: str, user=Depends(require("rca:read"))):
+    if tenancy.current_id() != tenancy.DEFAULT_ID:
+        return {"order_id": order_id, "found": False, "source": "unavailable"}
     if DEMO_MODE:
         return {"order_id": order_id, "found": False, "source": "demo"}
     item = get_persisted_rca(order_id)
@@ -474,13 +522,15 @@ def auth_me(user=Depends(current_user)):
 
 
 @app.get("/api/overview")
-def overview(user=Depends(require("dashboard:read"))):
+def overview(lookback: str = Query("7d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("dashboard:read"))):
     from app.journal_snapshot import journal_overview as journal_overview_data
 
+    if not isinstance(lookback, str):
+        lookback = "7d"
     if _use_journal_data():
         return journal_overview_data(_journal_path())
     if not DEMO_MODE:
-        return _with_data_source(lambda: noren_overview(), lambda: journal_overview_data(_journal_path()))
+        return _with_data_source(lambda: noren_overview(lookback=lookback), lambda: journal_overview_data(_journal_path()))
     rejected = len([x for x in DEMO_ORDERS if x["status"] == "REJECTED"])
     return {
         "orders": len(DEMO_ORDERS), "complete": 0, "rejected": rejected,
@@ -527,7 +577,7 @@ def sessions_login_trend(interval: str = Query("30m"), user=Depends(require("ses
 
 def _journal_snapshot():
     from app.journal_snapshot import load_journal
-    path = settings.journal_path
+    path = _journal_path()  # tenant-scoped; settings.journal_path is the default tenant's file
     if not path:
         raise HTTPException(503, "Journal snapshot is not configured")
     try:
@@ -537,13 +587,13 @@ def _journal_snapshot():
 
 
 @app.get("/api/journal/orders")
-def journal_orders(size: int = Query(500, ge=1, le=10000), user=Depends(require("orders:read"))):
+def journal_orders(size: int = Query(500, ge=1, le=10000), evidence: bool = Query(True), user=Depends(require("orders:read"))):
     from app.journal_snapshot import journal_orders as journal_orders_data
 
     path = _journal_path()
     if not path:
         raise HTTPException(503, "Journal snapshot is not configured")
-    return journal_orders_data(path, size=size)
+    return ListJSONResponse(journal_orders_data(path, size=size, evidence=evidence))
 
 
 @app.get("/api/journal/orders/{order_id}/lifecycle")
@@ -566,12 +616,16 @@ def orders(
     q: str | None = None,
     size: int = Query(100, ge=1, le=10000),
     lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"),
+    # The per-row journal projection is over half the payload of a large list.
+    # A feed that only needs the table can skip it and read the evidence from
+    # the lifecycle route for the one order an operator opens.
+    evidence: bool = Query(True),
     user=Depends(require("orders:read")),
 ):
     from app.journal_snapshot import journal_orders as journal_orders_data
 
     if _use_journal_data():
-        return journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q)
+        return ListJSONResponse(journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence))
     if DEMO_MODE:
         items = DEMO_ORDERS
         if status: items = [x for x in items if x["status"].lower() == status.lower()]
@@ -579,10 +633,10 @@ def orders(
         if symbol: items = [x for x in items if x["symbol"].lower() == symbol.lower()]
         if q: items = [x for x in items if q.lower() in str(x).lower()]
         return {"items":items[:size],"count":len(items),"source":"demo"}
-    return _with_data_source(
+    return ListJSONResponse(_with_data_source(
         lambda: live_orders(size=size, lookback=lookback, exchange=exchange, status=status, broker=broker, user_id=user_id, symbol=symbol, q=q),
-        lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q),
-    )
+        lambda: journal_orders_data(_journal_path(), size=size, status=status, exchange=exchange, symbol=symbol, q=q, evidence=evidence),
+    ))
 
 
 @app.get("/api/orders/{order_id}/lifecycle")
@@ -605,10 +659,10 @@ def rejections(lookback: str = Query("24h", pattern=r"^[0-9]+[mhdw]$"), user=Dep
     from app.journal_snapshot import journal_rejections as journal_rejections_data
 
     if _use_journal_data():
-        return journal_rejections_data(_journal_path())
+        return ListJSONResponse(journal_rejections_data(_journal_path()))
     if DEMO_MODE:
         return _demo_rejections()
-    return _with_data_source(lambda: rejection_summary(lookback=lookback), lambda: journal_rejections_data(_journal_path()))
+    return ListJSONResponse(_with_data_source(lambda: rejection_summary(lookback=lookback), lambda: journal_rejections_data(_journal_path())))
 
 
 @app.get("/api/rca/order/{order_id}")
@@ -638,10 +692,13 @@ def exchange_yel(user=Depends(require("exchange:read"))):
 
 
 @app.get("/api/exchanges")
-def exchanges(user=Depends(require("exchange:read"))):
+def exchanges(lookback: str = Query("30d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("exchange:read"))):
     from app.journal_snapshot import journal_exchanges as journal_exchanges_data
 
-    if _use_journal_data():
+    if not isinstance(lookback, str):
+        lookback = "30d"
+
+    def _journal():
         data = journal_exchanges_data(_journal_path())
         items = []
         for row in data.get("items") or []:
@@ -654,22 +711,30 @@ def exchanges(user=Depends(require("exchange:read"))):
                 "events": row.get("events") or 0,
             })
         return {"items": items, "count": len(items), "source": data.get("source")}
+
+    if _use_journal_data():
+        return _journal()
     if DEMO_MODE:
         return {"items": DEMO_EXCHANGES, "count": len(DEMO_EXCHANGES), "source": "demo"}
-    overview_data = noren_overview()
-    items = []
-    total_events = sum(int(x.get("events") or 0) for x in overview_data.get("exchanges") or [])
-    for row in overview_data.get("exchanges") or []:
-        events = int(row.get("events") or 0)
-        items.append({
-            "name": row.get("name") or "—",
-            "status": "Events observed" if events else "No events",
-            "latency_ms": None,
-            "reject_rate": None,
-            "heartbeat_age_s": None,
-            "events": events,
-        })
-    return {"items": items, "count": len(items), "source": overview_data.get("source", "elasticsearch")}
+
+    def _live():
+        overview_data = noren_overview(lookback=lookback)
+        if not overview_data.get("exchanges") and lookback != "30d":
+            overview_data = noren_overview(lookback="30d")
+        items = []
+        for row in overview_data.get("exchanges") or []:
+            events = int(row.get("events") or 0)
+            items.append({
+                "name": row.get("name") or "—",
+                "status": "Events observed" if events else "No events",
+                "latency_ms": None,
+                "reject_rate": None,
+                "heartbeat_age_s": None,
+                "events": events,
+            })
+        return {"items": items, "count": len(items), "source": overview_data.get("source", "elasticsearch")}
+
+    return _with_data_source(_live, _journal)
 
 
 @app.get("/api/order-book")
@@ -716,7 +781,9 @@ def trades(
                 "side": o.get("side"),
                 "qty": o.get("filled_qty") or o.get("qty"),
                 "price": o.get("price"),
-                "value": round(float(o.get("price") or 0) * float(o.get("filled_qty") or o.get("qty") or 0), 2),
+                "price_raw": o.get("price_raw"),
+                "price_scale": o.get("price_scale"),
+                "value": rupee_value(o.get("price"), o.get("filled_qty") or o.get("qty"), o.get("value_multiplier")),
                 "account": o.get("account"),
                 "user": o.get("user"),
                 "broker": o.get("broker"),
@@ -776,6 +843,9 @@ def order_latency(user=Depends(require("latency:read"))):
             ]
             payload["oms_status_mapping_confirmed"] = True
         payload["feed_kind"] = feed_kind
+        # Both journal branches produce microseconds: _ms_to_us over Noren
+        # nanosecond clocks, or the µs L_ORDERLATENCY feed. Declared, not assumed.
+        payload["unit"] = "us"
         return payload
     if DEMO_MODE:
         return _latency_payload(DEMO_ORDER_LATENCY, "demo")
@@ -895,12 +965,15 @@ def reports(user=Depends(require("reports:read"))):
 @app.get("/api/config")
 def runtime_config(user=Depends(require("dashboard:read"))):
     return {
+        "tenant": tenancy.current().public(),
+        "multi_tenant": tenancy.enabled(),
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
-        "csv_configured": bool(settings.csv_dir),
-        "journal_primary": settings.journal_primary,
+        "csv_configured": bool(settings.csv_dir) and tenancy.current_id() == tenancy.DEFAULT_ID,
+        "journal_primary": tenancy.current().journal_primary,
         "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
         "auth_disabled": settings.auth_disabled,
+        "environment": settings.environment,
         "schema": "noren-v1",
         "indices": {
             "orders": settings.noren_order_index,
@@ -911,6 +984,8 @@ def runtime_config(user=Depends(require("dashboard:read"))):
         },
         "timestamp_field": settings.noren_timestamp_field,
         "price_divisor": settings.noren_price_divisor,
+        # Segments absent from this map are shown unnormalised as "unverified".
+        "price_divisors": segment_divisors(),
         "redis_label": settings.redis_public_label,
         "metrics_enabled": settings.metrics_enabled,
         "source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "runtime"),
@@ -971,14 +1046,17 @@ def search_logs(
 
 @app.get("/api/stream/orders")
 async def stream_orders(request: Request, interval: float = Query(2.0, ge=1.0, le=30.0), user=Depends(require("orders:read"))):
+    tenancy.require_default_tenant("Live streams")  # Redis streams are fed by the default tenant's collector
     return StreamingResponse(event_stream("orders", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/rejections")
 async def stream_rejections(request: Request, interval: float = Query(3.0, ge=1.0, le=30.0), user=Depends(require("rejections:read"))):
+    tenancy.require_default_tenant("Live streams")  # Redis streams are fed by the default tenant's collector
     return StreamingResponse(event_stream("rejections", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/exchange")
 async def stream_exchange(request: Request, interval: float = Query(5.0, ge=1.0, le=60.0), user=Depends(require("exchange:read"))):
+    tenancy.require_default_tenant("Live streams")  # Redis streams are fed by the default tenant's collector
     return StreamingResponse(event_stream("exchange", interval, request.headers.get("last-event-id")), media_type="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @app.get("/api/stream/market")
@@ -988,5 +1066,26 @@ async def stream_market(request: Request, interval: float = Query(1.0, ge=0.5, l
 
 @app.get("/api/incidents/derived")
 def derived_incidents(lookback: str = Query("15m", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("incidents:read"))):
+    if _use_journal_data():
+        return _journal_derived_incidents(_journal_path())
     if DEMO_MODE: return {"items":[],"count":0,"source":"demo"}
-    return incident_candidates(lookback=lookback)
+    return _with_data_source(lambda: incident_candidates(lookback=lookback),
+                             lambda: _journal_derived_incidents(_journal_path()))
+
+
+def _journal_derived_incidents(path: str) -> dict[str, Any]:
+    """Same rules as incident_candidates, over the journal file. Read-only."""
+    from app.journal_snapshot import journal_rejections, journal_yel_health
+    rej = journal_rejections(path)
+    yel = journal_yel_health(path)
+    items = []
+    n = int(rej.get("rejected_unique_orders") or 0)
+    if n >= 10:
+        items.append({"id": "AUTO-REJ-journal", "severity": "P1" if n >= 100 else "P2", "type": "REJECTION_SPIKE",
+                      "title": f"{n} rejected orders in the journal window", "status": "OPEN", "evidence": rej.get("groups", [])[:5]})
+    data_gaps = []
+    if not yel.get("keys"):
+        # The file may simply predate or omit yel_connected events.
+        data_gaps.append({"id": "GAP-YEL", "type": "NO_YEL_EVIDENCE", "title": "No yel_connected event in the journal file; gateway state unknown", "evidence": yel})
+    return {"items": items, "count": len(items), "data_gaps": data_gaps, "lookback": "journal window",
+            "from": rej.get("from"), "to": rej.get("to"), "source": "journal snapshot"}

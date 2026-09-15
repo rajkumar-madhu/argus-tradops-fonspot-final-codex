@@ -5,7 +5,7 @@ import { MiniBars } from "@/components/Charts";
 import { EmptyState } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import { fmt } from "@/lib/format";
-import { sourceBadgeText } from "@/lib/data-source";
+import { freshnessBadge } from "@/lib/data-source";
 import { buildAlerts } from "@/lib/incidents-data";
 import {
   type Percentiles,
@@ -22,6 +22,7 @@ import {
   rejectRateTrend,
   sample,
   sessionRail,
+  venueStates,
   slowestHop,
   sourceChips,
 } from "@/lib/command-center";
@@ -31,6 +32,8 @@ export type CommandCenterProps = {
   orders: any;
   rejections: any;
   yel: any;
+  /** /api/freshness payload; optional so older callers keep working. */
+  freshness?: any;
   latency: any;
   queues: any;
   infra: any;
@@ -114,7 +117,7 @@ function LatencyCard({ title, stats, trend, tone, unit, denied, error }: { title
   );
 }
 
-export default function CommandCenter({ overview: ov, orders: od, rejections: rj, yel, latency, queues, infra, ready, fileSources }: CommandCenterProps) {
+export default function CommandCenter({ overview: ov, orders: od, rejections: rj, yel, latency, queues, infra, ready, fileSources, freshness: fresh }: CommandCenterProps) {
   const orders: any[] = od?.items || [];
   const latencyErr = apiError(latency);
   const summary = latencyErr ? undefined : latency?.summary;
@@ -146,9 +149,17 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
     { label: "Journal", from: ov?.from, to: ov?.to },
     { label: "Latency file", from: latencyFrom, to: latencyTo },
   ]);
-  const freshness = sourceBadgeText(dataSource);
-  const freshnessDetail =
-    freshness === "LIVE" ? "Elasticsearch read path" : freshness === "FILE-BASED" ? "Uploaded history, not a live feed" : "No live or file source connected";
+  const venues = venueStates(ov?.exchanges, apiError(fresh) ? null : fresh);
+  // Age-based, from /api/freshness: LIVE is claimed only while the newest event
+  // is within the live threshold. A live→journal fallback on any feed is DELAYED.
+  const fallback = [ov, od, rj].map((x) => x?.fallback).find(Boolean) || null;
+  const badge = freshnessBadge(apiError(fresh) ? null : fresh?.primary, dataSource, fallback);
+  const freshness = badge.text;
+  const freshnessTone: Tone = badge.tone === "live" ? "ok" : badge.tone === "delayed" ? "warn" : badge.tone === "stale" ? "bad" : "idle";
+  const primary = apiError(fresh) ? null : fresh?.primary;
+  const freshnessFoot = primary?.ingest_lag_seconds !== null && primary?.ingest_lag_seconds !== undefined
+    ? `Pipeline lag ${Number(primary.ingest_lag_seconds).toFixed(1)} s · thresholds ${fresh?.thresholds?.live_seconds ?? "—"} s / ${fresh?.thresholds?.delayed_seconds ?? "—"} s`
+    : ov?.to ? `Journal to ${istDate(ov.to)}` : "No freshness signal";
 
   return (
     <section className="command-center" aria-label="Command Center detail">
@@ -194,11 +205,11 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
         />
         <Tile
           label="Data freshness"
-          tone={freshness === "LIVE" ? "ok" : "idle"}
+          tone={freshnessTone}
           icon={<Activity size={22} />}
           value={freshness}
-          detail={freshnessDetail}
-          foot={ov?.to ? `Journal to ${istDate(ov.to)}` : "No journal window"}
+          detail={badge.detail}
+          foot={freshnessFoot}
         />
         <Tile
           label="Sources"
@@ -238,6 +249,18 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
             </li>
           ))}
         </ol>
+        {venues.length > 0 && (
+          <ul className="cc-venues" aria-label="Venue state from newest event">
+            {venues.map((v) => (
+              <li key={v.name} className={`venue-${v.state}`} title={v.ageSeconds === null ? "No timestamped event" : `Newest event ${v.ageSeconds} s ago`}>
+                <i aria-hidden="true" />
+                <b>{v.name}</b>
+                <span>{fmt(v.events)} events</span>
+                <small>{v.state === "unknown" ? "no timestamp" : `${v.state} · last ${v.lastEvent}`}</small>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="cc-metrics">
@@ -269,14 +292,14 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
           ) : queue && queue.rows.length ? (
             <>
               <div className="cc-metric-value">
-                <b>{num(queue.rows[0].peak)}</b>
-                <span>Peak · {queue.rows[0].instance}</span>
+                <b>{num(queue.rows[0].maxDepth)}</b>
+                <span>Deepest backlog episode · {queue.rows[0].instance}</span>
               </div>
               <table className="cc-mini-table">
-                <thead><tr><th>Instance</th><th>Latest</th><th>Peak</th><th>Last</th></tr></thead>
+                <thead><tr><th>Instance</th><th>Backlogs</th><th>Peak depth</th><th>Rows/s</th><th>Last</th></tr></thead>
                 <tbody>
                   {queue.rows.slice(0, 4).map((q) => (
-                    <tr key={q.instance}><td>{q.instance}</td><td>{num(q.latest)}</td><td>{num(q.peak)}</td><td>{q.lastObserved}</td></tr>
+                    <tr key={q.instance}><td>{q.instance}</td><td>{num(q.episodes)}</td><td>{num(q.maxDepth)}</td><td>{num(q.rowsPerSecond)}</td><td>{q.lastObserved}</td></tr>
                   ))}
                 </tbody>
               </table>

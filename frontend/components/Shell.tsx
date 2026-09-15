@@ -2,25 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { canSee } from "@/lib/auth";
-import { decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
+import { authHeaders, clearToken, decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
+import { safeReturnTo } from "@/lib/auth-routing";
 import { logout } from "@/lib/oidc";
 import MarketTicker from "@/components/MarketTicker";
 import LiveStatusStrip from "@/components/LiveStatusStrip";
 import { apiUrl } from "@/lib/runtime";
-import { buildNav, togglePinned } from "@/lib/nav-model";
+import CommandPalette from "@/components/CommandPalette";
+import TenantSwitcher from "@/components/TenantSwitcher";
+import { buildNav, NAV_GROUPS, togglePinned } from "@/lib/nav-model";
 import { SIGNAL_ROUTES, formatSignal, hasSignal, parseSignalCount, type NavSignals } from "@/lib/nav-signals";
 import { sourceChip, type SourceChip } from "@/lib/data-source";
 import {
-  Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, ChevronLeft,
+  Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, Building2, ChevronLeft,
   ChevronRight, CircleDollarSign, ClipboardList, FileText, Gauge, HelpCircle, Layers3, LineChart,
-  Lock, Moon, Network, Pin, Search, Server, Settings, ShieldCheck, Sun, Timer, Users, WalletCards, Menu,
+  Lock, Network, Pin, Search, Server, Settings, ShieldCheck, Timer, Users, WalletCards, Menu,
 } from "lucide-react";
 
 /** `lib/nav-model` is React-free so it can be unit tested; icons are bound here. */
 const ICONS: Record<string, typeof BarChart3> = {
-  Activity, AlertTriangle, BarChart3, BookOpenCheck, Boxes, CircleDollarSign, ClipboardList,
+  Activity, AlertTriangle, BarChart3, BookOpenCheck, Boxes, Building2, CircleDollarSign, ClipboardList,
   FileText, Gauge, Layers3, LineChart, Network, Search, Server, Settings, ShieldCheck, Timer, Users,
   WalletCards,
 };
@@ -29,6 +32,7 @@ const ICONS: Record<string, typeof BarChart3> = {
 // default), so earlier saved layouts are not carried over.
 const PREFS_KEY = "argus-nav-prefs-v2";
 const DEFAULT_PINNED: string[] = [];
+const PALETTE_ROUTES = NAV_GROUPS.flatMap((g) => g.items);
 
 type NavPrefs = { collapsed: boolean; pinned: string[]; closed: Record<string, boolean> };
 const DEFAULT_PREFS: NavPrefs = { collapsed: false, pinned: DEFAULT_PINNED, closed: {} };
@@ -69,7 +73,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionUser | null>(null);
   const [checked, setChecked] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dark, setDark] = useState(false);
 
   // Rail state. Preferences load in an effect rather than during render so the
   // server-rendered markup and the first client render agree.
@@ -78,10 +81,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const query = "";
   const [signals, setSignals] = useState<NavSignals>({});
   const [chip, setChip] = useState<SourceChip>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
-  useEffect(() => { try { setDark(localStorage.getItem('argus-theme') === 'dark'); } catch {} }, []);
-  function toggleTheme() { const next = !dark; setDark(next); try { localStorage.setItem('argus-theme', next ? 'dark' : 'light'); } catch {} }
 
   useEffect(() => { setPrefs(readPrefs()); setPrefsLoaded(true); }, []);
   useEffect(() => {
@@ -93,6 +94,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     const current = decodeSession(getToken());
     setSession(current);
     setChecked(true);
+    if (!current) return; // Auth-disabled local previews have no token.
+    const checkExpiry = () => {
+      if (isExpired(decodeSession(getToken()))) {
+        clearToken();
+        const destination = safeReturnTo(window.location.pathname + window.location.search);
+        window.location.replace(`/signin?reason=expired&returnTo=${encodeURIComponent(destination)}`);
+      }
+    };
+    // A suspended tab can miss its timer; checking focus closes that gap.
+    const timer = setTimeout(checkExpiry, Math.max(0, Math.min(current.expiresAt - Date.now(), 2147483647)));
+    window.addEventListener('focus', checkExpiry);
+    return () => { clearTimeout(timer); window.removeEventListener('focus', checkExpiry); };
   }, []);
 
   // Rail signals. One request per page load, never polled: the rail is not a
@@ -100,14 +113,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Every failure path (403 for a role without access, network error, unusable
   // payload) leaves the entry unset, and an unset entry renders no badge.
   useEffect(() => {
+    if (!checked) return;
+    // No token is not a reason to stay silent: with AUTH_DISABLED the API
+    // answers anyway, and with auth on a 401 simply leaves the chip unset.
     const token = getToken();
-    if (!token) return;
+    const current = decodeSession(token);
     const abort = new AbortController();
     const base = apiUrl();
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers = authHeaders();
     const get = async (route: string) => {
       try {
-        const res = await fetch(`${base}${route}`, { headers, signal: abort.signal, cache: "no-store" });
+        const res = await fetch(`${base}${route}`, { headers, signal: abort.signal, cache: "no-store", credentials: "include" });
         if (!res.ok) return null;
         return await res.json();
       } catch { return null; }
@@ -115,11 +131,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     (async () => {
       const next: NavSignals = {};
       await Promise.all(Object.entries(SIGNAL_ROUTES).map(async ([href, route]) => {
+        if (token && (!current || isExpired(current) || !canSee(href, current.roles))) return;
         const count = parseSignalCount(await get(route));
         if (hasSignal(count)) next[href] = count as number;
       }));
       if (!abort.signal.aborted) setSignals(next);
-      const parsed = sourceChip(await get("/api/config"));
+      const [config, fresh] = await Promise.all([get("/api/config"), get("/api/freshness")]);
+      const parsed = sourceChip(config, fresh);
       if (!abort.signal.aborted && parsed) setChip(parsed);
     })();
     return () => abort.abort();
@@ -128,7 +146,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault(); searchRef.current?.focus();
+        event.preventDefault(); setPaletteOpen((o) => !o);
       }
       if (event.key === 'Escape') setMenuOpen(false);
     };
@@ -161,7 +179,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const expired = checked && !!session && isExpired(session);
 
   return (
-    <div className={`app-shell${dark ? " dashboard-theme" : ""}${menuOpen ? " menu-open" : ""}${collapsed ? " rail-collapsed" : ""}`}>
+    <div className={`app-shell${menuOpen ? " menu-open" : ""}${collapsed ? " rail-collapsed" : ""}`}>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar" id="app-navigation">
         <div className="brand">
@@ -223,10 +241,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="sidebar-foot">
           {chip
-            ? <span className={`nav-source tone-${chip.tone}`}><i aria-hidden="true" />{chip.text}</span>
+            ? <span className={`nav-source tone-${chip.tone}`} title={chip.detail || undefined}><i aria-hidden="true" />{chip.text}</span>
             : <span className="nav-source tone-unknown"><i aria-hidden="true" />Source unreported</span>}
           <div><Lock size={11} aria-hidden="true" />Read-only · never places orders</div>
-          <Link href="/configuration" className="sidebar-help"><HelpCircle size={14} aria-hidden="true" />Help &amp; configuration</Link>
+          {visible("/configuration") && <Link href="/configuration" className="sidebar-help"><HelpCircle size={14} aria-hidden="true" />Help &amp; configuration</Link>}
         </div>
       </aside>
       <main className="main" id="main-content" tabIndex={-1}>
@@ -234,11 +252,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <button type="button" className="nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="app-navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20}/></button><div className="env-pill">Read only</div>
           <MarketTicker variant="bar"/>
           <div className="market-right">
-            <button className="bell theme-toggle" type="button" onClick={toggleTheme} aria-pressed={dark} aria-label={dark ? "Light theme" : "Dark theme"} title={dark ? "Light theme" : "Dark theme"}>{dark ? <Sun size={17}/> : <Moon size={17}/>}</button>
             <Clock/>
-            <form action="/logs" className="topsearch"><Search size={14}/><input ref={searchRef} name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><kbd>⌘/Ctrl K</kbd></form>
+            {checked && <TenantSwitcher/>}
+            <form action="/logs" className="topsearch"><Search size={14}/><input name="q" aria-label="Search journal logs" placeholder="Search journal logs…"/><button type="submit" aria-label="Search logs">Go</button><button type="button" className="kbd-btn" onClick={() => setPaletteOpen(true)} aria-label="Open command palette" title="Command palette"><kbd>⌘/Ctrl K</kbd></button></form>
             <Link href="/incidents" className="bell" aria-label="Alerts and incidents"><Bell size={17}/></Link>
-            <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>
+            {visible("/configuration") && <Link href="/configuration" className="bell hide-sm" aria-label="Configuration"><Settings size={17}/></Link>}
             <div className="avatar">{(session?.username || "T").slice(0, 1).toUpperCase()}</div>
             <div className="profile">
               <b>{session?.username || "Argus TradeOps"}</b>
@@ -260,6 +278,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         )}
         <div className="page">{children}</div>
       </main>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} routes={PALETTE_ROUTES} visible={visible} />
     </div>
   );
 }

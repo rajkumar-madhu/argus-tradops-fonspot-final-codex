@@ -1,6 +1,7 @@
 import Shell from "@/components/Shell";
 import MarketDataView from "@/components/MarketDataView";
 import { apiError, getJSON } from "@/lib/api";
+import { apiErrorGuidance } from "@/lib/api-result";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +11,14 @@ export default async function Page() {
 
   let journalOrders: any = null;
   if (!err && (data.source === "journal snapshot" || !(data.symbols || []).length)) {
-    journalOrders = await getJSON("/api/journal/orders?size=5000");
+    journalOrders = await getJSON("/api/journal/orders?size=5000&evidence=false");
   }
 
   return (
     <Shell>
       {err ? (
         <MarketDataView
-          data={{ source: "—", symbols: [], note: `${err}. Confirm the API is running on port 8001.` }}
+          data={{ source: "—", symbols: [], note: apiErrorGuidance(data)?.body ?? err }}
         />
       ) : (
         <MarketDataView data={data} journalOrders={journalOrders} />

@@ -5,7 +5,7 @@ import { AlertTriangle, Code2, FileText, Info, Layers, Percent, Search, XCircle 
 import RefreshButton from "@/components/RefreshButton";
 import { BarLineChart, Donut, VBarChart } from "@/components/Charts";
 import { EmptyState, KpiCard } from "@/components/UI";
-import { fmt, journalWindowLabel } from "@/lib/format";
+import { fmt, journalWindowLabel, orderPriceText } from "@/lib/format";
 import { istTime, lifecycleSteps } from "@/lib/journal-explore";
 import {
   type Row, categorySlices, recentRejections, rejectionKpis, rejectionTrend, rejectionsBy, topCodes,
@@ -253,7 +253,7 @@ export default function RejectionsView({ data, universe }: { data: any; universe
                       <td className="text-amber">{r.exchange || "—"}</td>
                       <td>{r.product || "—"}</td>
                       <td>{r.type || "—"}</td>
-                      <td className="num">{r.price == null ? "—" : Number(r.price).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                      <td className="num">{orderPriceText(r)}</td>
                       <td className="num">{r.qty ?? "—"}</td>
                       <td className="text-red">{r.code || "—"}</td>
                       <td className="ref-reason" title={String(r.reason || "")}>{r.reason || "—"}</td>

@@ -33,9 +33,41 @@ class SecurityRegressions(unittest.TestCase):
         # SSE authenticates with ?access_token=<JWT>; uvicorn's access log prints
         # the raw query string, so leaving it on writes bearer tokens to pod logs.
         from pathlib import Path
-        cmd=[line for line in (Path(__file__).resolve().parents[1]/'Dockerfile').read_text().splitlines() if line.startswith('CMD')]
+        root = Path(__file__).resolve().parents[2]
+        cmd=[line for line in (root/'backend'/'Dockerfile').read_text().splitlines() if line.startswith('CMD')]
         self.assertEqual(len(cmd),1)
         self.assertIn('--no-access-log',cmd[0])
+        for rel in ('scripts/start-local.sh', 'scripts/start-file-preview.sh'):
+            script = (root/rel).read_text()
+            self.assertIn('--no-access-log', script, f'{rel} must disable access logs')
+
+    def test_only_collector_loop_polls_elasticsearch(self):
+        # The collector is the only worker that may periodically call the live ES
+        # summary queries. Correlation may still call on-demand rca(); API routes
+        # may query ES per request. A second loop poller multiplies ES load with
+        # every replica. See AGENTS.md "only collector polls Elasticsearch on a loop".
+        from pathlib import Path
+        import ast
+
+        poll_names = {"live_orders", "rejection_summary", "yel_health"}
+        workers = Path(__file__).resolve().parents[1] / "app" / "workers"
+        offenders = []
+        for path in sorted(workers.glob("*.py")):
+            if path.name in {"__init__.py", "collector.py", "shutdown.py"}:
+                continue
+            tree = ast.parse(path.read_text(), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                if not (node.module or "").startswith("app.elastic"):
+                    continue
+                for alias in node.names:
+                    if alias.name in poll_names:
+                        offenders.append(f"{path.name}:{alias.name}")
+        self.assertEqual(offenders, [], f"non-collector workers must not import loop-poll ES queries: {offenders}")
+        collector = (workers / "collector.py").read_text()
+        for name in poll_names:
+            self.assertIn(name, collector, f"collector must still call {name}")
 
 
 class RejectionReasonMasking(unittest.TestCase):
@@ -70,3 +102,14 @@ class OrderReasonMasking(unittest.TestCase):
         self.assertNotIn("R1289", order["reason"])
         self.assertEqual(order["code"], "RED")
         self.assertEqual(order["rejection_category"], "RMS / Margin")
+
+
+class RedisStatusRegression(unittest.TestCase):
+    def test_redis_status_never_returns_exception_text(self):
+        from app import event_bus
+        class Broken:
+            def ping(self): raise RuntimeError('redis://:private-password@private-host:6379 refused')
+        with patch.object(event_bus, 'get_redis', return_value=Broken()):
+            result = event_bus.redis_status()
+        self.assertFalse(result['connected'])
+        self.assertNotIn('private', str(result))

@@ -34,7 +34,7 @@ export default function MarketMonitor({ symbols, selectedKey, onSelect, connecte
 
   return <section className="monitor-console" aria-label="Live monitoring console">
     <div className="monitor-banner">
-      <div><span className="monitor-emblem"><Activity size={20}/></span><div><h2>Every signal, in view.</h2><p>Market observations, quote quality and the evidence behind each update.</p></div></div>
+      <div><span className="monitor-emblem"><Activity size={20}/></span><div><h2>Market Monitor</h2><p>Quotes, quote quality and the evidence behind each update.</p></div></div>
       <Link href="/configuration" className="btn">Connection details</Link>
     </div>
     <div className="monitor-health" aria-label="Monitoring status">

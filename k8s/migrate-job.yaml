@@ -5,6 +5,12 @@ metadata:
   namespace: tradeops
 spec:
   backoffLimit: 3
+  # A Job's template is immutable, so re-applying this file for the next
+  # release fails while the previous Job object still exists. It deletes
+  # itself 10 minutes after finishing; a migration that runs longer than
+  # 15 minutes is killed rather than left to hold the rollout.
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 900
   template:
     metadata:
       labels: {app: tradeops-db-migrate}

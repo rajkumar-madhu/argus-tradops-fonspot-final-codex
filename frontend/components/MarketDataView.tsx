@@ -128,11 +128,16 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
     .slice(0, 5);
 
   const heatmapCells = hasLiveFeed
-    ? symbols.slice(0, 24).map((s) => ({
+    ? symbols.slice(0, 24).map((s, i) => ({
+        // Labels are truncated for the tile, so they are not unique keys.
+        key: `${s.exchange}:${s.symbol}:${i}`,
+        symbol: String(s.symbol),
         label: String(s.symbol).slice(0, 8),
         pct: Number(s.change_pct || 0),
       }))
-    : journalRows.slice(0, 24).map((r) => ({
+    : journalRows.slice(0, 24).map((r, i) => ({
+        key: `${r.exchange}:${r.symbol}:${i}`,
+        symbol: String(r.symbol),
         label: String(r.symbol).slice(0, 8),
         pct: r.rejected ? -Math.min(5, r.rejected) : 0,
       }));
@@ -194,8 +199,6 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
         </div>
       </section>
 
-      <MarketMonitor symbols={symbols} selectedKey={selectedKey} onSelect={setSelectedKey} connected={connected} source={source} journalRows={journalRows}/>
-
       <section className="market-index-row">
         {indexCards.map((card) => {
           const q = card.quote;
@@ -211,6 +214,8 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
           );
         })}
       </section>
+
+      <MarketMonitor symbols={symbols} selectedKey={selectedKey} onSelect={setSelectedKey} connected={connected} source={source} journalRows={journalRows}/>
 
       <section className="market-feed-strip" aria-label="Feed coverage and freshness">
         <div className="panel market-feed-summary">
@@ -293,7 +298,8 @@ export default function MarketDataView({ data, journalOrders }: MarketDataPayloa
           <div className="market-heatmap">
             {heatmapCells.map((cell) => (
               <div
-                key={cell.label}
+                key={cell.key}
+                title={cell.symbol}
                 className={`heatmap-cell ${cell.pct >= 0 ? "up" : "down"}`}
                 style={{ opacity: Math.min(1, 0.45 + Math.abs(cell.pct) / 10) }}
               >

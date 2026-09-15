@@ -1,0 +1,52 @@
+# Example only (not in kustomization.yaml): the CSV directory is on the OMS
+# host, so this needs a ReadOnlyMany mount of /data/noren_core/COZY_LOG_FILES/nfs_ps.
+# Until that exists, the host crontab in docs/DAILY_INGESTION.md is the schedule.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tradeops-daily-ingest
+  namespace: tradeops
+spec:
+  schedule: "25 18 * * 1-5"
+  timeZone: "Asia/Kolkata"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: ingest
+              image: your-registry/tradeops-backend:RELEASE_REQUIRED
+              command: ["python3", "/app/scripts/latency_ingest.py"]
+              env:
+                - name: TRADEOPS_CSV_DIR
+                  value: /data/csv
+                - name: QUEUE_INSTANCE_LINES
+                  value: "NSE-2729=2,NFO-13424=2"
+              envFrom:
+                - secretRef:
+                    name: tradeops-analytics-db   # ANALYTICS_DB_HOST/PORT/USER/PASSWORD/NAME
+              volumeMounts:
+                - name: csv
+                  mountPath: /data/csv
+                  readOnly: true
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: csv
+              persistentVolumeClaim:
+                claimName: oms-csv-drop
+                readOnly: true

@@ -181,6 +181,21 @@ class RequireTests(unittest.TestCase):
             auth.require("reports:read")(user={"permissions": ["orders:read"]})
         self.assertEqual(raised.exception.status_code, 403)
 
+    def test_403_names_the_permission_and_the_roles_that_grant_it(self):
+        with self.assertRaises(HTTPException) as raised:
+            auth.require("orders:read")(user={"permissions": ["dashboard:read"], "roles": ["risk", "offline_access"]})
+        detail = raised.exception.detail
+        self.assertEqual(detail["permission"], "orders:read")
+        self.assertEqual(detail["granted_by"], ["auditor", "super_admin", "trading_ops"])
+        # Only TradeOps roles are echoed: a shared realm's defaults are noise, not a diagnosis.
+        self.assertEqual(detail["app_roles"], ["risk"])
+        self.assertEqual(detail["client_id"], auth.settings.keycloak_client_id)
+
+    def test_403_with_no_app_role_reports_an_empty_list(self):
+        with self.assertRaises(HTTPException) as raised:
+            auth.require("dashboard:read")(user={"permissions": [], "roles": ["default-roles-devops-common-cicd"]})
+        self.assertEqual(raised.exception.detail["app_roles"], [])
+
     def test_a_permission_is_not_a_prefix_match(self):
         with self.assertRaises(HTTPException):
             auth.require("orders:read")(user={"permissions": ["orders"]})

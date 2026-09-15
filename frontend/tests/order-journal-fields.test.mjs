@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ORDER_JOURNAL_FIELD_TITLES } from "../lib/order-journal-fields.ts";
+import { journalFieldText, ORDER_JOURNAL_FIELD_TITLES, ORDER_JOURNAL_PRICE_FIELDS } from "../lib/order-journal-fields.ts";
 
 test("ordupd journal fields preserve the authoritative title order", () => {
   assert.deepEqual(ORDER_JOURNAL_FIELD_TITLES, [
@@ -49,4 +49,14 @@ test("ordupd journal fields preserve the authoritative title order", () => {
     ["SrcUserId", "Source User ID"],
     ["StreamId", "Stream ID"],
   ]);
+});
+
+test("price fields of a segment with an unverified scale are labelled raw", () => {
+  const titles = new Set(ORDER_JOURNAL_FIELD_TITLES.map(([field]) => field));
+  for (const field of ORDER_JOURNAL_PRICE_FIELDS) assert.ok(titles.has(field), field);
+  assert.equal(journalFieldText("PriceToFill", 554500, "unverified"), "554500 raw · unverified scale");
+  assert.equal(journalFieldText("PriceToFill", 94.92, "verified"), "94.92");
+  assert.equal(journalFieldText("QtyToFill", 250, "unverified"), "250");
+  assert.equal(journalFieldText("FillPrice", null, "unverified"), "—");
+  assert.equal(journalFieldText("Amo", true), "Yes");
 });

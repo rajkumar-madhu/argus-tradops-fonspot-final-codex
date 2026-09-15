@@ -1,6 +1,6 @@
 import Shell from "@/components/Shell";
 import RcaView from "@/components/RcaView";
-import { EmptyState } from "@/components/UI";
+import { ApiErrorState } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +19,7 @@ export default async function Page({
   return (
     <Shell>
       {err ? (
-        <EmptyState
-          title="Unable to load RCA data"
-          body={`${err}. Confirm the API is running on port 8001.`}
-        />
+        <ApiErrorState title="Unable to load RCA data" data={rejections} />
       ) : (
         <RcaView rejections={rejections} initialOrderId={initialOrderId} />
       )}

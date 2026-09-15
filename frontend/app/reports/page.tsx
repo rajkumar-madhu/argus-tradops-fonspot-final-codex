@@ -3,6 +3,7 @@ import Shell from '@/components/Shell';
 import { Card, DataTable, EmptyState, KpiCard, PageHead } from '@/components/UI';
 import { apiError, getJSON } from '@/lib/api';
 import { fmt } from '@/lib/format';
+import { sourceDisplayName } from '@/lib/data-source';
 
 export default async function Page() {
   const d: any = await getJSON('/api/reports');
@@ -15,7 +16,7 @@ export default async function Page() {
       <PageHead
         title="Reports"
         subtitle="Scheduled operational, rejection and session audit reports"
-        badge={`Source: ${d.source || '—'}`}
+        badge={`Source: ${sourceDisplayName(d.source)}`}
       />
       <Card title="On-demand file reports"><p className="file-context"><a href="/sessions">Generate session audit report →</a><a href="/trades">Explore execution journal →</a><a href="/order-latency">Filter and export latency observations →</a><a href="/data-quality">Export source validation inventory →</a></p></Card>
       {err && <EmptyState title="Unable to load reports" body={err} />}

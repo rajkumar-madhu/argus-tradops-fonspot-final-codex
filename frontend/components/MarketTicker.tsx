@@ -1,8 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { hasLiveMarketFeed, isJournalSource } from "@/lib/data-source";
-import { apiUrl } from "@/lib/runtime";
+import { useEffect, useState } from 'react';
+import { hasLiveMarketFeed, isJournalSource } from '@/lib/data-source';
+import { apiUrl } from '@/lib/runtime';
+import { authHeaders, decodeSession, getToken, isExpired } from '@/lib/session';
+import { canSee } from '@/lib/auth';
 
 type IndexTick = {
   name: string;
@@ -24,11 +26,11 @@ type JournalStrip = {
 };
 
 function fmtPrice(n: number): string {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtInt(n: number): string {
-  return n.toLocaleString("en-IN");
+  return n.toLocaleString('en-IN');
 }
 
 function mapSymbols(symbols: MarketSymbol[], limit: number): IndexTick[] {
@@ -36,9 +38,9 @@ function mapSymbols(symbols: MarketSymbol[], limit: number): IndexTick[] {
     const ltp = Number(s.ltp ?? 0);
     const change = Number(s.change_pct ?? 0);
     const up = change >= 0;
-    const delta = `${up ? "+" : ""}${change.toFixed(2)}%`;
+    const delta = `${up ? '+' : ''}${change.toFixed(2)}%`;
     return {
-      name: String(s.symbol).replace(/-EQ$/, ""),
+      name: String(s.symbol).replace(/-EQ$/, ''),
       value: fmtPrice(ltp),
       delta,
       pct: delta,
@@ -50,20 +52,31 @@ function mapSymbols(symbols: MarketSymbol[], limit: number): IndexTick[] {
 /**
  * Top bar feed: live market quotes when available, otherwise journal snapshot status.
  */
-export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "strip" }) {
+export default function MarketTicker({ variant = 'bar' }: { variant?: 'bar' | 'strip' }) {
   const [items, setItems] = useState<IndexTick[] | null>(null);
   const [journal, setJournal] = useState<JournalStrip | null>(null);
 
   useEffect(() => {
+    const session = decodeSession(getToken());
+    // Public auth pages use a static strip instead. This component must not
+    // request protected data unless a session is present.
+    if (isExpired(session)) return;
+    const headers = authHeaders();
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${apiUrl()}/api/market-data`, { cache: "no-store" });
-        if (res.ok) {
+        const res = canSee('/market-data', session!.roles)
+          ? await fetch(`${apiUrl()}/api/market-data`, {
+              cache: 'no-store',
+              headers,
+              credentials: 'include',
+            })
+          : null;
+        if (res?.ok) {
           const data = await res.json();
           const symbols: MarketSymbol[] = Array.isArray(data?.symbols) ? data.symbols : [];
           if (!cancelled && hasLiveMarketFeed(data?.source, symbols.length)) {
-            setItems(mapSymbols(symbols, variant === "bar" ? 3 : 5));
+            setItems(mapSymbols(symbols, variant === 'bar' ? 3 : 5));
             return;
           }
         }
@@ -72,14 +85,16 @@ export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "s
       }
 
       try {
-        const [healthRes, overviewRes] = await Promise.all([
-          fetch(`${apiUrl()}/health`, { cache: "no-store" }),
-          fetch(`${apiUrl()}/api/overview`, { cache: "no-store" }),
-        ]);
-        if (cancelled || !healthRes.ok || !overviewRes.ok) return;
-        const health = await healthRes.json();
+        // /api/overview carries the source itself. The old /health fallback 404'd behind
+        // ingresses that route only /api/* to the backend (UAT does).
+        const overviewRes = await fetch(`${apiUrl()}/api/overview`, {
+          cache: 'no-store',
+          headers,
+          credentials: 'include',
+        });
+        if (cancelled || !overviewRes.ok) return;
         const overview = await overviewRes.json();
-        const source = String(overview?.source || health?.data_source || "");
+        const source = String(overview?.source || '');
         if (!isJournalSource(source)) return;
         setJournal({
           orders: Number(overview?.orders ?? 0),
@@ -100,11 +115,11 @@ export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "s
         <span className="ticker-tag">MARKETS</span>
         {items.map((i) => (
           <span className="tick" key={i.name}>
-            <span className={`tick-dot ${i.up ? "up" : "down"}`} />
+            <span className={`tick-dot ${i.up ? 'up' : 'down'}`} />
             <b>{i.name}</b>
             <strong>{i.value}</strong>
-            <em className={i.up ? "up" : "down"}>
-              {i.up ? "▲" : "▼"} {i.delta}
+            <em className={i.up ? 'up' : 'down'}>
+              {i.up ? '▲' : '▼'} {i.delta}
             </em>
           </span>
         ))}
@@ -115,15 +130,15 @@ export default function MarketTicker({ variant = "bar" }: { variant?: "bar" | "s
   if (!journal) return null;
 
   const ticks =
-    variant === "bar"
+    variant === 'bar'
       ? [
-          { label: "Orders", value: fmtInt(journal.orders) },
-          { label: "Events", value: fmtInt(journal.events) },
+          { label: 'Orders', value: fmtInt(journal.orders) },
+          { label: 'Events', value: fmtInt(journal.events) },
         ]
       : [
-          { label: "Orders", value: fmtInt(journal.orders) },
-          { label: "Journal events", value: fmtInt(journal.events) },
-          { label: "Source", value: "Uploaded file" },
+          { label: 'Orders', value: fmtInt(journal.orders) },
+          { label: 'Journal events', value: fmtInt(journal.events) },
+          { label: 'Source', value: 'Uploaded file' },
         ];
 
   return (

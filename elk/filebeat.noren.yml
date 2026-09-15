@@ -1,0 +1,61 @@
+# Filebeat input for the Noren journal. Corrected from the supplied
+# linkedeye-analytics-fb config, whose rotation/harvester block was nested under
+# `processors:` (a mapping inside a sequence — invalid, so none of those keys
+# took effect) and whose output listed a Logstash port with no listener.
+#
+# Apply on the Filebeat pod alongside a persisted registry volume:
+#   - mountPath: /usr/share/filebeat/data     (see elk/README.md)
+# Without that volume every restart re-reads Journal.log from byte 0 and, with
+# no document_id in Logstash, every replayed line becomes a new ES document.
+
+filebeat.inputs:
+  - type: filestream
+    id: noren-journal
+    enabled: true
+    paths:
+      - /opt/COZY_LOG_FILES/ps/Journal.log
+    # Journal.log is strict NDJSON: one JSON object per line, ~1.5 KB, max seen 2.6 KB.
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+    # Daily rotation reuses the same file name; identify by inode+device, not path.
+    file_identity.native: ~
+    prospector.scanner.check_interval: 10s
+    ignore_older: 36h
+    close.on_state_change.inactive: 30m
+    close.on_state_change.removed: false
+    close.on_state_change.renamed: false
+    clean_removed: false
+    fields:
+      pipeline: noren
+    fields_under_root: true
+
+processors:
+  - add_host_metadata: ~
+
+# PII is redacted in Logstash (elk/noren_filebeat.conf); nothing here needs the
+# raw PanNum/IpAddr, so they are dropped at the edge as well.
+  - drop_fields:
+      fields: ["PanNum", "IpAddr", "ExchUserInfo", "ParticId", "Userdetails.Dob", "Userdetails.UserName",
+               "Userdetails.LastLoginIp", "Userdetails.LastLoginMac", "Userdetails.UserSessOtp",
+               "Userdetails.PrevPasswords", "Question2fas", "LoginProcId"]
+      ignore_missing: true
+
+queue.mem:
+  events: 8192
+  flush.min_events: 512
+  flush.timeout: 1s
+
+output.logstash:
+  # One listener (noren_filebeat.conf, port 5044). The supplied config also named
+  # :5045, whose pipeline file does not exist; without loadbalance Filebeat
+  # picked one host at random and blocked forever on the dead one.
+  hosts: ["analytics-ls:5044"]
+  bulk_max_size: 1024
+  worker: 1
+  ttl: 60s
+  timeout: 30s
+
+logging.level: info
+logging.metrics.period: 60s

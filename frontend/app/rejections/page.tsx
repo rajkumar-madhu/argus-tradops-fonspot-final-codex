@@ -10,7 +10,7 @@ export default async function Page() {
   // orders:read gets an error object here and the view falls back gracefully.
   const [d, universe]: any[] = await Promise.all([
     getJSON("/api/rejections?lookback=24h"),
-    getJSON("/api/orders?size=10000&lookback=24h"),
+    getJSON("/api/orders?size=10000&evidence=false&lookback=24h"),
   ]);
   const err = apiError(d);
 

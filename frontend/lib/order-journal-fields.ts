@@ -53,3 +53,18 @@ export function journalFieldValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
 }
+
+/** Mirrors `_PRICE_FIELDS` in backend/app/journal_snapshot.py. */
+export const ORDER_JOURNAL_PRICE_FIELDS: ReadonlySet<string> = new Set(["PriceToFill", "FillPrice", "FillAvgPrice", "TriggerPrice"]);
+
+/**
+ * Field text for the evidence panel. On a segment whose price scale is
+ * unverified (the row's `price_scale`), price fields hold the recorded integer
+ * unscaled, and say so.
+ */
+export function journalFieldText(field: string, value: unknown, priceScale?: unknown): string {
+  const text = journalFieldValue(value);
+  return priceScale === "unverified" && ORDER_JOURNAL_PRICE_FIELDS.has(field) && text !== "—"
+    ? `${text} raw · unverified scale`
+    : text;
+}

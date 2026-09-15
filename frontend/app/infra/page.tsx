@@ -6,8 +6,8 @@ import { HBarList } from "@/components/Charts";
 import { EmptyState, KpiCard } from "@/components/UI";
 import { apiError, getJSON } from "@/lib/api";
 import { stateTone } from "@/lib/command-center";
-import { sourceBadgeText, sourceDisplayName } from "@/lib/data-source";
-import { fmt } from "@/lib/format";
+import { sourceBadgeText, sourceBadgeTone, sourceDisplayName } from "@/lib/data-source";
+import { fmt, priceDivisorsText } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,7 @@ export default async function Page() {
           <div>
             <div className="ref-title-row">
               <h1>Infrastructure</h1>
-              <span className={`source-badge ${source === "journal snapshot" ? "file-based" : "live"}`}>{sourceBadgeText(source)}</span>
+              <span className={`source-badge ${sourceBadgeTone(source)}`}>{sourceBadgeText(source)}</span>
             </div>
             <p>Servers, core services and data pipeline · source: {sourceDisplayName(source)}</p>
           </div>
@@ -198,7 +198,7 @@ export default async function Page() {
                   <div><dt>Schema</dt><dd>{config?.schema || "—"}</dd></div>
                   <div><dt>Order index</dt><dd className="mono">{config?.indices?.orders || "—"}</dd></div>
                   <div><dt>Event time field</dt><dd className="mono">{config?.timestamp_field || "—"}</dd></div>
-                  <div><dt>Price divisor</dt><dd>{config?.price_divisor ?? "—"}</dd></div>
+                  <div><dt>Price divisors</dt><dd>{priceDivisorsText(config)}</dd></div>
                   <div><dt>Metrics endpoint</dt><dd>{config?.metrics_enabled ? "Enabled" : "Disabled"}</dd></div>
                   <div><dt>Environment</dt><dd><span className="ref-pill info">{config?.auth_disabled ? "Local (auth off)" : "Secured"}</span></dd></div>
                 </dl>

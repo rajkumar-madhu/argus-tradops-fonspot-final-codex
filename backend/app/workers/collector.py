@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+from datetime import datetime
 from typing import Any
 from prometheus_client import start_http_server
 from app.config import settings
@@ -8,7 +9,7 @@ from app.event_bus import get_redis, publish
 from app.elastic.noren_service import live_orders, rejection_summary, yel_health
 from app.leader import RedisLeaderLease
 from app.logging_setup import configure_logging
-from app.metrics import COLLECTOR_LEADER, COLLECTOR_PUBLISHED, COLLECTOR_RUNS, COLLECTOR_RUN_SECONDS
+from app.metrics import COLLECTOR_LEADER, COLLECTOR_PUBLISHED, COLLECTOR_RUNS, COLLECTOR_RUN_SECONDS, ES_INGEST_LAG, ES_LATEST_EVENT
 from app.workers.shutdown import GracefulShutdown
 
 log = logging.getLogger("tradeops.collector")
@@ -34,10 +35,37 @@ def _publish_if_changed(key: str, kind: str, payload: dict[str, Any], ttl: int =
     r.set(key, marker, ex=ttl)
     return True
 
+def _epoch(value: Any) -> float | None:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp() if value else None
+    except ValueError:
+        return None
+
+
+def observe_freshness(items: list[dict[str, Any]]) -> tuple[float | None, float | None]:
+    """(newest event epoch, worst ingest lag) over one collector batch; sets the gauges."""
+    newest: float | None = None
+    lag: float | None = None
+    for order in items:
+        event = _epoch(order.get("time"))
+        if event is None:
+            continue
+        newest = event if newest is None else max(newest, event)
+        ingested = _epoch(order.get("ingested_at"))
+        if ingested is not None:
+            lag = max(lag or 0.0, ingested - event)
+    if newest is not None:
+        ES_LATEST_EVENT.set(newest)
+    if lag is not None:
+        ES_INGEST_LAG.set(lag)
+    return newest, lag
+
+
 def collect_once() -> dict[str, int]:
     counts = {"orders": 0, "rejections": 0, "exchange": 0}
     with COLLECTOR_RUN_SECONDS.time():
         orders = live_orders(size=settings.collector_order_batch, lookback=settings.collector_lookback)
+        observe_freshness(orders.get("items") or [])
         for order in reversed(orders.get("items") or []):
             oid = str(order.get("order_id") or "")
             if not oid:
@@ -64,7 +92,7 @@ def main() -> None:
     configure_logging("collector")
     shutdown = GracefulShutdown().install()
     if settings.metrics_enabled:
-        start_http_server(settings.worker_metrics_port)
+        start_http_server(settings.metrics_port("collector"))
     lease = RedisLeaderLease(settings.collector_leader_key, settings.collector_leader_ttl_seconds)
     is_leader = False
     log.info("starting collector interval=%ss lookback=%s", settings.collector_interval_seconds, settings.collector_lookback)

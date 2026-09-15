@@ -6,6 +6,7 @@ from app.journal_snapshot import (
     MASKED_ORDER_JOURNAL_FIELDS,
     ORDER_JOURNAL_FIELDS,
     journal_order_latency_rows,
+    journal_orders,
     load_journal,
 )
 
@@ -19,7 +20,7 @@ class JournalSnapshotTests(unittest.TestCase):
                 "OrdStatus": 48, "AcctId": "private-account", "UserId": "private-user",
                 "PanNum": "sensitive", "IpAddr": "10.20.30.40", "ExchUserId": "123456",
                 "SrcUserId": "source-user", "RejReason": "contains private information",
-                "PriceToFill": 12345}
+                "ExchSeg": "NSE", "PriceToFill": 12345}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "journal.log"
             path.write_text('\n'.join(json.dumps(row) for row in [
@@ -47,6 +48,21 @@ class JournalSnapshotTests(unittest.TestCase):
         encoded = json.dumps(result)
         for private in ["private-account", "private-user", "sensitive", "10.20.30.40", "123456", "source-user", "private information"]:
             self.assertNotIn(private, encoded)
+
+    def test_orders_can_be_listed_without_the_per_row_evidence_projection(self):
+        base = {"msg_type": "ordupd", "NorenOrdNum": "A", "NorenTimeStamp": 100, "OrdStatus": 48,
+                "ExchSeg": "NSE", "PriceToFill": 12345}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "journal.log"
+            path.write_text(json.dumps(base))
+            full = journal_orders(str(path))["items"][0]
+            slim = journal_orders(str(path), evidence=False)["items"][0]
+        self.assertIn("journal_fields", full)
+        self.assertNotIn("journal_fields", slim)
+        self.assertNotIn("masked_fields", slim)
+        # Everything the table and its filters read survives.
+        for field in ("order_id", "status", "price", "price_scale", "value_multiplier", "exchange"):
+            self.assertEqual(slim[field], full[field], field)
 
     def test_invalid_journal_fails_without_partial_results(self):
         with tempfile.TemporaryDirectory() as directory:

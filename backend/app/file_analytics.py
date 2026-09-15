@@ -10,7 +10,15 @@ class FileAnalytics(CsvStore):
     def ingest(self):
         data=super().ingest()
         self._cached_latency.cache_clear()
+        self._cached_hops.cache_clear()
         return data
+
+    def hops_summary(self,**filters):
+        return self._cached_hops(tuple(sorted(filters.items())))
+
+    @lru_cache(maxsize=32)
+    def _cached_hops(self,filters):
+        return super().hops_summary(**dict(filters))
 
     def sources(self):
         data=self.catalog()
@@ -36,7 +44,7 @@ class FileAnalytics(CsvStore):
 
     def queues(self,**filters):
         data=super().queues(**filters)
-        items=[{**r,'last_event':r['last_observed'],'state':r['freshness'] if r['samples'] and r['freshness']=='Stale snapshot' else r['state']} for r in data['sources']]
+        items=[{**r,'last_event':r['last_observed']} for r in data['sources']]
         return {**data,'items':items,'trend':[{'instance':r['instance'],'file':r['file'],**p} for r in data['sources'] for p in r['trend']]}
 
     def export_latency(self,**filters):

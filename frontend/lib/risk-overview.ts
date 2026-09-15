@@ -1,6 +1,6 @@
 // Derivations for the Risk & Limits screen (reference mockup 01_19_28).
 // There is no RMS limit, margin, VaR or stress feed. What the journal does
-// establish: order value (qty × normalised price) by venue and broker for
+// establish: order value (qty × normalised price × value multiplier) by venue and broker for
 // orders still working, and rejections raised by RMS rules. Panels built from
 // those say so; limit, VaR and stress panels render empty states.
 // Self-contained so node --test can load it directly.
@@ -8,24 +8,32 @@
 type Order = {
   status?: string | null; exchange?: string | null; broker?: string | null; time?: string | null;
   qty?: number | null; price?: number | null; rejection_category?: string | null; code?: string | null;
-  order_id?: string; symbol?: string | null;
+  order_id?: string; symbol?: string | null; value_multiplier?: number | null;
 };
 
 const WORKING = new Set(["OPEN", "PENDING", "TRIGGER_PENDING", "PARTIAL"]);
 
 /**
- * Segments whose normalised price is in rupees. Currency (CDS) and commodity
- * (MCX) contracts use a different price scale and lot convention — the sample
- * shows USDINR at 9,492,000 after the global divisor — so their qty × price is
- * not a rupee value and is excluded rather than summed.
+ * The factor turning qty × price into rupees, set per order by the backend
+ * normalizer from evidence in the journal: 1 on NSE, BSE, NFO and BFO, where
+ * quantity counts units; Scripupdate.PriceMultiplier on MCX (a GOLDM lot is
+ * 100 g against a price per 10 g). It is null for CDS — the price scale is
+ * established, but no RMS figure shows how quantity and Scripupdate.Multiplier
+ * combine into a notional — and for any segment whose price scale is
+ * unverified. Those orders are excluded rather than summed.
  */
-export const VALUE_SEGMENTS = new Set(["NSE", "BSE", "NFO", "BFO"]);
+export function valueMultiplier(o: Order): number | null {
+  const m = o.value_multiplier;
+  if (m === null || m === undefined) return null;
+  const n = Number(m);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 export function orderValue(o: Order): number {
-  if (!VALUE_SEGMENTS.has(String(o.exchange || ""))) return 0;
+  const m = valueMultiplier(o);
   const q = Number(o.qty);
   const p = Number(o.price);
-  return Number.isFinite(q) && Number.isFinite(p) && q > 0 && p > 0 ? q * p : 0;
+  return m !== null && Number.isFinite(q) && Number.isFinite(p) && q > 0 && p > 0 ? q * p * m : 0;
 }
 
 /** "₹ 12.43 Cr", "₹ 32.60 L", "₹ 9,120" (Indian units). */
@@ -54,10 +62,9 @@ export function workingExposure(orders: Order[]) {
   const venues = Array.from(byVenue.entries())
     .map(([name, value]) => ({ name, value, share: total ? (value / total) * 100 : 0 }))
     .sort((a, b) => b.value - a.value);
-  const excluded = orders.filter(
-    (o) => WORKING.has(String(o.status || "").toUpperCase()) && !VALUE_SEGMENTS.has(String(o.exchange || "")),
-  ).length;
-  return { total, count, venues, excluded };
+  const unvalued = orders.filter((o) => WORKING.has(String(o.status || "").toUpperCase()) && valueMultiplier(o) === null);
+  const excludedVenues = Array.from(new Set(unvalued.map((o) => String(o.exchange || "—")))).sort();
+  return { total, count, venues, excluded: unvalued.length, excludedVenues };
 }
 
 /** Brokers by working order value, with their order count and reject rate. */

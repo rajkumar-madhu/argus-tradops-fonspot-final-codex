@@ -15,7 +15,8 @@
  */
 
 export { TOKEN_COOKIE } from "@/lib/session-shared";
-import { TOKEN_COOKIE } from "@/lib/session-shared";
+import { TOKEN_COOKIE, tokenRoles } from "@/lib/session-shared";
+import { readTenantCookie, tenantCookie, tenantHeaders } from "@/lib/tenant";
 
 export type SessionUser = {
   sub?: string;
@@ -36,17 +37,24 @@ export function setToken(token: string, expiresInSeconds: number): void {
   const sameSite = isSecureContext() ? "None" : "Lax";
   const secure = isSecureContext() ? "; Secure" : "";
   document.cookie = `${TOKEN_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
+  // Browsers silently reject blocked or oversized cookies. Never call that a
+  // successful login: SSR would immediately request data without a token.
+  if (getToken() !== token) {
+    clearToken();
+    throw new Error("Your session could not be saved. Allow cookies for this site and restart sign-in. If this continues, ask an administrator to check the token size.");
+  }
 }
 
 export function getToken(): string | null {
   if (typeof document === "undefined") return null;
   const hit = document.cookie.split("; ").find((c) => c.startsWith(`${TOKEN_COOKIE}=`));
-  return hit ? decodeURIComponent(hit.slice(TOKEN_COOKIE.length + 1)) : null;
+  try { return hit ? decodeURIComponent(hit.slice(TOKEN_COOKIE.length + 1)) : null; }
+  catch { return null; }
 }
 
 export function clearToken(): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+  document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${isSecureContext() ? '; Secure' : ''}`;
 }
 
 /** Decodes claims for display/nav only. The backend is what actually verifies the signature. */
@@ -56,15 +64,11 @@ export function decodeSession(token: string | null): SessionUser | null {
     const [, payload] = token.split(".");
     if (!payload) return null;
     const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-    const realmRoles: string[] = json?.realm_access?.roles || [];
-    const clientRoles: string[] = Object.values(json?.resource_access || {}).flatMap(
-      (entry: any) => entry?.roles || []
-    );
     return {
       sub: json.sub,
       username: json.preferred_username,
       email: json.email,
-      roles: Array.from(new Set([...realmRoles, ...clientRoles])),
+      roles: tokenRoles(json),
       expiresAt: Number(json.exp || 0) * 1000,
     };
   } catch {
@@ -78,5 +82,15 @@ export function isExpired(session: SessionUser | null): boolean {
 
 export function authHeaders(): Record<string, string> {
   const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...tenantHeaders(getTenant()) };
+}
+
+export function getTenant(): string | null {
+  return typeof document === "undefined" ? null : readTenantCookie(document.cookie);
+}
+
+/** Select a tenant for this browser. Callers reload so server components refetch. */
+export function setTenant(id: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie = tenantCookie(id, isSecureContext());
 }

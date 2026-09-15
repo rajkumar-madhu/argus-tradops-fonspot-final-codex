@@ -4,6 +4,13 @@ import { Fragment, useId, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDownUp, ChevronLeft, ChevronRight, Download, Filter, Search } from 'lucide-react';
 import { csvCell, filterRows, sortRows, type FilterState } from '@/lib/table-filters';
 
+/**
+ * `cells` are built eagerly by the caller and must stay serializable: DataTable
+ * is used from server components, and a function here would cross the RSC
+ * boundary ("Functions cannot be passed directly to Client Components").
+ * Deferring cell construction to the visible page therefore has to happen in a
+ * client caller, not in this contract.
+ */
 export type GridRow = { id: string; values: Record<string, any>; cells: ReactNode[] };
 const FACETS: Record<string, string> = {
   exchange: 'Exchange', product: 'Product', side: 'Side', status: 'Status', broker: 'Broker',

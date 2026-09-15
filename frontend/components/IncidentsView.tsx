@@ -18,8 +18,8 @@ import RefreshButton from "@/components/RefreshButton";
 import { Donut, HBarList, StackedBars } from "@/components/Charts";
 
 // Matches alertsTrendSeries order: Critical, Major, Minor, Info.
-const SEVERITY_COLORS = ["#e5383b", "#f59e0b", "#0b5cff", "#9aa6bb"];
-import { EmptyState, KpiCard, Severity } from "@/components/UI";
+const SEVERITY_COLORS = ["#e5383b", "#f59e0b", "#1B6F80", "#8494A2"];
+import { ApiErrorState, EmptyState, KpiCard, Severity } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
 import {
   aiInsights,
@@ -34,6 +34,7 @@ import {
   type IncidentRow,
 } from "@/lib/incidents-data";
 import { fmt, journalWindowLabel, timeIstStamp } from "@/lib/format";
+import { sourceDisplayName } from "@/lib/data-source";
 
 export type IncidentsPayload = {
   persisted: any;
@@ -94,7 +95,7 @@ export default function IncidentsView({ persisted, derived, rejections, yel }: I
 
   const metaLine = isFileBased
     ? `${fmt(rejections?.journal_events || 0)} journal events · ${journalWindowLabel(rejections?.from, rejections?.to)} · Alerts derived from rejection evidence`
-    : `${fmt(alerts.length)} active alerts · ${persisted?.source || "postgresql"} + ${derived?.source || "derived"}`;
+    : `${fmt(alerts.length)} active alerts · ${sourceDisplayName(persisted?.source || "postgresql")} + ${sourceDisplayName(derived?.source || "derived")}`;
 
   const err = apiError(persisted) && apiError(rejections);
 
@@ -122,7 +123,7 @@ export default function IncidentsView({ persisted, derived, rejections, yel }: I
       </section>
 
       {err ? (
-        <EmptyState title="Unable to load incidents" body={`${err}. Confirm the API is running on port 8001.`} />
+        <ApiErrorState title="Unable to load incidents" data={rejections} />
       ) : (
         <>
           <section className="kpi-grid six incidents-kpis">

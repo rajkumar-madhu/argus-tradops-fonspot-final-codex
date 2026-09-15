@@ -54,9 +54,11 @@ def _extract_token(request: Request, credentials: HTTPAuthorizationCredentials |
     cookie = request.cookies.get(TOKEN_COOKIE)
     if cookie:
         return cookie
-    # Last resort for EventSource. Query strings end up in access logs, so the UI
-    # only falls back to this when the cookie cannot be set (cross-site without
-    # SameSite=None; Secure).
+    # Last resort for EventSource (cannot set Authorization). Query strings land
+    # in access logs, so every uvicorn entrypoint must use --no-access-log
+    # (Dockerfile CMD, scripts/start-local.sh, scripts/start-file-preview.sh).
+    # The UI only falls back here when the cookie cannot be set (cross-site
+    # without SameSite=None; Secure).
     return request.query_params.get(TOKEN_QUERY_PARAM) or None
 
 def current_user(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
@@ -73,10 +75,30 @@ def current_user(request: Request, credentials: HTTPAuthorizationCredentials | N
     except Exception as exc:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-def require(permission: str) -> Callable:
+def forbidden_detail(permission: str, roles) -> dict:
+    """What a Keycloak admin needs to fix a 403: the permission, the roles that grant it,
+    and which TradeOps roles the token did carry. Other realm roles (a shared realm's
+    defaults) are left out; the caller already holds the token, so nothing here is new to them."""
+    return {
+        "message": "Insufficient permission",
+        "permission": permission,
+        "granted_by": sorted(r for r, perms in ROLE_PERMISSIONS.items() if "*" in perms or permission in perms),
+        "app_roles": sorted(r for r in roles if r in ROLE_PERMISSIONS),
+        "client_id": settings.keycloak_client_id,
+    }
+
+def require(permission: str, *, tenant_scoped: bool = True) -> Callable:
+    """Guard a route by permission and, unless ``tenant_scoped=False``, by access to
+    the requested tenant. Only tenant administration opts out: a super_admin whose
+    cookie names a disabled tenant must still reach the page that re-enables it."""
     def dep(user=Depends(current_user)):
         perms=set(user["permissions"])
         if "*" not in perms and permission not in perms:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permission")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=forbidden_detail(permission, user.get("roles", [])))
+        # The requested tenant was bound by tenancy.bind_request_tenant; refuse it
+        # here, before any data route runs, when the caller is not granted it.
+        if tenant_scoped:
+            from app.tenancy import assert_access
+            assert_access(user)
         return user
     return dep
