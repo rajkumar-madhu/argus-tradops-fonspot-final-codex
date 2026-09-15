@@ -2,6 +2,8 @@
 
 Production-oriented full-stack TradeOps baseline for Noren journal observability.
 
+**Enterprise product & platform specification:** [docs/ARGUS_TRADEOPS_COMPLETE_PRODUCT_PLATFORM.md](docs/ARGUS_TRADEOPS_COMPLETE_PRODUCT_PLATFORM.md) (v2.1). That document is the customer-facing baseline for scope, honesty rules, IST query windows, the read-only ops coach, RBAC, tenancy and deployment.
+
 ## Data path
 
 `Noren Journal → Logstash → Elasticsearch → leader-elected collector → Redis Streams → correlation workers → PostgreSQL → FastAPI/SSE → Next.js`
