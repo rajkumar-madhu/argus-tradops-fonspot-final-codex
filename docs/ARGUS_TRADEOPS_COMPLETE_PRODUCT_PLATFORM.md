@@ -35,15 +35,15 @@ Enterprise Production Baseline • Build-Ready • Standalone Product • Argus 
 | Out of scope  | Order placement / cancel / modify; P&L, MTM, turnover; general-purpose APM/SIEM; LinkedEye APM adapter control plane; WeCrew JobWatch; WeCrew SecureOps; AEGIS agent-trace products.                                     |
 | Product model | Standalone read-only observability product. Sister Argus/AEGIS products remain separate; this document does not grant their screens or write actions.                                                                    |
 | Honesty rule  | Failures are never zero. Missing evidence is `—` / `unavailable` / `DELAYED` / `OFFLINE`, never a green LIVE badge on demo or a silent fallback.                                                                         |
-| Window rule   | Live pages mean **today’s IST orders** unless the operator picks a rolling lookback or a custom IST calendar date. A custom date is that day only — never a silent 7-day rollup.                                        |
+| Window rule   | Live pages mean **today’s IST orders** unless the operator picks a rolling lookback or a custom IST calendar date. A custom date is that day only — never a silent 7-day rollup.                                         |
 | Intelligence  | Ranked ops findings are deterministic counts/rates from the loaded window. No rupees, no P&L, no external LLM.                                                                                                           |
 
 ### Change history
 
-| Version | Date               | What changed                                                                                                                                 |
-| ------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2.0     | 15 September 2026  | Complete enterprise baseline: sources, RBAC, masking, k8s, honesty contract.                                                                 |
-| 2.1     | 16 September 2026  | IST query windows; read-only ops coach; live-tenant first visit; UAT Harbor/kubectl operating path; sessions aligned to the dashboard window. |
+| Version | Date              | What changed                                                                                                                                  |
+| ------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2.0     | 15 September 2026 | Complete enterprise baseline: sources, RBAC, masking, k8s, honesty contract.                                                                  |
+| 2.1     | 16 September 2026 | IST query windows; read-only ops coach; live-tenant first visit; UAT Harbor/kubectl operating path; sessions aligned to the dashboard window. |
 
 ---
 
@@ -248,16 +248,16 @@ There is **no** “Autonomous trading add-on”. Remediation of the book is out 
 
 The Overview desk briefing is a **read-only ops coach**: ranked findings from the loaded query window, inspired by journal-style coaching UIs but **not** a copy of P&L, strategy scoring or an external LLM.
 
-| Rule                         | Behaviour                                                                                          |
-| ---------------------------- | -------------------------------------------------------------------------------------------------- |
-| Input                        | Unique-order totals, reject categories/groups, brokers above desk average, YEL, active sessions.   |
-| Output                       | At most eight cards: `critical` / `watch` / `clear`, each with a deep-link.                        |
-| Order                        | Rejects first, then RMS categories, non-RMS, rejection code, brokers, open/pending, YEL, sessions. |
-| Money                        | **Forbidden.** Counts, unique-order rates and percentages only.                                    |
-| LLM / third-party AI         | **Forbidden.** Deterministic TypeScript (`frontend/lib/desk-briefing.ts`).                         |
-| Empty window                 | One `clear` card: “No exception signal in loaded observations” — **not** a live-health assertion.  |
-| Missing YEL                  | No disconnect card unless a `yel_connected` observation exists and is disconnected.                |
-| Sessions                     | “No active sessions” is a watch on the window, not a connectivity outage.                          |
+| Rule                 | Behaviour                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| Input                | Unique-order totals, reject categories/groups, brokers above desk average, YEL, active sessions.   |
+| Output               | At most eight cards: `critical` / `watch` / `clear`, each with a deep-link.                        |
+| Order                | Rejects first, then RMS categories, non-RMS, rejection code, brokers, open/pending, YEL, sessions. |
+| Money                | **Forbidden.** Counts, unique-order rates and percentages only.                                    |
+| LLM / third-party AI | **Forbidden.** Deterministic TypeScript (`frontend/lib/desk-briefing.ts`).                         |
+| Empty window         | One `clear` card: “No exception signal in loaded observations” — **not** a live-health assertion.  |
+| Missing YEL          | No disconnect card unless a `yel_connected` observation exists and is disconnected.                |
+| Sessions             | “No active sessions” is a watch on the window, not a connectivity outage.                          |
 
 Sessions on the dashboard use the same `lookback` / `day` query as overview (`GET /api/sessions?...`). Journal-source pages still do not subscribe to SSE.
 
@@ -299,12 +299,12 @@ Journal / ES / CSV
 
 Live ES pages answer **“today’s orders in Asia/Kolkata”** unless the operator changes the window. Implementation: `backend/app/query_window.py` and `frontend/lib/query-window.ts`.
 
-| Operator choice     | API                         | Interval                                                                 |
-| ------------------- | --------------------------- | ------------------------------------------------------------------------ |
-| Default / Today     | `day=<IST YYYY-MM-DD>`      | IST midnight → next IST midnight (half-open UTC `[gte, lt)`).            |
-| Custom date         | `day=YYYY-MM-DD`            | That IST calendar day **only**. Not a 7-day lookback ending on that day. |
-| Rolling             | `lookback=1h\|4h\|7d\|30d`  | Elasticsearch `now-{lookback}`. A leftover `day` on the form is ignored. |
-| `lookback=today`    | resolved to today’s IST day | Wins over a stale `day` field.                                           |
+| Operator choice  | API                         | Interval                                                                 |
+| ---------------- | --------------------------- | ------------------------------------------------------------------------ |
+| Default / Today  | `day=<IST YYYY-MM-DD>`      | IST midnight → next IST midnight (half-open UTC `[gte, lt)`).            |
+| Custom date      | `day=YYYY-MM-DD`            | That IST calendar day **only**. Not a 7-day lookback ending on that day. |
+| Rolling          | `lookback=1h\|4h\|7d\|30d`  | Elasticsearch `now-{lookback}`. A leftover `day` on the form is ignored. |
+| `lookback=today` | resolved to today’s IST day | Wins over a stale `day` field.                                           |
 
 `NorenTimeStamp_N` is the range field for orders/rejections/overview. A silent 7-day default is a **defect**: it inflated unique-order counts (e.g. ~872k over 7d vs ~36k since 09:15 IST on a live Finspot-ind desk).
 
@@ -453,18 +453,110 @@ Ctrl+K command palette is **navigation only** (pages, order id → `/rca` or `/o
 
 ## 14. Platform Architecture
 
-```
-Noren Journal → Filebeat → Logstash (noren_filebeat.conf)
-        → Elasticsearch noren-<msg_type>-intraday
-        → collector (leader-elected; ONLY loop poller of ES)
-        → Redis Streams
-        → correlation worker (consumer group)
-        → PostgreSQL incidents / rca_cases
-        → FastAPI (Redis SSE; on-demand ES/journal)
-        → Next.js 15 App Router
+**Invariant:** only the leader-elected collector loops on Elasticsearch. The API may issue on-demand queries. Browsers never poll ES. There is **no** write path to the OMS.
+
+### 14.0 End-to-end data flow
+
+```mermaid
+flowchart LR
+  J[Noren Journal] --> FB[Filebeat]
+  FB --> LS[Logstash]
+  LS --> ES[ES noren-*-intraday]
+  ES --> COL[Collector<br/>sole loop poller]
+  COL --> RS[Redis Streams]
+  RS --> CW[Correlation worker]
+  CW --> PG[(PostgreSQL<br/>incidents / RCA)]
+  RS --> API[FastAPI SSE]
+  ES -.->|on-demand lists<br/>lifecycle RCA| API
+  JF[Journal file] --> SNAP[Snapshot lru_cache]
+  SNAP --> API
+  CSV[Latency / queue CSV] --> FILES[csv_store]
+  FILES --> API
+  API --> UI[Next.js desk]
+  OMS[Noren OMS] -.->|never| UI
 ```
 
-**Invariant:** do not add a second periodic ES poller.
+### 14.0.1 Runtime topology
+
+```mermaid
+flowchart TB
+  subgraph edge["Edge"]
+    OP[Operator browser]
+    KC[Keycloak OIDC]
+    ING[Ingress SSE buffering off]
+  end
+
+  subgraph app["argus-tradeops-uat"]
+    FE[tradeops-frontend]
+    API2[tradeops-api HPA]
+    COL2[collector lease]
+    COR[correlation-worker]
+    MD[market-data worker optional]
+    MIG[migrate Job]
+  end
+
+  subgraph data["Data plane"]
+    ES2[(Elasticsearch read-only)]
+    RD[(Redis streams + lease)]
+    PG2[(PostgreSQL)]
+    SEC[/tenant-secrets files/]
+  end
+
+  OP --> ING --> FE
+  OP --> KC
+  FE --> API2
+  API2 --> ES2
+  API2 --> RD
+  API2 --> PG2
+  API2 --> SEC
+  COL2 --> ES2
+  COL2 --> RD
+  COR --> RD
+  COR --> PG2
+  MD --> RD
+  MIG --> PG2
+```
+
+### 14.0.2 Operator read path (IST window)
+
+```mermaid
+flowchart TB
+  UI[Overview / Orders / Trades] --> QW{QueryWindow}
+  QW -->|default| TODAY[day = IST today]
+  QW -->|custom date| DAY[day = YYYY-MM-DD that IST day only]
+  QW -->|1h 4h 7d 30d| ROLL[lookback rolling]
+  TODAY --> ARB[_with_data_source]
+  DAY --> ARB
+  ROLL --> ARB
+  ARB -->|finspot-ind live ES| LIVE[elasticsearch]
+  ARB -->|default journal-primary| FILE[journal snapshot]
+  ARB -->|exception or demo-shaped| FALL[journal + fallback DELAYED]
+  LIVE --> MASK[normalizer + mask]
+  FILE --> MASK
+  FALL --> MASK
+  MASK --> FRESH[freshness badge]
+  FRESH --> DESK[Ops Coach + tables]
+```
+
+### 14.0.3 Tenant topology
+
+```mermaid
+flowchart LR
+  subgraph defaultT["Tenant default"]
+    DJ[June 30 Journal.log]
+    DAPI[API + collector + CSV]
+    DJ --> DAPI
+  end
+  subgraph liveT["Tenant finspot-ind"]
+    LES[Live ES cluster]
+    LAPI[API on-demand only]
+    LES --> LAPI
+  end
+  OP2[Operator] -->|first visit no cookie| liveT
+  OP2 -->|explicit cookie| defaultT
+```
+
+Non-default tenants do **not** run a collector, SSE live kinds, persisted incidents/RCA lists, or `/api/files/*`.
 
 ### 14.1 Technology stack (shipped)
 
@@ -610,10 +702,10 @@ docker compose up --build
 
 Typical UAT pairing:
 
-| Tenant id      | Data                         | First-visit behaviour                          |
-| -------------- | ---------------------------- | ---------------------------------------------- |
-| `finspot-ind`  | Live ES (Noren intraday)     | Preferred when no valid cookie                 |
-| `default`      | Journal-primary historical   | Kept if the operator already selected it       |
+| Tenant id     | Data                       | First-visit behaviour                    |
+| ------------- | -------------------------- | ---------------------------------------- |
+| `finspot-ind` | Live ES (Noren intraday)   | Preferred when no valid cookie           |
+| `default`     | Journal-primary historical | Kept if the operator already selected it |
 
 Non-default tenants still do not get collector SSE, persisted incidents/RCA lists, or `/api/files/*`.
 
@@ -663,12 +755,12 @@ Compose `k8s/data-services.yaml` is **not** production HA. Use CloudNativePG / R
 
 ## 24. Deployment Models
 
-| Model                 | Use                                                        |
-| --------------------- | ---------------------------------------------------------- |
-| Docker Compose        | Local / UAT convenience                                    |
-| Kubernetes + overlays | UAT (`deploy/uat`) and prod (`deploy/prod`)                |
-| Manual Harbor + kubectl | Current Finspot UAT path when GitOps source is missing   |
-| File-preview scripts  | Isolated CSV/journal console without mixing `.next` caches |
+| Model                   | Use                                                        |
+| ----------------------- | ---------------------------------------------------------- |
+| Docker Compose          | Local / UAT convenience                                    |
+| Kubernetes + overlays   | UAT (`deploy/uat`) and prod (`deploy/prod`)                |
+| Manual Harbor + kubectl | Current Finspot UAT path when GitOps source is missing     |
+| File-preview scripts    | Isolated CSV/journal console without mixing `.next` caches |
 
 Images: `your-registry/tradeops-backend` / frontend placeholders until digest-pinned.
 
@@ -676,14 +768,14 @@ Images: `your-registry/tradeops-backend` / frontend placeholders until digest-pi
 
 Argo/GitOps against `finspot-prod-devops` has been **404 / Unknown**. Until that source exists, UAT is a **manual** roll:
 
-| Item        | Value                                                                                          |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| Registry    | `harbor.finspot.in/common-application/tradeops-{backend,frontend}`                             |
-| Tag         | `uat-YYYYMMDD-<gitsha>-r1` (example: `uat-20260915-bd61e96-r1`)                                |
-| Cluster     | kube context `fs-prod-cp-ps`                                                                   |
-| Namespace   | `argus-tradeops-uat`                                                                           |
-| Default     | Journal-primary Lemonn file                                                                    |
-| Live desk   | Tenant `finspot-ind` (read-only ES)                                                            |
+| Item      | Value                                                              |
+| --------- | ------------------------------------------------------------------ |
+| Registry  | `harbor.finspot.in/common-application/tradeops-{backend,frontend}` |
+| Tag       | `uat-YYYYMMDD-<gitsha>-r1` (example: `uat-20260915-bd61e96-r1`)    |
+| Cluster   | kube context `fs-prod-cp-ps`                                       |
+| Namespace | `argus-tradeops-uat`                                               |
+| Default   | Journal-primary Lemonn file                                        |
+| Live desk | Tenant `finspot-ind` (read-only ES)                                |
 
 Do not claim GitOps as the production promotion path until the repository and Argo application exist. Overlay image placeholders remain `RELEASE_REQUIRED` until a digest is set.
 
