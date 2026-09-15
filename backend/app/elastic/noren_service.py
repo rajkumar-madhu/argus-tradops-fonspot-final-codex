@@ -38,14 +38,25 @@ def _field(index: str, field: str) -> str:
             params={"fields": f"{field},{field}.keyword", "ignore_unavailable": "true"}
         )
         body = res.body if isinstance(res.body, dict) else (getattr(res, "body", None) or {})
-        caps = body.get("fields", {})
+        caps = body.get("fields") or {}
+        if not isinstance(caps, dict):
+            caps = {}
     except Exception:
+        caps = {}
+    if not caps:
         try:
-            caps = es.field_caps(index=index, fields=[field, f"{field}.keyword"], ignore_unavailable=True).get("fields", {})
+            caps = es.field_caps(index=index, fields=[field, f"{field}.keyword"], ignore_unavailable=True).get("fields") or {}
+            if not isinstance(caps, dict):
+                caps = {}
         except Exception:
             # Transient failure. Fall back to the bare field (how the shipped index
             # template maps these) and deliberately do not cache, so the next call retries.
             return field
+    if not caps:
+        # Successful GET with empty fields (missing index + ignore_unavailable,
+        # or an unparsed/empty body). Same as a transient failure: return the
+        # bare field and do not cache, or a wrong `.keyword` sticks until restart.
+        return field
     kw = f"{field}.keyword"
     if kw in caps and any(t == "keyword" for t in caps[kw]):
         resolved = kw
