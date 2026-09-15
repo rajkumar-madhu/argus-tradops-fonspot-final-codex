@@ -14,7 +14,7 @@ export default async function Page({
   const snapshot = params.source === 'journal';
   const lookback = queryWindow(params.lookback);
   // Totals for the KPI row come from the overview, not from the loaded page of rows.
-  const overviewPromise = getJSON('/api/overview');
+  const overviewPromise = getJSON(`/api/overview?lookback=${lookback}`);
   // Search and filters run over the loaded rows, so load as many as the route
   // allows: every order of a journal snapshot, and up to the backend's own cap
   // (500) from Elasticsearch.
@@ -52,7 +52,12 @@ export default async function Page({
         {err ? (
           <ApiErrorState title="Unable to load orders" data={initial} />
         ) : (
-          <LiveOrders initial={initial} snapshot={snapshot} requestedOrder={params.order} overview={apiError(overview) ? null : overview} />
+          <LiveOrders
+            initial={initial}
+            snapshot={snapshot}
+            requestedOrder={params.order}
+            overview={apiError(overview) ? null : overview}
+          />
         )}
       </div>
     </Shell>

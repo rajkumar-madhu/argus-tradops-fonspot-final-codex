@@ -161,6 +161,8 @@ class Settings:
     sse_heartbeat_seconds: float = _float("SSE_HEARTBEAT_SECONDS", 15.0)
     metrics_enabled: bool = _bool("METRICS_ENABLED", True)
     prometheus_url: str = os.getenv("PROMETHEUS_URL", "").strip()
+    prometheus_username: str = os.getenv("PROMETHEUS_USERNAME", "").strip()
+    prometheus_password: str = os.getenv("PROMETHEUS_PASSWORD", "")
     prometheus_timeout_seconds: float = _float("PROMETHEUS_TIMEOUT_SECONDS", 2.0)
     # WORKER_METRICS_PORT overrides for all; otherwise each worker has its own
     # default so co-located workers (Compose without env, a laptop) do not race

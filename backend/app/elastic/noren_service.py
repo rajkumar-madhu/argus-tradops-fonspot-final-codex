@@ -27,12 +27,25 @@ def _field(index: str, field: str) -> str:
     cached = _FIELD_CACHE.get(key)
     if cached is not None:
         return cached
+    caps = {}
     try:
-        caps = es.field_caps(index=index, fields=[field, f"{field}.keyword"], ignore_unavailable=True).get("fields", {})
+        # ES 7.x compatibility: field_caps in ES 7.x requires 'fields' as a query parameter.
+        # elasticsearch-py 8.x defaults to sending POST with a JSON body which ES 7.x rejects
+        # with "specified fields can't be null or empty".
+        res = es.perform_request(
+            "GET",
+            f"/{index}/_field_caps",
+            params={"fields": f"{field},{field}.keyword", "ignore_unavailable": "true"}
+        )
+        body = res.body if isinstance(res.body, dict) else (getattr(res, "body", None) or {})
+        caps = body.get("fields", {})
     except Exception:
-        # Transient failure. Fall back to the bare field (how the shipped index
-        # template maps these) and deliberately do not cache, so the next call retries.
-        return field
+        try:
+            caps = es.field_caps(index=index, fields=[field, f"{field}.keyword"], ignore_unavailable=True).get("fields", {})
+        except Exception:
+            # Transient failure. Fall back to the bare field (how the shipped index
+            # template maps these) and deliberately do not cache, so the next call retries.
+            return field
     kw = f"{field}.keyword"
     if kw in caps and any(t == "keyword" for t in caps[kw]):
         resolved = kw

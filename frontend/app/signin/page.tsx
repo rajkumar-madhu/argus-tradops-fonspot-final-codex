@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, KeyRound, LayoutDashboard, Shield } from "lucide-react";
-import AuthModeTabs from "@/components/AuthModeTabs";
-import AuthShell from "@/components/AuthShell";
-import { fetchAuthConfig, login } from "@/lib/oidc";
-import { safeReturnTo } from "@/lib/auth-routing";
+import Link from 'next/link';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { ArrowRight, KeyRound, LayoutDashboard, Shield } from 'lucide-react';
+import AuthModeTabs from '@/components/AuthModeTabs';
+import AuthShell from '@/components/AuthShell';
+import { fetchAuthConfig, login } from '@/lib/oidc';
+import { safeReturnTo } from '@/lib/auth-routing';
 
 export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const [expired, setExpired] = useState(false);
 
   const checkConfig = useCallback(async () => {
@@ -24,12 +24,15 @@ export default function SignIn() {
       const cfg = await Promise.race([
         fetchAuthConfig(),
         new Promise<never>((_, reject) => {
-          timeout = setTimeout(() => reject(new Error("The API did not respond. Please retry.")), 10000);
+          timeout = setTimeout(
+            () => reject(new Error('The API did not respond. Please retry.')),
+            10000,
+          );
         }),
       ]);
       setAuthDisabled(cfg.auth_disabled);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cannot reach the API");
+      setError(err instanceof Error ? err.message : 'Cannot reach the API');
     } finally {
       clearTimeout(timeout);
       setChecking(false);
@@ -47,9 +50,23 @@ export default function SignIn() {
     try {
       await login(safeReturnTo(new URLSearchParams(window.location.search).get('returnTo')), email);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+      setError(err instanceof Error ? err.message : 'Sign-in failed');
       setBusy(false);
     }
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (busy || checking) return;
+    if (authDisabled === true) {
+      window.location.href = '/dashboard';
+      return;
+    }
+    if (authDisabled === null) {
+      void checkConfig();
+      return;
+    }
+    void start();
   }
 
   return (
@@ -61,7 +78,9 @@ export default function SignIn() {
         <AuthModeTabs active="signin" />
 
         <div className="auth-card-head">
-          <span className="auth-icon"><KeyRound size={22} /></span>
+          <span className="auth-icon">
+            <KeyRound size={22} />
+          </span>
           <div>
             <h2>Welcome back</h2>
             <p>Use your organisation SSO. Argus TradeOps never stores your password.</p>
@@ -82,42 +101,51 @@ export default function SignIn() {
           </div>
         )}
 
-        <label className="auth-field">
-          Work email
-          <input
-            type="email"
-            autoComplete="email"
-            placeholder="name@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <span className="auth-hint">Used only to pre-fill your identity provider when supported</span>
-        </label>
+        <form onSubmit={onSubmit}>
+          <label className="auth-field">
+            Work email
+            <input
+              type="email"
+              autoComplete="email"
+              placeholder="name@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <span className="auth-hint">
+              Used only to pre-fill your identity provider when supported
+            </span>
+          </label>
 
-        {expired && <p role="status">Your session has expired. Sign in again to continue.</p>}
-        {error && <p className="form-error" role="alert">{error}</p>}
+          {expired && <p role="status">Your session has expired. Sign in again to continue.</p>}
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
 
-        {authDisabled === true ? (
-          <button type="button" className="primary auth-cta" onClick={() => (window.location.href = "/dashboard")}>
-            Continue to dashboard
-            <ArrowRight size={16} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="primary auth-cta"
-            disabled={busy || checking}
-            onClick={authDisabled === null ? checkConfig : start}
-          >
-            <Shield size={16} />
-            {busy ? "Opening secure sign-in…" : checking ? "Checking secure sign-in…" : authDisabled === null ? "Retry connection" : "Continue with SSO"}
-            {!busy && !checking && authDisabled !== null && <ArrowRight size={16} />}
-          </button>
-        )}
+          {authDisabled === true ? (
+            <button type="submit" className="primary auth-cta">
+              Continue to dashboard
+              <ArrowRight size={16} />
+            </button>
+          ) : (
+            <button type="submit" className="primary auth-cta" disabled={busy || checking}>
+              <Shield size={16} />
+              {busy
+                ? 'Opening secure sign-in…'
+                : checking
+                  ? 'Checking secure sign-in…'
+                  : authDisabled === null
+                    ? 'Retry connection'
+                    : 'Continue with SSO'}
+              {!busy && !checking && authDisabled !== null && <ArrowRight size={16} />}
+            </button>
+          )}
+        </form>
 
         <div className="auth-quick-links">
           <Link href="/forgot-password">Need help signing in?</Link>
-          <Link href="/dashboard">View read-only preview</Link>
+          <Link href="/">Back to home</Link>
         </div>
 
         <ul className="auth-bullets compact">

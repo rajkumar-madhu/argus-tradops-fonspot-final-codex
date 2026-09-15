@@ -522,13 +522,15 @@ def auth_me(user=Depends(current_user)):
 
 
 @app.get("/api/overview")
-def overview(user=Depends(require("dashboard:read"))):
+def overview(lookback: str = Query("7d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("dashboard:read"))):
     from app.journal_snapshot import journal_overview as journal_overview_data
 
+    if not isinstance(lookback, str):
+        lookback = "7d"
     if _use_journal_data():
         return journal_overview_data(_journal_path())
     if not DEMO_MODE:
-        return _with_data_source(lambda: noren_overview(), lambda: journal_overview_data(_journal_path()))
+        return _with_data_source(lambda: noren_overview(lookback=lookback), lambda: journal_overview_data(_journal_path()))
     rejected = len([x for x in DEMO_ORDERS if x["status"] == "REJECTED"])
     return {
         "orders": len(DEMO_ORDERS), "complete": 0, "rejected": rejected,
@@ -690,10 +692,13 @@ def exchange_yel(user=Depends(require("exchange:read"))):
 
 
 @app.get("/api/exchanges")
-def exchanges(user=Depends(require("exchange:read"))):
+def exchanges(lookback: str = Query("30d", pattern=r"^[0-9]+[mhdw]$"), user=Depends(require("exchange:read"))):
     from app.journal_snapshot import journal_exchanges as journal_exchanges_data
 
-    if _use_journal_data():
+    if not isinstance(lookback, str):
+        lookback = "30d"
+
+    def _journal():
         data = journal_exchanges_data(_journal_path())
         items = []
         for row in data.get("items") or []:
@@ -706,22 +711,30 @@ def exchanges(user=Depends(require("exchange:read"))):
                 "events": row.get("events") or 0,
             })
         return {"items": items, "count": len(items), "source": data.get("source")}
+
+    if _use_journal_data():
+        return _journal()
     if DEMO_MODE:
         return {"items": DEMO_EXCHANGES, "count": len(DEMO_EXCHANGES), "source": "demo"}
-    overview_data = noren_overview()
-    items = []
-    total_events = sum(int(x.get("events") or 0) for x in overview_data.get("exchanges") or [])
-    for row in overview_data.get("exchanges") or []:
-        events = int(row.get("events") or 0)
-        items.append({
-            "name": row.get("name") or "—",
-            "status": "Events observed" if events else "No events",
-            "latency_ms": None,
-            "reject_rate": None,
-            "heartbeat_age_s": None,
-            "events": events,
-        })
-    return {"items": items, "count": len(items), "source": overview_data.get("source", "elasticsearch")}
+
+    def _live():
+        overview_data = noren_overview(lookback=lookback)
+        if not overview_data.get("exchanges") and lookback != "30d":
+            overview_data = noren_overview(lookback="30d")
+        items = []
+        for row in overview_data.get("exchanges") or []:
+            events = int(row.get("events") or 0)
+            items.append({
+                "name": row.get("name") or "—",
+                "status": "Events observed" if events else "No events",
+                "latency_ms": None,
+                "reject_rate": None,
+                "heartbeat_age_s": None,
+                "events": events,
+            })
+        return {"items": items, "count": len(items), "source": overview_data.get("source", "elasticsearch")}
+
+    return _with_data_source(_live, _journal)
 
 
 @app.get("/api/order-book")

@@ -49,7 +49,16 @@ test('switcher: no grants is reported, not silently defaulted', () => {
 });
 
 test('constants match the backend', () => {
-  const py = readFileSync(new URL('../../backend/app/tenancy.py', import.meta.url), 'utf8');
+  // Frontend-only Docker builds have no sibling backend/ tree; skip there.
+  // Monorepo / CI checkouts still pin cookie and header names against tenancy.py.
+  const path = new URL('../../backend/app/tenancy.py', import.meta.url);
+  let py;
+  try {
+    py = readFileSync(path, 'utf8');
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return;
+    throw err;
+  }
   assert.match(py, new RegExp(`TENANT_COOKIE = "${TENANT_COOKIE}"`));
   assert.match(py, new RegExp(`TENANT_HEADER = "${TENANT_HEADER.toLowerCase()}"`));
 });

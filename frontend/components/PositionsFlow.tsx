@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Boxes, Layers, ShieldAlert } from "lucide-react";
 import { Donut, StackedBars } from "@/components/Charts";
 import { EmptyState, KpiCard } from "@/components/UI";
-import { fmt } from "@/lib/format";
+import { fmt, timeIstDetail } from "@/lib/format";
 import { istTime } from "@/lib/journal-explore";
 import { flowKpis, flowTrend, instrumentFlow, segmentFlow } from "@/lib/positions-flow";
 
@@ -126,10 +126,10 @@ export default function PositionsFlow({ trades, note }: { trades: any; note?: st
               <div className="panel-head"><b>Recent Fills</b></div>
               {recent.length ? (
                 <table className="compact ref-table">
-                  <thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th className="num">Qty</th></tr></thead>
+                  <thead><tr><th>Date / Time</th><th>Symbol</th><th>Side</th><th className="num">Qty</th></tr></thead>
                   <tbody>
                     {recent.map((r) => (
-                      <tr key={r.trade_id}><td className="mono">{istTime(r.time)}</td><td>{r.symbol}</td><td className={r.side === "BUY" ? "text-green" : "text-red"}>{r.side}</td><td className="num">{fmt(r.qty)}</td></tr>
+                      <tr key={r.trade_id}><td className="mono">{timeIstDetail(r.time)}</td><td>{r.symbol}</td><td className={r.side === "BUY" ? "text-green" : "text-red"}>{r.side}</td><td className="num">{fmt(r.qty)}</td></tr>
                     ))}
                   </tbody>
                 </table>
