@@ -45,7 +45,7 @@ export default async function DashboardPage({
     getJSON('/api/files/queues?limit=1'),
     getJSON('/api/infra'),
     getJSON('/health/ready'),
-    getJSON('/api/sessions'),
+    getJSON(`/api/sessions?${qs}`),
     // Exchange connect events (masked projection); exchange:read, journal source.
     getJSON('/api/journal/explore?msg_type=yel_connected&limit=8'),
     getJSON('/api/freshness'),

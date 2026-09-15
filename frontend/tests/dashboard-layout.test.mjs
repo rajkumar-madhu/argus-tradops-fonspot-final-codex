@@ -16,6 +16,12 @@ test('Exchange Health uses the same query window as overview, orders and rejecti
   assert.doesNotMatch(page, /getJSON\('\/api\/exchanges'\)/);
 });
 
+test('dashboard renders the ops coach from loaded overview, rejections and sessions', () => {
+  assert.match(view, /deskBriefing\(/);
+  assert.match(view, /className="desk-briefing"/);
+  assert.match(page, /getJSON\(`\/api\/sessions\?\$\{qs\}`\)/);
+});
+
 test('CSV coverage is a quiet banner inside Mission Control, not above the page', () => {
   assert.doesNotMatch(page, /dashboard-source-strip/);
   assert.match(page, /fileSources=\{fileSources\}/);

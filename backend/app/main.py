@@ -546,14 +546,18 @@ def overview(
 
 
 @app.get("/api/sessions")
-def sessions(user=Depends(require("sessions:read"))):
+def sessions(
+    lookback: str | None = Query(None, pattern=LOOKBACK_QUERY_PATTERN),
+    day: str | None = Query(None, pattern=DAY_QUERY_PATTERN),
+    user=Depends(require("sessions:read")),
+):
     from app.journal_snapshot import journal_sessions as journal_sessions_data
 
     if _use_journal_data():
         return journal_sessions_data(_journal_path())
     if DEMO_MODE:
         return {"items":DEMO_SESSIONS,"count":len(DEMO_SESSIONS),"source":"demo"}
-    return _with_data_source(lambda: active_sessions(), lambda: journal_sessions_data(_journal_path()))
+    return _with_data_source(lambda: active_sessions(lookback=lookback, day=day), lambda: journal_sessions_data(_journal_path()))
 
 
 @app.get("/api/sessions/summary")

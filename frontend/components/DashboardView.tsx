@@ -7,7 +7,8 @@ import MissionControlTable from '@/components/MissionControlTable';
 import { AreaChart, Donut, HBarList } from '@/components/Charts';
 import { ApiErrorState, EmptyState, KpiCard } from '@/components/UI';
 import { apiError } from '@/lib/api-result';
-import { platformHealth } from '@/lib/command-center';
+import { clientImpact, platformHealth } from '@/lib/command-center';
+import { deskBriefing } from '@/lib/desk-briefing';
 import { orderTrendFromRows, statusDonutSlices } from '@/lib/dashboard-data';
 import { sourceBadgeText, sourceBadgeTone, sourceDisplayName } from '@/lib/data-source';
 import { fmt, journalWindowLabel } from '@/lib/format';
@@ -223,6 +224,52 @@ export default function DashboardView({
                 </div>
               );
             })}
+          </section>
+
+          <section className="desk-briefing" aria-label="Ops coach">
+            <div className="desk-briefing-intro">
+              <span className="desk-kicker">OPS COACH</span>
+              <h2>What to look at first</h2>
+              <p>
+                Ranked findings from the {lookback} window. Counts and rates only — not P&amp;L.
+                Each card opens the evidence page.
+              </p>
+            </div>
+            <div className="desk-briefing-items">
+              {deskBriefing({
+                total,
+                rejected,
+                open,
+                pending,
+                yelConnected: yel?.connected === true,
+                hasYelObservation:
+                  !apiError(yel) && yel?.connected !== null && yel?.connected !== undefined,
+                categories: apiError(rj) ? [] : rj.categories,
+                groups: apiError(rj) ? [] : groups,
+                brokers: apiError(od) ? [] : clientImpact(orders).rows,
+                activeSessions: apiError(sessions)
+                  ? null
+                  : (sessionSummary.active_sessions ??
+                    sessions?.active_count ??
+                    sessions?.count ??
+                    null),
+              }).map((item) => (
+                <Link
+                  key={`${item.href}-${item.title}`}
+                  href={item.href}
+                  className={`briefing-item ${item.tone}`}
+                >
+                  <i className="briefing-marker" aria-hidden />
+                  <span>
+                    <b>{item.title}</b>
+                    <small>{item.detail}</small>
+                  </span>
+                  <span className="briefing-arrow" aria-hidden>
+                    ›
+                  </span>
+                </Link>
+              ))}
+            </div>
           </section>
 
           <section className="ref-grid four mission-charts">
