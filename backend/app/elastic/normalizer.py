@@ -82,12 +82,78 @@ def mask_reason(value: Any) -> str:
 
 
 def _iso_from_unix(seconds: Any, nsecs: Any = 0) -> str:
+    # The fraction is applied as integer microseconds, not added as a float:
+    # at 2026-era epochs a float64 has only ~477ns of resolution left, enough to
+    # round the microsecond the wrong way.
     try:
         sec = int(seconds)
         ns = int(nsecs or 0)
-        dt = datetime.fromtimestamp(sec + ns / 1_000_000_000, tz=timezone.utc)
-        return dt.isoformat()
+        dt = datetime.fromtimestamp(sec + ns // 1_000_000_000, tz=timezone.utc)
+        return dt.replace(microsecond=(ns % 1_000_000_000) // 1_000).isoformat()
     except Exception:
+        return ""
+
+
+# Exchange time carries two epochs in the Noren journals, and ExchNsecs is NOT a
+# sub-second remainder like NorenNsecs -- it is a full nanosecond timestamp.
+# Measured over 1.65M ordupd rows of the supplied journals, every row's ExchNsecs
+# was explained by exactly one of two readings of its whole-second part, and none
+# by a third:
+#   * nanoseconds since the unix epoch        -- BSE, BFO, MCX (100% exact)
+#   * nanoseconds since 1980-01-01 00:00 IST  -- NSE, NFO, CDS
+# The offset below is that 1980 epoch expressed as a unix second, so adding it to
+# a 1980-epoch second yields a unix second.
+_EXCH_1980_IST_EPOCH = 315_532_800 - 19_800  # 1970->1980 span, less the 5h30m IST offset
+
+
+def _exchange_seconds(value: Any) -> int | None:
+    """ExchTimeStamp as a unix second, or None when the exchange never stamped it.
+
+    Events the exchange did not time -- exchange-side rejections among them --
+    carry the zero of the NSE-family epoch, 1980-01-01 00:00 IST, which is
+    315513000 as a unix second. Anything at or below that is absence, not a 1980
+    trade, and must not be rendered as a time.
+    """
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        return None
+    return seconds if seconds > _EXCH_1980_IST_EPOCH else None
+
+
+def _exchange_nanos(seconds: int, value: Any) -> int:
+    """Sub-second part of ExchNsecs, used only when it timestamps `seconds` itself.
+
+    Either epoch reading that reproduces `seconds` exactly establishes which
+    convention this row uses and makes the remainder that second's fraction; the
+    two readings are 10 years apart, so only one can ever match. When neither
+    matches, ExchNsecs is timing a different instant than ExchTimeStamp -- the
+    journals show it running up to an hour either side, tracking the current event
+    while ExchTimeStamp tracks OrgExchTime -- so no fraction is borrowed from it.
+    """
+    try:
+        nanos = int(value)
+    except (TypeError, ValueError):
+        return 0
+    if nanos <= 0:
+        return 0
+    whole, fraction = divmod(nanos, 1_000_000_000)
+    return fraction if seconds in (whole, whole + _EXCH_1980_IST_EPOCH) else 0
+
+
+def exchange_time(doc: dict[str, Any]) -> str:
+    """ISO exchange time; empty when the exchange did not stamp the event."""
+    seconds = _exchange_seconds(doc.get("ExchTimeStamp"))
+    if seconds is None:
+        return ""
+    nanos = _exchange_nanos(seconds, doc.get("ExchNsecs"))
+    try:
+        return (
+            datetime.fromtimestamp(seconds, tz=timezone.utc)
+            .replace(microsecond=nanos // 1_000)
+            .isoformat()
+        )
+    except (OverflowError, OSError, ValueError):
         return ""
 
 
@@ -296,7 +362,7 @@ def normalize_order(doc: dict[str, Any], *, mask_sensitive: bool = True) -> dict
         "time": _iso_from_unix(doc.get("NorenTimeStamp"), doc.get("NorenNsecs")),
         # Beats receive clock (Logstash leaves @timestamp alone); absent in journal files.
         "ingested_at": str(doc.get("@timestamp") or "") or None,
-        "exchange_time": _iso_from_unix(doc.get("ExchTimeStamp"), doc.get("ExchNsecs")),
+        "exchange_time": exchange_time(doc),
         "original_time": _iso_from_unix(doc.get("NorenOrgTimeStamp"), doc.get("NorenOrgNsecs")),
         "status": order_status(doc),
         "status_code": doc.get("OrdStatus"),
