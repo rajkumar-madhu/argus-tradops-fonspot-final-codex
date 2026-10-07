@@ -12691,3 +12691,10 @@ table tbody tr:hover {
 /* Keep the reference control sequence: date, presets, time range, Apply. */
 .latency-session-form .latency-presets { padding:0; flex:1 1 650px; }
 .latency-session-form .latency-presets .btn { flex:1; white-space:nowrap; }
+
+.latency-trend .grid-line { stroke:var(--border); stroke-dasharray:3 5; stroke-width:.6; }
+.latency-trend svg:focus-visible { outline:2px solid var(--signal); outline-offset:3px; border-radius:4px; }
+.latency-chart-readout { min-height:44px; display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; padding:10px 12px; border:1px solid var(--border); border-radius:5px; background:var(--surface-2); color:var(--muted); font:11px var(--f-mono); }
+.latency-chart-readout strong,.latency-chart-readout b { color:var(--ink); }
+.latency-chart-readout i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+@media(max-width:680px) { .latency-trend { overflow-x:auto; } .latency-trend svg { min-width:540px; } }
