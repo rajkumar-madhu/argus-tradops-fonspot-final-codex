@@ -331,7 +331,7 @@ export function LatencyHistogram({ bins, unit }: { bins: HistogramBin[]; unit: s
     const host = event.currentTarget.ownerSVGElement?.parentElement?.getBoundingClientRect();
     if (!host) return;
     const share = bin.share != null && Number.isFinite(bin.share) ? ` (${(bin.share * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })}%)` : '';
-    setTip({ ...place(event, host), title: bin.label, rows: [`${bin.count.toLocaleString('en-US')} orders${share}`] });
+    setTip({ ...place(event, host), title: bin.label, rows: [`${bin.count.toLocaleString('en-US')} samples${share}`] });
   };
   return (
     <div className="observed-chart tall">
@@ -342,7 +342,7 @@ export function LatencyHistogram({ bins, unit }: { bins: HistogramBin[]; unit: s
             <text className="axis-tick" x={LEFT - 8} y={y(tick) + 4} textAnchor="end">{tick.toLocaleString('en-US', { maximumFractionDigits: 0 })}</text>
           </g>
         ))}
-        <text className="axis-title" x={LEFT} y={16}>orders</text>
+        <text className="axis-title" x={LEFT} y={16}>samples</text>
         <text className="axis-title" x={RIGHT} y={BOTTOM + 32} textAnchor="end">{displayUnit(unit)}</text>
         {drawn.map((bin, index) => {
           const center = LEFT + slot * index + slot / 2;

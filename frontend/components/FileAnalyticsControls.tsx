@@ -50,8 +50,9 @@ export default function FileAnalyticsControls({
     <form
       className="grid-filters file-filters"
       onChange={(event) => {
-        const endInput = event.currentTarget.elements.namedItem('end') as HTMLInputElement;
-        endInput?.setCustomValidity('');
+        const elements = event.currentTarget.elements;
+        (elements.namedItem('end') as HTMLInputElement | null)?.setCustomValidity('');
+        (elements.namedItem('session_date') as HTMLInputElement | null)?.setCustomValidity('');
       }}
       onSubmit={(event) => {
         event.preventDefault();
@@ -62,6 +63,8 @@ export default function FileAnalyticsControls({
         if (keptStart) next.start = `${keptStart}Z`;
         if (keptEnd) next.end = `${keptEnd}Z`;
         const endInput = form.elements.namedItem('end') as HTMLInputElement;
+        const dateInput = form.elements.namedItem('session_date') as HTMLInputElement | null;
+        dateInput?.setCustomValidity('');
         endInput.setCustomValidity(next.start && next.end && next.start > next.end ? 'To must be after From.' : '');
         if (!form.reportValidity()) return;
         startTransition(() => router.push(`${base}?${fileQuery(next)}`));
@@ -99,6 +102,7 @@ export default function FileAnalyticsControls({
                 const dateInput = form.elements.namedItem('session_date') as HTMLInputElement;
                 const range = sessionRange(dateInput.value || pickedDate, window.id);
                 dateInput.setCustomValidity(range ? '' : 'Choose a session date.');
+                (form.elements.namedItem('end') as HTMLInputElement | null)?.setCustomValidity('');
                 if (!range || !form.reportValidity()) return;
                 const next = readForm(form, range);
                 startTransition(() => router.push(`${base}?${fileQuery(next)}`));

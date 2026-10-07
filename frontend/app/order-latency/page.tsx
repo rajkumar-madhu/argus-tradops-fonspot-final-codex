@@ -124,7 +124,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Fil
                 <div className="segment-card-head">
                   <div>
                     <b>{row.segment}</b>
-                    <span>{metric(row.count)} orders</span>
+                    <span>{metric(row.count)} events</span>
                   </div>
                   <div className="segment-card-meta">
                     <span>Max OMS <b>{withUnit(row.oms?.max, unit)}</b></span>
@@ -137,7 +137,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Fil
                   <div><dt>P99 OMS</dt><dd>{withUnit(row.oms?.p99, unit)}</dd></div>
                   <div><dt>Max OMS</dt><dd>{withUnit(row.oms?.max, unit)}</dd></div>
                   <div><dt>P50 confirmation</dt><dd>{withUnit(row.confirmation?.p50, unit)}</dd></div>
-                  <div><dt>Orders</dt><dd>{metric(row.count)}</dd></div>
+                  <div><dt>Events</dt><dd>{metric(row.count)}</dd></div>
                 </dl>
               </section>
             ))}
