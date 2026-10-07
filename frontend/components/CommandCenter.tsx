@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Database, ShieldAlert, Users } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ShieldAlert, Users } from "lucide-react";
 import { MiniBars } from "@/components/Charts";
 import { EmptyState } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
@@ -211,14 +211,7 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
           detail={badge.detail}
           foot={freshnessFoot}
         />
-        <Tile
-          label="Sources"
-          tone={chips.length && chipsReady === chips.length ? "ok" : chipsReady ? "warn" : "idle"}
-          icon={<Database size={22} />}
-          value={`${chipsReady} / ${chips.length}`}
-          detail="Sources ingested and ready"
-          foot={chips.length - chipsReady ? `${chips.length - chipsReady} without data` : "All sources ready"}
-        />
+
       </div>
 
       <div className="panel cc-rail">

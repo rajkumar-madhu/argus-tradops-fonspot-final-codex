@@ -58,8 +58,6 @@ export default async function DashboardPage({
         yel={yel}
         fileSources={fileSources}
         sessions={sessions}
-        infra={infra}
-        ready={ready}
         yelRecords={yelRecords}
         detail={
           <CommandCenter

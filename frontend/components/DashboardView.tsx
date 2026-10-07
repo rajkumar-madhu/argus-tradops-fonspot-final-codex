@@ -7,7 +7,6 @@ import MissionControlTable from "@/components/MissionControlTable";
 import { AreaChart, Donut, HBarList } from "@/components/Charts";
 import { ApiErrorState, EmptyState, KpiCard } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
-import { platformHealth } from "@/lib/command-center";
 import { orderTrendFromRows, statusDonutSlices } from "@/lib/dashboard-data";
 import { sourceBadgeText, sourceBadgeTone, sourceDisplayName } from "@/lib/data-source";
 import { fmt, journalWindowLabel } from "@/lib/format";
@@ -23,8 +22,6 @@ export type DashboardPayload = {
   yel: any;
   fileSources?: unknown;
   sessions?: any;
-  infra?: any;
-  ready?: any;
   yelRecords?: any;
   /** Rendered after the reference layout (the Command Center detail section). */
   detail?: ReactNode;
@@ -54,8 +51,6 @@ export default function DashboardView({
   yel,
   fileSources,
   sessions,
-  infra,
-  ready,
   yelRecords,
   detail,
 }: DashboardPayload) {
@@ -83,7 +78,6 @@ export default function DashboardView({
   const donutSlices = statusDonutSlices({ total, complete, rejected, open, pending });
   const maxReason = Math.max(1, ...groups.map((g) => Number(g.count || 0)));
   const lastByExchange = lastEventByExchange(orders);
-  const health = apiError(infra) ? null : platformHealth(infra, ready);
   const sessionRows: any[] = (sessions?.items || []).filter((s: any) => s.event === "login").slice(0, 5);
   const yelRows: any[] = (yelRecords?.items || []).slice(0, 5);
 
@@ -213,7 +207,7 @@ export default function DashboardView({
             <MissionControlTable initial={od} source={source} lookback={lookback} />
           )}
 
-          <section className="ref-grid four">
+          <section className="ref-grid three">
             <div className="panel">
               <div className="panel-head"><b>Network Bandwidth (WAN)</b></div>
               <EmptyState title="No bandwidth source" body="Set PROMETHEUS_URL with node-exporter to chart interface throughput." />
@@ -263,18 +257,7 @@ export default function DashboardView({
                 <EmptyState title="No sessions" body="No login events are available to this role or source." />
               )}
             </div>
-            <div className="panel">
-              <div className="panel-head"><b>System Health</b><Link href="/infra">Infrastructure ›</Link></div>
-              {health ? (
-                <ul className="ref-health">
-                  {health.map((h) => (
-                    <li key={h.name}><span>{h.name}</span><span className={`cc-pill cc-${h.tone}`}>{h.state}</span></li>
-                  ))}
-                </ul>
-              ) : (
-                <EmptyState title="Health not available" body="Dependency status needs infrastructure access." />
-              )}
-            </div>
+
           </section>
 
           {fileStrip && (
