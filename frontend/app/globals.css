@@ -12687,3 +12687,7 @@ table tbody tr:hover {
 .order-details-body { overflow:auto; padding:20px; }
 .order-details-body .order-evidence-grid { margin-top:0; }
 @media(max-width:680px) { .order-details-backdrop { padding:8px; } .order-details-modal { max-height:95dvh; } .order-details-modal > header,.order-details-body { padding:12px; } .order-details-modal h2 { font-size:22px; } }
+
+/* Keep the reference control sequence: date, presets, time range, Apply. */
+.latency-session-form .latency-presets { padding:0; flex:1 1 650px; }
+.latency-session-form .latency-presets .btn { flex:1; white-space:nowrap; }
