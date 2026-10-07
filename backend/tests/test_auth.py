@@ -289,6 +289,7 @@ class FrontendParityTests(unittest.TestCase):
 
     ROUTE_PERMISSIONS = {
         "/dashboard": "dashboard:read",
+        "/calendar": "dashboard:read",
         "/orders": "orders:read",
         "/order-book": "orders:read",
         "/trades": "trades:read",

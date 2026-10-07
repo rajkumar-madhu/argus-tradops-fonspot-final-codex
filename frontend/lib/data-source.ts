@@ -1,7 +1,7 @@
 /** UI labels for API `source` fields — never surface the word "demo" to operators. */
 
 export function isSnapshotSource(source?: string | null): boolean {
-  return source === "demo" || source === "csv snapshot" || source === "journal snapshot";
+  return source === "demo" || (source === "csv snapshot" || source === "analytics database") || source === "journal snapshot";
 }
 
 export function isJournalSource(source?: string | null): boolean {
@@ -9,7 +9,7 @@ export function isJournalSource(source?: string | null): boolean {
 }
 
 export function sourceBadgeText(source?: string | null, connected = true): string {
-  if (isJournalSource(source) || source === "csv snapshot") return "FILE-BASED";
+  if (isJournalSource(source) || (source === "csv snapshot" || source === "analytics database")) return "FILE-BASED";
   if (source === "demo") return "OFFLINE";
   if (!connected) return "OFFLINE";
   // No source means the API did not answer, or answered without naming one.
@@ -23,7 +23,7 @@ export function sourceBadgeTone(
   source?: string | null,
   connected = true,
 ): "file-based" | "live" | "warn" {
-  if (isJournalSource(source) || source === "csv snapshot") return "file-based";
+  if (isJournalSource(source) || (source === "csv snapshot" || source === "analytics database")) return "file-based";
   if (source === "demo" || !connected || !source) return "warn";
   return "live";
 }
@@ -31,6 +31,7 @@ export function sourceBadgeTone(
 /** Operator-facing label for the data source field (never "demo"). */
 export function sourceDisplayName(source?: string | null): string {
   if (isJournalSource(source)) return "Journal file";
+  if (source === "analytics database") return "Analytics database · daily batch";
   if (source === "csv snapshot") return "CSV snapshot";
   if (source === "demo") return "Offline";
   if (source === "unconfigured") return "Not configured";
@@ -40,7 +41,7 @@ export function sourceDisplayName(source?: string | null): string {
 
 export function hasLiveMarketFeed(source?: string | null, symbolCount = 0): boolean {
   if (!symbolCount) return false;
-  if (!source || source === "demo" || source === "csv snapshot" || source === "journal snapshot" || source === "unconfigured") {
+  if (!source || source === "demo" || (source === "csv snapshot" || source === "analytics database") || source === "journal snapshot" || source === "unconfigured") {
     return false;
   }
   return true;

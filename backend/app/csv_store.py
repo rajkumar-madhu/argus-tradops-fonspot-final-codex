@@ -64,11 +64,11 @@ class Distribution:
         if v is not None: self.values.append(v)
     def finalize(self):
         v=sorted(self.values);n=len(v)
-        return json.dumps({'samples':n, **{f'p{p}':v[max(0,math.ceil(p/100*n)-1)] if n else None for p in (50,90,95,99)},'max':v[-1] if n else None})
+        return json.dumps({'samples':n, **{f'p{p}':v[max(0,math.ceil(p/100*n)-1)] if n else None for p in (50,90,95,99)},'mean':sum(v)/n if n else None,'max':v[-1] if n else None})
 
 
 def empty_distribution():
-    return {'samples':0,'p50':None,'p90':None,'p95':None,'p99':None,'max':None}
+    return {'samples':0,'p50':None,'p90':None,'p95':None,'p99':None,'mean':None,'max':None}
 
 
 def file_kind(name):
@@ -363,14 +363,26 @@ class CsvStore:
             items=[self._row(r) for r in db.execute(f'SELECT * FROM events WHERE {where} ORDER BY {sort} IS NULL,{sort} {direction},file,row_number LIMIT ? OFFSET ?',args+[limit,offset])]
             segments=[dict(r) for r in db.execute(f'SELECT segment,count(*) AS count,distribution(oms) AS oms,distribution(confirmation) AS confirmation FROM events WHERE {where} GROUP BY segment ORDER BY segment',args)]
             bounds=db.execute(f'SELECT min(event_time),max(event_time) FROM events WHERE {where}',args).fetchone()
-            width=max(60,math.ceil(((bounds[1] or 0)-(bounds[0] or 0))/180))
-            trend=[{'time':iso(r['t']),'count':r['n'],'oms':r['oms'],'confirmation':r['confirmation']} for r in db.execute(f'SELECT cast(event_time / ? AS INTEGER)*? AS t,count(*) AS n,avg(oms) AS oms,avg(confirmation) AS confirmation FROM events WHERE {where} GROUP BY t ORDER BY t',[width,width]+args)]
+            width=max(60,math.ceil(((bounds[1] or 0)-(bounds[0] or 0))/600))
+            trend=[{'time':iso(r['t']),'count':r['n'],'oms':r['oms'],'confirmation':r['confirmation'],'oms_stats':json.loads(r['oms_stats']) if r['oms_stats'] else empty_distribution(),'confirmation_stats':json.loads(r['confirmation_stats']) if r['confirmation_stats'] else empty_distribution()} for r in db.execute(f'SELECT cast(event_time / ? AS INTEGER)*? AS t,count(*) AS n,avg(oms) AS oms,avg(confirmation) AS confirmation,distribution(oms) AS oms_stats,distribution(confirmation) AS confirmation_stats FROM events WHERE {where} GROUP BY t ORDER BY t',[width,width]+args)]
+            scale={'us':1,'ms':0.001,'s':0.000001}.get(self.unit,1)
+            edges=[0,50,100,150,200,300,500,1000,5000]
+            clauses=[];edge_args=[]
+            for i,lo in enumerate(edges):
+                hi=edges[i+1] if i+1<len(edges) else None
+                condition='oms >= ?'+(' AND oms < ?' if hi is not None else '')
+                clauses.append(f'coalesce(sum(CASE WHEN {condition} THEN 1 ELSE 0 END),0)')
+                edge_args.extend([lo*scale]+([hi*scale] if hi is not None else []))
+            counts=db.execute(f'SELECT {",".join(clauses)} FROM events WHERE {where}',edge_args+args).fetchone()
+            histogram=[{'lower':lo*scale,'upper':edges[i+1]*scale if i+1<len(edges) else None,'count':counts[i]} for i,lo in enumerate(edges)]
+            # Trade-date choices use IST rather than the UTC date around midnight.
+            dates=[r[0] for r in db.execute("SELECT DISTINCT date(event_time,'unixepoch','+5 hours','+30 minutes') FROM events WHERE kind='latency' ORDER BY 1 DESC")]
             choices={name:[r[0] for r in db.execute(f'SELECT DISTINCT {name} FROM events WHERE kind=? ORDER BY {name}',('latency',))] for name in ('segment','status')}
         for seg in segments:
             for key in ('oms','confirmation'):seg[key]=json.loads(seg[key]) if seg[key] else empty_distribution()
         return {'source':'csv snapshot','unit':self.unit,'count':summary['count'],'unique_orders':summary['unique_orders'],'items':items,
                 'summary':{k:json.loads(summary[k]) if summary[k] else empty_distribution() for k in ('oms','confirmation')},
-                'by_segment':segments,'trend':trend,'bucket_seconds':width,'choices':choices,'limit':limit,'offset':offset,
+                'by_segment':segments,'histogram':histogram,'trade_dates':dates,'trend':trend,'bucket_seconds':width,'choices':choices,'limit':limit,'offset':offset,
                 'note':'Events, not unique orders. Timing samples include valid zero values. Missing status is unavailable; duration units require a confirmed feed contract.'}
 
     @staticmethod
@@ -429,7 +441,8 @@ class CsvStore:
                                 # A daily batch file is never "stale" by wall clock; its day is its freshness.
                                 'freshness':'Daily batch' if row['last'] else 'No data received',
                                 'trend':trend,'bucket_seconds':width,'identical_content_to':f.get('identical_content_to')})
-        return {'source':'csv snapshot','sources':sources,'count':sum(s['samples'] for s in sources),'unit':'messages',
+            dates=[r[0] for r in db.execute("SELECT DISTINCT date(event_time,'unixepoch','+5 hours','+30 minutes') FROM events WHERE kind='queue' ORDER BY 1 DESC")]
+        return {'source':'csv snapshot','trade_dates':dates,'sources':sources,'count':sum(s['samples'] for s in sources),'unit':'messages',
                 'note':'One row per processed message carrying the pending depth at that moment. A backlog episode runs from the first pending message until the queue empties (depth <= 1); rises inside an episode are arrivals during the drain. Reported depths are episode peaks, never averages. Instance aliases remain separate; do not sum across possibly duplicated files.'}
 
     def export_rows(self,kind,sort='event_time',direction='asc',**filters):

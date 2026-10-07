@@ -265,7 +265,7 @@ export default function MissionControlTable({
             {paused ? <Play size={14} /> : <Pause size={14} />}
             {paused ? "Resume" : "Pause"}
           </button>
-          <Link href="/orders">Full Live Orders ›</Link>
+          <Link href="/orders">Full Order Details ›</Link>
         </div>
       </div>
 

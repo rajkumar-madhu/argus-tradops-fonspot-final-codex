@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmt, orderPriceText, timeIstDetail } from '@/lib/format';
 import { istTime, lifecycleSteps } from '@/lib/journal-explore';
 import { apiUrl } from '@/lib/runtime';
@@ -11,6 +11,7 @@ import {
   type OrderJournalFieldValues,
 } from '@/lib/order-journal-fields';
 import { Activity, Check, CheckCheck, ClipboardList, Clock3, ListChecks, Pause, Play, X, XCircle } from 'lucide-react';
+import OrderDetailsModal from '@/components/OrderDetailsModal';
 import { DataTable, KpiCard } from '@/components/UI';
 function Status({ value }: { value: string }) {
   return <span className={`order-status ${String(value || '').toLowerCase()}`}>{value}</span>;
@@ -47,11 +48,13 @@ function mergeOrder(prev: any, incoming: any) {
 export default function LiveOrders({
   initial,
   snapshot = false,
+  calendarScope = false,
   requestedOrder,
   overview,
 }: {
   initial: any;
   snapshot?: boolean;
+  calendarScope?: boolean;
   requestedOrder?: string;
   /** /api/overview totals; null when unavailable to this role or source. */
   overview?: any;
@@ -67,6 +70,9 @@ export default function LiveOrders({
   const [selectedId, setSelectedId] = useState<string>(
     requestedOrder || initial?.items?.[0]?.order_id || '',
   );
+  const [detailOpen, setDetailOpen] = useState(Boolean(requestedOrder));
+  const closeDetails = useCallback(() => setDetailOpen(false), []);
+  const showDetails = (id: string) => { setSelectedId(id); setDetailOpen(true); };
   const [events, setEvents] = useState<any[]>([]);
   const [evidenceState, setEvidenceState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [evidenceRetry, setEvidenceRetry] = useState(0);
@@ -74,9 +80,9 @@ export default function LiveOrders({
   // A journal file served through the API route (TRADEOPS_JOURNAL_PRIMARY) is as
   // historical as the ?source=journal tab: there is no stream to open or pause.
   const fileSource = snapshot || initial?.source === 'journal snapshot';
-  const offline = fileSource || initial?.source === 'demo';
+  const offline = calendarScope || fileSource || initial?.source === 'demo';
   useEffect(() => {
-    if (requestedOrder) setSelectedId(requestedOrder);
+    if (requestedOrder) { setSelectedId(requestedOrder); setDetailOpen(true); }
   }, [requestedOrder]);
 
   useEffect(() => {
@@ -128,7 +134,7 @@ export default function LiveOrders({
     if (!selectedId && rows[0]) setSelectedId(rows[0].order_id);
   }, [rows, selectedId]);
   useEffect(() => {
-    if (!selectedId) {
+    if (!selectedId || !detailOpen) {
       setEvents([]);
       setEvidenceState('ready');
       return;
@@ -159,7 +165,7 @@ export default function LiveOrders({
         if (!controller.signal.aborted) setEvidenceState('error');
       });
     return () => controller.abort();
-  }, [selectedId, selected.time, selected.status, selected.filled_qty, snapshot, evidenceRetry]);
+  }, [detailOpen, selectedId, selected.time, selected.status, selected.filled_qty, snapshot, evidenceRetry]);
 
   return (
     <>
@@ -172,7 +178,7 @@ export default function LiveOrders({
           icon={<ClipboardList size={18} />}
         />
         <KpiCard
-          label="Live Orders"
+          label="Open Orders"
           value={fmt(liveCount)}
           delta={overview ? 'Latest status open' : 'Open in loaded rows'}
           tone="green"
@@ -252,10 +258,10 @@ export default function LiveOrders({
           selectedId={selectedId}
           rows={rows}
           rowKey={(r) => r.order_id}
-          onRowClick={(r) => setSelectedId(r.order_id)}
+          onRowClick={(r) => showDetails(r.order_id)}
           columns={[
             { key: 'time', label: 'Date / Time (IST)', render: (r) => timeIstDetail(r.time) },
-            { key: 'order_id', label: 'Order' },
+            { key: 'order_id', label: 'Order', render: (r) => <button className="order-details-link" aria-label={`Order details ${r.order_id}`} onClick={(event) => { event.stopPropagation(); showDetails(r.order_id); }}>{r.order_id}</button> },
             { key: 'account', label: 'Account' },
             { key: 'user', label: 'User' },
             { key: 'broker', label: 'Broker' },
@@ -276,6 +282,7 @@ export default function LiveOrders({
           ]}
         />
       </section>
+      <OrderDetailsModal open={detailOpen} orderId={selectedId} onClose={closeDetails}>
       <section className="order-evidence-grid" aria-label="Order investigation">
         <section className="panel order-detail">
           <div className="panel-head">
@@ -484,6 +491,7 @@ export default function LiveOrders({
           </table>
         </div>
       </details>
+      </OrderDetailsModal>
     </>
   );
 }

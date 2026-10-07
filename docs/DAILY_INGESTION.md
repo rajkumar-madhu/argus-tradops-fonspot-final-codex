@@ -90,3 +90,49 @@ duration and throughput. The mean of the raw column is never shown.
 Between 09:00 and ~18:25 IST the newest complete day is D-1. UI freshness for
 these feeds is "as of the last completed batch", never wall-clock age of the
 last event — a 300-second stale rule would flag every row all day.
+
+## Database to API to dashboard
+
+Set `ANALYTICS_READ_DB_HOST`, `ANALYTICS_READ_DB_PORT`, `ANALYTICS_READ_DB_NAME`,
+`ANALYTICS_READ_DB_USER` and `ANALYTICS_READ_DB_PASSWORD` on the API. The reader
+account needs **SELECT only** on `order_latency`, `queue_line1` and `queue_line2`.
+Keep importer credentials (`ANALYTICS_DB_*`) separate. Optional
+`ANALYTICS_READ_DB_SSL_CA` enables certificate and hostname verification.
+
+The flow is CSV → `scripts/latency_ingest.py` → MySQL analytics → authenticated
+`/api/files/latency` and `/api/files/queues` → dashboard. Source columns are
+allowlisted; tokens and remarks are not returned. The API starts read-only
+repeatable-read transactions. It retains at most eight private normalized
+snapshots for five minutes so pagination, charts and export share the existing
+verified query contract without reparsing CSV or changing MySQL data. Default
+queries select each table's latest imported date. Explicit time bounds select
+history. More than `TRADEOPS_CSV_MAX_ROWS` selected rows returns 503 rather than
+an incomplete percentile. Narrow the date range in that case. Refresh latency
+is at most five minutes after a committed import; this is daily batch data.
+Database outages return an explicit error, never a silent file fallback.
+
+Access is confined to the default tenant. Other customers require independently
+scoped data sources; no global analytics data is exposed through their tenant
+selection. Keep the existing file-cache configuration by leaving
+`ANALYTICS_READ_DB_HOST` empty.
+
+For a new empty database, a schema administrator can apply
+`scripts/analytics-schema.sql` before ingestion. It is not run by the API or
+added to the incident/RCA Alembic migrations. Existing customer tables are not
+altered. The importer creates only its existing `ingestion_runs` ledger.
+
+`--dry-run` now parses and counts without connecting to a database or creating
+tables. Example:
+
+```bash
+TRADEOPS_CSV_DIR=/path/to/dedicated/csv-directory \
+QUEUE_INSTANCE_LINES="NSE-5864=1,NSE-2729=2" \
+python3 scripts/latency_ingest.py --dry-run
+```
+
+Dated latency names may use `ORDERLATENCY_08-Sep-2026.csv` or
+`orderlatency-08-sep-2026.csv`. Preserve originals. Queue mappings remain
+operator-provided. The driver is pinned from the
+[official MySQL Connector/Python package](https://pypi.org/project/mysql-connector-python/).
+
+The legacy queue tables retain exchange segment and line, but not the original OMS instance identifier. The database UI therefore labels series by segment/line; distinct original instances cannot be reconstructed from those tables. The direct CSV source retains filename-derived instance labels.

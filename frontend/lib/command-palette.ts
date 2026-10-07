@@ -17,6 +17,7 @@ export type PaletteCommand = {
 
 /** Words an operator types that are not in a route's label. */
 export const ROUTE_KEYWORDS: Record<string, string[]> = {
+  "/calendar": ["calendar", "daily", "date", "operational", "timeline"],
   "/dashboard": ["home", "mission control", "summary", "kpi"],
   "/orders": ["ordupd", "order flow", "oms"],
   "/order-book": ["book", "open orders"],
@@ -78,7 +79,7 @@ export type PaletteOptions = {
 };
 
 /**
- * Builds the ordered command list. An order number offers RCA and Live Orders
+ * Builds the ordered command list. An order number offers RCA and Order Details
  * lookups first; any other text offers a journal search after the route hits.
  * With no query, recent routes lead, followed by every visible route.
  */
@@ -104,7 +105,7 @@ export function paletteCommands({ query, routes, visible = () => true, recent = 
   if (ORDER_NUMBER.test(q)) {
     const enc = encodeURIComponent(q);
     if (visible("/rca")) out.push({ id: "order:rca", kind: "order", label: `Trace order ${q}`, hint: "RCA & Analysis", href: `/rca?order_id=${enc}` });
-    if (visible("/orders")) out.push({ id: "order:live", kind: "order", label: `Find order ${q}`, hint: "Live Orders", href: `/orders?order=${enc}` });
+    if (visible("/orders")) out.push({ id: "order:live", kind: "order", label: `Find order ${q}`, hint: "Order Details", href: `/orders?order=${enc}` });
   }
 
   out.push(

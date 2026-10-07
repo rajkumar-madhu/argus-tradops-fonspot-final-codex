@@ -7,15 +7,19 @@ from fastapi.responses import StreamingResponse
 from app.auth import require
 from app.config import settings
 from app.file_analytics import FileAnalytics
+from app.analytics_database import AnalyticsDatabase, configured as database_configured
 
 LOG = logging.getLogger('tradeops.file_routes')
 
 router=APIRouter(prefix='/api/files',tags=['File analytics'])
-_store: FileAnalytics | None = None
+_store: FileAnalytics | AnalyticsDatabase | None = None
 
 
 def initialize():
     global _store
+    if database_configured():
+        _store = AnalyticsDatabase(unit=settings.csv_latency_unit, max_rows=settings.csv_max_rows)
+        return
     if settings.csv_dir:
         _store=FileAnalytics(settings.csv_cache_path,settings.csv_dir,max_bytes=settings.csv_max_bytes,unit=settings.csv_latency_unit,max_rows=settings.csv_max_rows)
         from app.metrics import CSV_LAST_IMPORT, CSV_QUEUE_LAST_EVENT, CSV_QUEUE_HAS_DATA

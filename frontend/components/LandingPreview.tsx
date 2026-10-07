@@ -1,4 +1,4 @@
-const NAV = ["Dashboard", "Live Orders", "Order Book", "Positions", "Rejections", "RCA & Analysis", "Exchange Health", "Users & Sessions", "Infrastructure", "Alerts & Incidents"];
+const NAV = ["Dashboard", "Order Details", "Order Book", "Positions", "Rejections", "RCA & Analysis", "Exchange Health", "Users & Sessions", "Infrastructure", "Alerts & Incidents"];
 const KPIS = ["Total Orders", "Complete", "Rejected", "Open / Pending", "Reject Rate"];
 const PANELS = ["Order flow", "Orders by exchange", "Platform health"];
 const COLUMNS = ["Time", "Symbol", "Side", "Qty", "Price", "Status"];
@@ -33,7 +33,7 @@ export default function LandingPreview() {
           ))}
         </div>
         <div className="preview-card preview-table">
-          <b>Live Orders</b>
+          <b>Order Details</b>
           <table>
             <thead><tr>{COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr></thead>
             <tbody>

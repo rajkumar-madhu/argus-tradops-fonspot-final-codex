@@ -59,7 +59,7 @@ const render = (props = {}) =>
   );
 
 test('feed precedes three investigation panels and secondary disclosures start closed', () => {
-  const html = render({ snapshot: true });
+  const html = render({ snapshot: true, requestedOrder: 'ORDER-1' });
   assert.ok(html.indexOf('Order Feed') < html.indexOf('aria-label="Order investigation"'));
   const investigation = html.slice(
     html.indexOf('aria-label="Order investigation"'),
@@ -78,7 +78,7 @@ test('six reference KPI tiles count loaded rows when no overview totals are supp
   assert.equal((html.match(/class="kpi-card"/g) || []).length, 6);
   for (const [label, value] of [
     ['Total Orders', 4],
-    ['Live Orders', 1],
+    ['Open Orders', 1],
     ['Executed', 1],
     ['Rejected', 1],
     ['Pending', 1],
@@ -97,7 +97,7 @@ test('overview totals, when supplied, drive the tiles and are labelled as source
 });
 
 test('feed header owns pause control and retains real account/product/type/fill columns', () => {
-  const html = render();
+  const html = render({requestedOrder: 'ORDER-1'});
   assert.match(html, /Order Feed[\s\S]*Pause updates[\s\S]*class="data-explorer"/);
   for (const value of [
     'Account',
@@ -143,4 +143,14 @@ test('feed prices use the segment scale and label an unverified one', () => {
   });
   assert.ok(html.includes('94.8825'));
   assert.ok(html.includes('554500 raw · unverified scale'));
+});
+
+test('order evidence stays in a closed pop-out until an order is requested', () => {
+  const closed=render();
+  assert.doesNotMatch(closed,/role="dialog"/);
+  assert.match(closed,/aria-label="Order details ORDER-1"/);
+  const opened=render({requestedOrder:'ORDER-1'});
+  assert.match(opened,/role="dialog" aria-modal="true"/);
+  assert.match(opened,/Close order details/);
+  assert.match(opened,/AC\*\*\*12/);
 });

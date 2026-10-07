@@ -19,7 +19,7 @@ test('role filtering hides routes the token cannot see', () => {
 
 test('filtering matches case-insensitively and reports per-group hit counts', () => {
   const r = buildNav({ query: '  ORDER  ' });
-  assert.deepEqual(labels(r, 'Desk'), ['Live Orders', 'Order Book']);
+  assert.deepEqual(labels(r, 'Desk'), ['Order Details', 'Order Book']);
   assert.equal(r.groups.find(g => g.label === 'Desk').matchCount, 2);
   assert.equal(r.noMatches, false);
 });
@@ -40,7 +40,7 @@ test('a collapsed group hides its rows but reports how many', () => {
   const r = buildNav({ closed: { Desk: true } });
   const desk = r.groups.find(g => g.label === 'Desk');
   assert.deepEqual(desk.items, []);
-  assert.equal(desk.hiddenCount, 6);
+  assert.equal(desk.hiddenCount, 7);
   assert.equal(desk.open, false);
 });
 

@@ -10,6 +10,8 @@ The application remains read-only toward trading systems and original data. Jour
 
 Only configured source directories are scanned. No upload, arbitrary file-path, SQL, or reingestion HTTP endpoint is exposed. Symlinks are rejected, file opens use O_NOFOLLOW where supported, rows/fields/files are bounded, and malformed file errors never return exception details. Cache files have owner-only permissions. Mount only a dedicated CSV directory in containers, never the repository or credentials directory.
 
+An optional existing MySQL analytics database is supported through `analytics_database.py`: the Python daily importer owns writes; the API uses a separate SELECT-only account and bounded private SQLite snapshots. See [DAILY_INGESTION.md](DAILY_INGESTION.md) for setup. Original CSVs and trading systems remain read-only to the API.
+
 ## Source contracts
 
 | Source | Verified columns / interpretation |
@@ -35,7 +37,7 @@ The source importer script establishes UNIX seconds and Asia/Kolkata presentatio
 
 Numeric timestamp magnitudes normalize supported seconds/milliseconds/microseconds/nanoseconds to epoch seconds. Values must land between 2000 and 2100. Textual IST timestamps are parsed in Asia/Kolkata. Naive ISO strings are rejected; time-filter parameters require offsets. UI and exports label UTC. Converted source timestamp discrepancies are counted. Queue size is a non-negative whole number of entries.
 
-The latency chart shows **mean values per observed adaptive time bucket**, not a percentile history. Distribution cards show exact percentiles. Queue trends show peak per bucket; latest is selected by event time and insertion/source order for equal timestamps. Samples above the filtered source p99 are labelled statistical anomalies, not incident alerts. Snapshot age is based on the last event, not import time; after five minutes a queue snapshot is marked stale. Empty files say **No data received**, with no invented zero latest/peak.
+The latency charts show **p50, mean and maximum values per observed adaptive time bucket**. Chart axes and session controls use IST; evidence tables retain UTC. Distribution cards show exact percentiles. Queue trends show peak per bucket; latest is selected by event time and insertion/source order for equal timestamps. Samples above the filtered source p99 are labelled statistical anomalies, not incident alerts. Snapshot age is based on the last event, not import time; after five minutes a queue snapshot is marked stale. Empty files say **No data received**, with no invented zero latest/peak.
 
 ## Configuration
 

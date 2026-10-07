@@ -1,10 +1,10 @@
 export type TradeOpsRole = "super_admin" | "trading_ops" | "risk" | "infra_sre" | "auditor";
 export const ROLE_ROUTES: Record<TradeOpsRole, string[]> = {
   super_admin: ["*"],
-  trading_ops: ["/data-quality","/dashboard","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/logs","/order-latency","/queue-monitor"],
-  risk: ["/data-quality","/dashboard","/positions","/holdings","/rejections","/rca","/market-data","/risk"],
-  infra_sre: ["/data-quality","/dashboard","/exchange","/sessions","/infra","/logs","/incidents","/rca","/order-latency","/queue-monitor"],
-  auditor: ["/data-quality","/dashboard","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/risk","/infra","/logs","/incidents","/reports","/order-latency","/queue-monitor"],
+  trading_ops: ["/data-quality","/dashboard","/calendar","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/logs","/order-latency","/queue-monitor"],
+  risk: ["/data-quality","/dashboard","/calendar","/positions","/holdings","/rejections","/rca","/market-data","/risk"],
+  infra_sre: ["/data-quality","/dashboard","/calendar","/exchange","/sessions","/infra","/logs","/incidents","/rca","/order-latency","/queue-monitor"],
+  auditor: ["/data-quality","/dashboard","/calendar","/orders","/order-book","/trades","/positions","/holdings","/rejections","/rca","/market-data","/exchange","/sessions","/risk","/infra","/logs","/incidents","/reports","/order-latency","/queue-monitor"],
 };
 export function canSee(path: string, roles: string[]) {
   return roles.some(r => ROLE_ROUTES[r as TradeOpsRole]?.includes("*") || ROLE_ROUTES[r as TradeOpsRole]?.includes(path));

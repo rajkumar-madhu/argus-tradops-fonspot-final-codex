@@ -51,12 +51,13 @@ from app.elastic.noren_service import (
     incident_candidates,
 )
 
-from app import file_routes, journal_routes
+from app import file_routes, journal_routes, calendar_routes
 
 # tenancy.bind_request_tenant is async and app-wide on purpose: see app/tenancy.py.
 app = FastAPI(title="Argus TradeOps API", version="1.1.0", dependencies=[Depends(tenancy.bind_request_tenant)])
 app.include_router(file_routes.router)
 app.include_router(journal_routes.router)
+app.include_router(calendar_routes.router)
 from app import tenant_routes  # noqa: E402
 app.include_router(tenant_routes.router)
 if settings.metrics_enabled:
@@ -437,6 +438,7 @@ def health():
         "uptime_seconds": round(time.time() - _STARTED_AT, 1),
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
+        "analytics_database_configured": file_routes.database_configured() and tenancy.current_id() == tenancy.DEFAULT_ID,
         "csv_configured": bool(settings.csv_dir),
         "journal_primary": settings.journal_primary,
         "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),
@@ -969,6 +971,7 @@ def runtime_config(user=Depends(require("dashboard:read"))):
         "multi_tenant": tenancy.enabled(),
         "demo_mode": DEMO_MODE,
         "journal_path": bool(_journal_path()),
+        "analytics_database_configured": file_routes.database_configured() and tenancy.current_id() == tenancy.DEFAULT_ID,
         "csv_configured": bool(settings.csv_dir) and tenancy.current_id() == tenancy.DEFAULT_ID,
         "journal_primary": tenancy.current().journal_primary,
         "data_source": "journal snapshot" if _use_journal_data() else ("demo" if DEMO_MODE else "elasticsearch"),

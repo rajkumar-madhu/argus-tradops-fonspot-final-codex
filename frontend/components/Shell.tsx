@@ -16,14 +16,14 @@ import { buildNav, NAV_GROUPS, togglePinned } from "@/lib/nav-model";
 import { SIGNAL_ROUTES, formatSignal, hasSignal, parseSignalCount, type NavSignals } from "@/lib/nav-signals";
 import { sourceChip, type SourceChip } from "@/lib/data-source";
 import {
-  Activity, AlertTriangle, BarChart3, Bell, BookOpenCheck, Boxes, Building2, ChevronLeft,
+  Activity, AlertTriangle, BarChart3, CalendarDays, Bell, BookOpenCheck, Boxes, Building2, ChevronLeft,
   ChevronRight, CircleDollarSign, ClipboardList, FileText, Gauge, HelpCircle, Layers3, LineChart,
   Lock, Network, Pin, Search, Server, Settings, ShieldCheck, Timer, Users, WalletCards, Menu,
 } from "lucide-react";
 
 /** `lib/nav-model` is React-free so it can be unit tested; icons are bound here. */
 const ICONS: Record<string, typeof BarChart3> = {
-  Activity, AlertTriangle, BarChart3, BookOpenCheck, Boxes, Building2, CircleDollarSign, ClipboardList,
+  Activity, AlertTriangle, BarChart3, CalendarDays, BookOpenCheck, Boxes, Building2, CircleDollarSign, ClipboardList,
   FileText, Gauge, Layers3, LineChart, Network, Search, Server, Settings, ShieldCheck, Timer, Users,
   WalletCards,
 };

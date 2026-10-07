@@ -12,3 +12,6 @@ asyncpg==0.30.0
 alembic==1.16.5
 # Optional market-data feed (market_data_worker). Pulls pandas + websocket-client.
 truedata==7.0.1
+
+# Daily importer and the separate read-only analytics database reader.
+mysql-connector-python==26.7.0

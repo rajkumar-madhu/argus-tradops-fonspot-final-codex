@@ -22,6 +22,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import logging
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ BATCH_SIZE = 1000
 DEFAULT_KEEP_DAYS = 30
 
 QUEUE_NAME = re.compile(r"^QueSize_([A-Z]+)(?:-(\d+))?(2)?_(\d{2}-[A-Za-z]{3}-\d{4})\.csv$")
-LATENCY_NAME = re.compile(r"^ORDERLATENCY_(\d{2}-[A-Za-z]{3}-\d{4})\.csv$")
+LATENCY_NAME = re.compile(r"^ORDERLATENCY[_-](\d{2}-[A-Za-z]{3}-\d{4})\.csv$", re.IGNORECASE)
 QUEUE_TIME_FORMAT = "%a %b %d %I:%M:%S %p IST %Y"
 
 LATENCY_COLUMNS = ("NOREN_ORD_NUM", "EXCH_SEG", "TOKEN", "OMS_LATENCY", "OMS_EXCH_CONFIRMATION",
@@ -147,10 +148,12 @@ def parse_latency(source: SourceFile) -> Iterator[tuple[Any, ...]]:
         _require_columns(reader.fieldnames, LATENCY_COLUMNS, source.path.name)
         for row in reader:
             try:
+                oms = float(row["OMS_LATENCY"]); confirmation = float(row["OMS_EXCH_CONFIRMATION"])
+                if not all(math.isfinite(v) and v >= 0 for v in (oms, confirmation)): raise ValueError("Invalid latency")
                 oms_update = int(float(row["OMSUPDATETIME"]))
                 conv = datetime.fromtimestamp(oms_update, tz=timezone.utc).astimezone(IST).replace(tzinfo=None)
                 yield (source.file_date, int(row["NOREN_ORD_NUM"]), row["EXCH_SEG"].strip(), int(float(row["TOKEN"])),
-                       float(row["OMS_LATENCY"]), float(row["OMS_EXCH_CONFIRMATION"]), oms_update,
+                       oms, confirmation, oms_update,
                        int(float(row["EXCHUPDATETIME"])), conv)
             except (KeyError, TypeError, ValueError, OverflowError, OSError):
                 yield None  # type: ignore[misc]
@@ -164,7 +167,9 @@ def parse_queue(source: SourceFile) -> Iterator[tuple[Any, ...]]:
             try:
                 # Wall-clock IST from the feed, stored naive as latency.py did.
                 when = datetime.strptime(row["Time"].strip(), QUEUE_TIME_FORMAT)
-                yield (source.file_date, source.segment, when, int(row["SeqNo"]), int(row["Erf"]), int(row["QSz"]))
+                queue = int(row["QSz"])
+                if queue < 0: raise ValueError("Invalid queue depth")
+                yield (source.file_date, source.segment, when, int(row["SeqNo"]), int(row["Erf"]), queue)
             except (KeyError, TypeError, ValueError):
                 yield None  # type: ignore[misc]
 
@@ -316,11 +321,12 @@ def run(store: Store, csv_dir: Path, *, keep_days: int = DEFAULT_KEEP_DAYS, toda
     today = today or datetime.now(IST).date()
     instance_lines = instance_lines or {}
     report = RunReport()
-    store.ensure_schema()
+    if not dry_run:
+        store.ensure_schema()
     seen_this_run: dict[str, str] = {}
     for source in discover(csv_dir, keep_days=keep_days, today=today, instance_lines=instance_lines):
         name = source.path.name
-        prior = seen_this_run.get(source.sha256) or store.successful_run(source.sha256)
+        prior = seen_this_run.get(source.sha256) or (store.successful_run(source.sha256) if not dry_run else None)
         if prior == name:
             report.skipped[name] = "already ingested"
             log.info("skip %s: already ingested (sha256 %s)", name, source.sha256[:12])
@@ -359,17 +365,17 @@ def run(store: Store, csv_dir: Path, *, keep_days: int = DEFAULT_KEEP_DAYS, toda
     return report
 
 
-def settings_from_env(env: dict[str, str] | None = None) -> dict[str, Any]:
+def settings_from_env(env: dict[str, str] | None = None, *, require_database: bool = True) -> dict[str, Any]:
     env = os.environ if env is None else env
     missing = [k for k in ("ANALYTICS_DB_HOST", "ANALYTICS_DB_USER", "ANALYTICS_DB_PASSWORD", "ANALYTICS_DB_NAME") if not env.get(k)]
-    if missing:
+    if missing and require_database:
         raise ValueError(f"missing environment: {', '.join(missing)}")
     return {
-        "host": env["ANALYTICS_DB_HOST"],
+        "host": env.get("ANALYTICS_DB_HOST", ""),
         "port": int(env.get("ANALYTICS_DB_PORT", "3306")),
-        "user": env["ANALYTICS_DB_USER"],
-        "password": env["ANALYTICS_DB_PASSWORD"],
-        "database": env["ANALYTICS_DB_NAME"],
+        "user": env.get("ANALYTICS_DB_USER", ""),
+        "password": env.get("ANALYTICS_DB_PASSWORD", ""),
+        "database": env.get("ANALYTICS_DB_NAME", ""),
         "csv_dir": Path(env.get("TRADEOPS_CSV_DIR") or "/data/noren_core/COZY_LOG_FILES/nfs_ps"),
         "keep_days": int(env.get("ANALYTICS_KEEP_DAYS", str(DEFAULT_KEEP_DAYS))),
         "instance_lines": parse_instance_lines(env.get("QUEUE_INSTANCE_LINES", "")),

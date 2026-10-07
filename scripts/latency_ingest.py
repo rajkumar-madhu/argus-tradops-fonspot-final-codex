@@ -25,10 +25,17 @@ def main() -> int:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     try:
-        cfg = settings_from_env()
+        cfg = settings_from_env(require_database=not args.dry_run)
     except ValueError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
+    if args.dry_run:
+        class NoDatabase:
+            def rollback(self): pass
+        report = run(Store(NoDatabase()), cfg["csv_dir"], keep_days=args.days or cfg["keep_days"],
+                     instance_lines=cfg["instance_lines"], dry_run=True)
+        logging.getLogger("tradeops.daily_ingest").info("validation: accepted_files=%d skipped=%d failed=%d; no database connection", len(report.ingested), len(report.skipped), len(report.failed))
+        return 0 if report.ok else 1
     import mysql.connector  # noqa: WPS433 — only needed on the ingestion host
     conn = mysql.connector.connect(host=cfg["host"], port=cfg["port"], user=cfg["user"],
                                    password=cfg["password"], database=cfg["database"], autocommit=False)

@@ -109,3 +109,25 @@ class ViewContractTests(FileAnalyticsTests):
         self.assertEqual({r.get('row_number') for r in data['items']},{2,3})
         self.assertTrue(all(r.get('source') and r.get('time') for r in data['items']))
         self.assertEqual(self.store.sources().get('count'),1)
+
+    def test_dashboard_histogram_bucket_stats_and_date_scope(self):
+        self.latency([['A','NSE',0,0,1788839160,0],['B','NSE',50,100,1788839161,0],['C','NFO',150,200,1788839162,0],['D','NFO','bad',400,1788839163,0]])
+        self.store.ingest()
+        result=self.store.latency(segment='NSE')
+        self.assertEqual(result['summary']['oms']['mean'],25)
+        self.assertEqual(sum(r['count'] for r in result['histogram']),2)
+        self.assertEqual(result['histogram'][0]['count'],1)
+        self.assertEqual(result['histogram'][1]['count'],1)
+        self.assertEqual(result['trend'][0]['oms_stats']['max'],50)
+        self.assertEqual(result['trend'][0]['confirmation_stats']['mean'],50)
+        self.assertEqual(result['bucket_seconds'],60)
+        self.assertTrue(result['trade_dates'])
+
+    def test_histogram_respects_millisecond_contract_and_missing_samples(self):
+        self.store.unit='ms'
+        self.latency([['A','NSE',0.05,0,1788839160,0],['B','NSE',5,0,1788839161,0],['C','NSE','bad',0,1788839162,0]])
+        self.store.ingest();result=self.store.latency()
+        self.assertEqual(result['histogram'][1]['lower'],0.05)
+        self.assertEqual(result['histogram'][1]['count'],1)
+        self.assertEqual(result['histogram'][-1]['count'],1)
+        self.assertEqual(sum(r['count'] for r in result['histogram']),result['summary']['oms']['samples'])

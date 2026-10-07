@@ -19,7 +19,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Desk",
     items: [
       { href: "/dashboard", label: "Overview", icon: "BarChart3" },
-      { href: "/orders", label: "Live Orders", icon: "ClipboardList" },
+      { href: "/calendar", label: "Trading Calendar", icon: "CalendarDays" },
+      { href: "/orders", label: "Order Details", icon: "ClipboardList" },
       { href: "/order-book", label: "Order Book", icon: "BookOpenCheck" },
       { href: "/trades", label: "Trades", icon: "CircleDollarSign" },
       { href: "/positions", label: "Positions", icon: "LineChart" },

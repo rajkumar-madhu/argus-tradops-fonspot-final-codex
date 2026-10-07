@@ -58,6 +58,9 @@ class ClassifyTests(unittest.TestCase):
         self.assertIsNone(classify(Path("ORDERLATENCYSORTED20260717170001 4.csv"), {}), "headerless stage file is not the feed")
         self.assertEqual(classify(Path(f"ORDERLATENCY_{DAY}.csv"), {}).target_table, "order_latency")
 
+    def test_downloaded_latency_filename(self):
+        self.assertEqual(classify(Path("orderlatency-08-sep-2026.csv"), {}).target_table, "order_latency")
+
     def test_instance_line_config_is_validated(self):
         self.assertEqual(parse_instance_lines(" NSE-2729=2, NFO-13424=2 "), {"NSE-2729": "2", "NFO-13424": "2"})
         for bad in ("NSE-2729", "NSE-2729=3", "NSE=1", "nse-1=1"):
@@ -156,7 +159,7 @@ class RunTests(unittest.TestCase):
         report = run(self.store, self.dir, today=TODAY, dry_run=True)
         self.assertEqual(report.ingested, [f"ORDERLATENCY_{DAY}.csv"])
         self.assertEqual(count(self.conn, "order_latency"), 0)
-        self.assertEqual(count(self.conn, "ingestion_runs"), 0)
+        self.assertIsNone(self.conn.execute("SELECT name FROM sqlite_master WHERE name='ingestion_runs'").fetchone())
 
     def test_latency_row_conversion_and_ist(self):
         self.write(f"ORDERLATENCY_{DAY}.csv", LATENCY_HEADER + LATENCY_ROW)
