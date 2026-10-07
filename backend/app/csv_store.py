@@ -71,6 +71,40 @@ def empty_distribution():
     return {'samples':0,'p50':None,'p90':None,'p95':None,'p99':None,'max':None}
 
 
+def _edge_label(value):
+    return f'{value:.4g}'
+
+
+def histogram_bins(values, bins=8):
+    """Bin stored samples. Empty input stays empty; edges follow the observed min and max."""
+    values=[v for v in values if v is not None]
+    if not values: return []
+    values=sorted(values)
+    n=len(values); lo,hi=values[0],values[-1]
+    if hi==lo:
+        return [{'label':_edge_label(lo),'lo':lo,'hi':hi,'count':n,'share':1}]
+    bins=max(1,min(bins,n))
+    if lo>0 and hi/lo>=10:
+        log_lo,log_hi=math.log10(lo),math.log10(hi)
+        edges=[10**(log_lo+(log_hi-log_lo)*i/bins) for i in range(bins+1)]
+    else:
+        edges=[lo+(hi-lo)*i/bins for i in range(bins+1)]
+    edges[-1]=math.nextafter(hi,math.inf)
+    counts=[0]*bins
+    index=0
+    for value in values:
+        while index<bins-1 and value>=edges[index+1]: index+=1
+        counts[index]+=1
+    return [{'label':f'{_edge_label(edges[i])}–{_edge_label(min(edges[i+1],hi)) if i==bins-1 else _edge_label(edges[i+1])}','lo':edges[i],'hi':hi if i==bins-1 else edges[i+1],'count':counts[i],'share':counts[i]/n} for i in range(bins)]
+
+
+class Histogram:
+    def __init__(self): self.values=[]
+    def step(self,v):
+        if v is not None: self.values.append(v)
+    def finalize(self): return json.dumps(histogram_bins(self.values))
+
+
 def file_kind(name):
     if name.startswith('QueSize_'): return 'queue'
     # ORDERLATENCY*.csv also matches the headerless stage-timing export, so name it first.
@@ -153,6 +187,7 @@ class CsvStore:
         db=sqlite3.connect(self.database,timeout=10)
         db.row_factory=sqlite3.Row
         db.create_aggregate('distribution',1,Distribution)
+        db.create_aggregate('histogram',1,Histogram)
         deadline=time.monotonic()+max_seconds
         db.set_progress_handler(lambda: int(time.monotonic()>deadline),10000)
         try: yield db
@@ -349,6 +384,15 @@ class CsvStore:
         return ' AND '.join(clauses),args
 
     @staticmethod
+    def _trend_bucket(row):
+        """p50 and max come from the stored samples. avg() is the bucket mean."""
+        oms = json.loads(row['oms_dist']) if row['oms_dist'] else empty_distribution()
+        confirmation = json.loads(row['confirmation_dist']) if row['confirmation_dist'] else empty_distribution()
+        return {'time':iso(row['t']),'count':row['n'],'oms':row['oms'],'confirmation':row['confirmation'],
+                'oms_p50':oms['p50'],'oms_avg':row['oms'],'oms_max':oms['max'],
+                'confirmation_p50':confirmation['p50'],'confirmation_avg':row['confirmation'],'confirmation_max':confirmation['max']}
+
+    @staticmethod
     def _row(row):
         d=dict(row);d['event_time']=iso(d['event_time']);d['oms_status']=None if d['status']=='Unavailable' else d['status'];return d
 
@@ -359,17 +403,22 @@ class CsvStore:
         where,args=self._where('latency',**filters)
         with self.connection() as db:
             db.execute('BEGIN')
-            summary=dict(db.execute(f'SELECT count(*) AS count,count(DISTINCT order_id) AS unique_orders,distribution(oms) AS oms,distribution(confirmation) AS confirmation FROM events WHERE {where}',args).fetchone())
+            summary=dict(db.execute(f'SELECT count(*) AS count,count(DISTINCT order_id) AS unique_orders,distribution(oms) AS oms,distribution(confirmation) AS confirmation,histogram(oms) AS oms_histogram FROM events WHERE {where}',args).fetchone())
             items=[self._row(r) for r in db.execute(f'SELECT * FROM events WHERE {where} ORDER BY {sort} IS NULL,{sort} {direction},file,row_number LIMIT ? OFFSET ?',args+[limit,offset])]
             segments=[dict(r) for r in db.execute(f'SELECT segment,count(*) AS count,distribution(oms) AS oms,distribution(confirmation) AS confirmation FROM events WHERE {where} GROUP BY segment ORDER BY segment',args)]
             bounds=db.execute(f'SELECT min(event_time),max(event_time) FROM events WHERE {where}',args).fetchone()
             width=max(60,math.ceil(((bounds[1] or 0)-(bounds[0] or 0))/180))
-            trend=[{'time':iso(r['t']),'count':r['n'],'oms':r['oms'],'confirmation':r['confirmation']} for r in db.execute(f'SELECT cast(event_time / ? AS INTEGER)*? AS t,count(*) AS n,avg(oms) AS oms,avg(confirmation) AS confirmation FROM events WHERE {where} GROUP BY t ORDER BY t',[width,width]+args)]
+            trend=[self._trend_bucket(r) for r in db.execute(
+                f'''SELECT cast(event_time / ? AS INTEGER)*? AS t,count(*) AS n,
+                    avg(oms) AS oms,avg(confirmation) AS confirmation,
+                    distribution(oms) AS oms_dist,distribution(confirmation) AS confirmation_dist
+                    FROM events WHERE {where} GROUP BY t ORDER BY t''',[width,width]+args)]
             choices={name:[r[0] for r in db.execute(f'SELECT DISTINCT {name} FROM events WHERE kind=? ORDER BY {name}',('latency',))] for name in ('segment','status')}
         for seg in segments:
             for key in ('oms','confirmation'):seg[key]=json.loads(seg[key]) if seg[key] else empty_distribution()
         return {'source':'csv snapshot','unit':self.unit,'count':summary['count'],'unique_orders':summary['unique_orders'],'items':items,
                 'summary':{k:json.loads(summary[k]) if summary[k] else empty_distribution() for k in ('oms','confirmation')},
+                'histogram':json.loads(summary['oms_histogram']) if summary.get('oms_histogram') else [],
                 'by_segment':segments,'trend':trend,'bucket_seconds':width,'choices':choices,'limit':limit,'offset':offset,
                 'note':'Events, not unique orders. Timing samples include valid zero values. Missing status is unavailable; duration units require a confirmed feed contract.'}
 

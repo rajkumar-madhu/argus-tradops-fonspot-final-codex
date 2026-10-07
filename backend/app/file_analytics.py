@@ -40,7 +40,7 @@ class FileAnalytics(CsvStore):
                          'Reported confirmation timings include valid zero values; missing status columns cannot establish confirmed order counts.',
                          'Source timestamps normalize to UTC; textual IST timestamps use Asia/Kolkata. Queue and journal coverage may have different dates.',
                          'Units require a producer contract. Source units are retained unless an operator explicitly configures us, ms or s.',
-                         'All summary, trend, segment and export values use the same server filters. Trend displays the mean per observed time bucket.']}
+                         'All summary, trend, segment and export values use the same server filters. Each trend bucket reports event count plus the p50, average and maximum of the stored OMS and confirmation samples. The OMS histogram bins those same stored samples.']}
 
     def queues(self,**filters):
         data=super().queues(**filters)

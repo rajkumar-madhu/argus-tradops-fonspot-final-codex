@@ -35,7 +35,7 @@ The source importer script establishes UNIX seconds and Asia/Kolkata presentatio
 
 Numeric timestamp magnitudes normalize supported seconds/milliseconds/microseconds/nanoseconds to epoch seconds. Values must land between 2000 and 2100. Textual IST timestamps are parsed in Asia/Kolkata. Naive ISO strings are rejected; time-filter parameters require offsets. UI and exports label UTC. Converted source timestamp discrepancies are counted. Queue size is a non-negative whole number of entries.
 
-The latency chart shows **mean values per observed adaptive time bucket**, not a percentile history. Distribution cards show exact percentiles. Queue trends show peak per bucket; latest is selected by event time and insertion/source order for equal timestamps. Samples above the filtered source p99 are labelled statistical anomalies, not incident alerts. Snapshot age is based on the last event, not import time; after five minutes a queue snapshot is marked stale. Empty files say **No data received**, with no invented zero latest/peak.
+Each latency trend bucket reports event count plus the p50, average and maximum of the stored OMS and confirmation samples. Those percentiles use the same nearest-rank method as the summary. Distribution cards still show the filtered-set percentiles. Queue trends show peak per bucket; latest is selected by event time and insertion/source order for equal timestamps. Samples above the filtered source p99 are labelled statistical anomalies, not incident alerts. Snapshot age is based on the last event, not import time; after five minutes a queue snapshot is marked stale. Empty files say **No data received**, with no invented zero latest/peak.
 
 ## Configuration
 

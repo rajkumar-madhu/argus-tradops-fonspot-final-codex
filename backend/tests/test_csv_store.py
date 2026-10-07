@@ -55,6 +55,25 @@ class CsvStoreTests(unittest.TestCase):
         self.assertEqual(self.store.latency(q='unmatched')['count'],0)
         self.assertIsNone(self.store.latency(q='unmatched')['summary']['oms']['p50'])
 
+    def test_trend_bucket_uses_stored_samples(self):
+        self.write('ORDERLATENCY_day.csv', [
+            ['A','NSE',1,10,1788839160,1788839160],
+            ['B','NSE',2,20,1788839160,1788839160],
+            ['C','NSE',3,30,1788839160,1788839160],
+            ['D','NSE',4,40,1788839160,1788839160],
+            ['E','NSE',10,100,1788839160,1788839160],
+        ])
+        self.store.ingest()
+        row=self.store.latency()['trend'][0]
+        self.assertEqual(row['count'],5)
+        self.assertEqual(row['oms'],4)
+        self.assertEqual([row['oms_p50'],row['oms_avg'],row['oms_max']],[3,4,10])
+        self.assertEqual(row['confirmation'],40)
+        self.assertEqual([row['confirmation_p50'],row['confirmation_avg'],row['confirmation_max']],[30,40,100])
+        hist=self.store.latency()['histogram']
+        self.assertEqual(sum(bin['count'] for bin in hist),5)
+        self.assertTrue(hist and hist[0]['lo']<=1 and hist[-1]['hi']>=10)
+
     def test_queue_empty_instances_zero_and_peaks(self):
         (self.root/'QueSize_NFO_day.csv').touch()
         for source in ('NSE2','NSE-2729'):
