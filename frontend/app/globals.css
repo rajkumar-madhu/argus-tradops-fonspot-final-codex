@@ -7545,6 +7545,269 @@ table.compact td {
   color: var(--text-secondary);
   line-height: 1.5;
 }
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.analytics-switch,
+.session-presets {
+  flex: 1 1 100%;
+}
+.analytics-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.analytics-switch a,
+.prefix-chips a,
+.preset-row button {
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  text-decoration: none;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.analytics-switch a[aria-current="page"],
+.prefix-chips a[aria-current="page"],
+.preset-row button.active {
+  background: var(--signal-soft);
+  border-color: var(--signal);
+  color: var(--ink);
+}
+.session-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.file-filters .session-date {
+  flex: 0 0 auto;
+  min-width: 220px;
+  max-width: 280px;
+  color: var(--ink);
+}
+.file-filters .session-date input[type="date"] {
+  display: block;
+  width: 100%;
+  min-width: 220px;
+  min-height: 40px;
+  padding-right: 12px;
+  color-scheme: light;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+}
+.file-filters .session-date input[type="date"]::-webkit-calendar-picker-indicator {
+  display: block;
+  opacity: 1;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+.preset-row,
+.prefix-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+.prefix-chips {
+  margin: 0 0 14px;
+}
+.preset-row button small,
+.prefix-chips small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.series-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 4px;
+  color: var(--ink);
+  font-size: 12px;
+}
+.series-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.series-legend i {
+  width: 14px;
+  height: 3px;
+  display: inline-block;
+}
+.observed-chart polyline.s0,
+.series-legend i.s0 { stroke: var(--signal); background: var(--signal); }
+.observed-chart polyline.s1,
+.series-legend i.s1 { stroke: var(--brand); background: var(--brand); }
+.observed-chart polyline.s2,
+.series-legend i.s2 { stroke: var(--up); background: var(--up); }
+.observed-chart polyline.s3,
+.series-legend i.s3 { stroke: var(--down); background: var(--down); }
+.observed-chart polyline.s4,
+.series-legend i.s4 { stroke: var(--accent); background: var(--accent); }
+.observed-chart circle.s0 { fill: var(--signal); }
+.observed-chart circle.s1 { fill: var(--brand); }
+.observed-chart circle.s2 { fill: var(--up); }
+.observed-chart circle.s3 { fill: var(--down); }
+.observed-chart circle.s4 { fill: var(--accent); }
+.observed-chart rect.volume-bar { fill: var(--signal); }
+.observed-chart rect.bar-hit { fill: transparent; }
+.observed-chart polygon.series-area { fill: var(--signal); opacity: 0.14; stroke: none; }
+.observed-chart polyline.dashed { stroke-dasharray: 5 3; }
+.observed-chart.tall svg { min-height: 260px; }
+.observed-chart text.axis-tick,
+.observed-chart text.axis-title { fill: var(--muted); }
+.observed-chart .chart-legend {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  left: auto;
+  margin: 0;
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.observed-chart { position: relative; }
+.chart-tip {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 240px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+}
+.chart-tip b {
+  color: var(--ink);
+  font-family: var(--f-mono);
+  font-weight: 600;
+}
+.chart-warning {
+  margin: 0;
+  padding: 8px 16px;
+  color: var(--amber-ink);
+  background: var(--accent-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.series-legend i.volume-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.segment-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px 16px;
+  padding: 12px 16px 0;
+  color: var(--ink);
+}
+.segment-card-head > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.segment-card-head b {
+  font-size: 16px;
+}
+.segment-card-head > div:first-child span,
+.segment-card-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.segment-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.segment-card-meta b {
+  color: var(--ink);
+  font-family: var(--f-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+.segment-cards .segment-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.segment-cards,
+.instance-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.metric-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  padding: 12px 16px 16px;
+}
+.metric-list div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.metric-list dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.metric-list dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--f-mono);
+  overflow-wrap: anywhere;
+}
+.instance-empty {
+  margin: 0;
+  padding: 12px 16px 16px;
+  color: var(--muted);
+}
+.interpretation summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.interpretation ul {
+  padding: 0 16px 16px 32px;
+}
+@media (max-width: 800px) {
+  .segment-cards,
+  .instance-cards,
+  .metric-list,
+  .segment-cards .segment-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .queue-trends {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

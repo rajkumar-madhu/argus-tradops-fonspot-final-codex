@@ -198,14 +198,26 @@ const staticRoutes = {
     },
     choices: { segment: ["NSE", "BSE", "NFO"], status: ["COMPLETE", "REJECTED", "OPEN"] },
     facets: { segments: ["NSE", "BSE", "NFO"], statuses: ["COMPLETE", "REJECTED", "OPEN"] },
-    trend: Array.from({ length: 8 }).map((_, i) => ({
-      time: new Date(Date.parse("2026-09-07T03:30:00+00:00") + i * 300000).toISOString(),
-      oms: [380, 402, 455, 610, 528, 470, 431, 415][i],
-    })),
+    trend: Array.from({ length: 8 }).map((_, i) => {
+      const oms = [380, 402, 455, 610, 528, 470, 431, 415][i];
+      const confirmation = [900, 980, 1100, 1400, 1250, 1080, 990, 960][i];
+      return {
+        time: new Date(Date.parse("2026-09-07T03:30:00+00:00") + i * 300000).toISOString(),
+        count: [40, 55, 80, 120, 90, 70, 48, 42][i],
+        oms,
+        confirmation,
+        oms_p50: [180, 190, 210, 240, 220, 200, 190, 185][i],
+        oms_avg: oms,
+        oms_max: [900, 1100, 1400, 2200, 1800, 1300, 1000, 950][i],
+        confirmation_p50: [800, 820, 900, 880, 910, 860, 840, 830][i],
+        confirmation_avg: confirmation,
+        confirmation_max: [4000, 4500, 5000, 200000, 6000, 5500, 4800, 4200][i],
+      };
+    }),
     by_segment: [
-      { segment: "NSE", count: 1120, events: 1120, oms: { samples: 1120, p50: 395, p95: 2100, max: 41200 } },
-      { segment: "BSE", count: 402, events: 402, oms: { samples: 402, p50: 430, p95: 2480, max: 18400 } },
-      { segment: "NFO", count: 293, events: 293, oms: { samples: 293, p50: 470, p95: 3020, max: 96046 } },
+      { segment: "NSE", count: 1120, events: 1120, oms: { samples: 1120, p50: 395, p95: 2100, p99: 6400, max: 41200 }, confirmation: { samples: 1100, p50: 920 } },
+      { segment: "BSE", count: 402, events: 402, oms: { samples: 402, p50: 430, p95: 2480, p99: 7100, max: 18400 }, confirmation: { samples: 390, p50: 1010 } },
+      { segment: "NFO", count: 293, events: 293, oms: { samples: 293, p50: 470, p95: 3020, p99: 8900, max: 96046 }, confirmation: { samples: 280, p50: 1180 } },
     ],
     items: Array.from({ length: 10 }).map((_, i) => ({
       file: "ORDERLATENCY20260907.csv", fingerprint: `fp-${i}`, order_id: `26090700000${120 + i}`,
@@ -216,6 +228,34 @@ const staticRoutes = {
     notes: [
       "Rows are observations, not necessarily unique orders. Exact duplicate rows within each source are excluded.",
       "Source timestamps normalize to UTC; textual IST timestamps use Asia/Kolkata.",
+    ],
+  },
+  "/api/files/queues": {
+    source: "csv snapshot",
+    count: 402,
+    unit: "messages",
+    note: "One row per processed message carrying the pending depth at that moment. Reported depths are episode peaks, never averages.",
+    items: [
+      {
+        instance: "NSE-5864", file: "QueSize_NSE-5864.csv", samples: 240, latest: 12, peak: 1240,
+        episodes: 6, max_depth: 1240, median_depth: 180, longest_episode_seconds: 32, rows_per_second: 18.4,
+        state: "Ready", freshness: "Daily batch", identical_content_to: null,
+        last_observed: "2026-09-07T09:50:00+00:00", bucket_seconds: 300,
+        trend: [0, 1, 2, 3].map((i) => ({ time: new Date(Date.parse("2026-09-07T03:45:00+00:00") + i * 300000).toISOString(), peak: [40, 220, 1240, 80][i] })),
+      },
+      {
+        instance: "NSE-2729", file: "QueSize_NSE-2729.csv", samples: 162, latest: 4, peak: 6425,
+        episodes: 3, max_depth: 6425, median_depth: 900, longest_episode_seconds: 48, rows_per_second: 22.1,
+        state: "Ready", freshness: "Daily batch", identical_content_to: null,
+        last_observed: "2026-09-07T09:45:00+00:00", bucket_seconds: 300,
+        trend: [0, 1, 2, 3].map((i) => ({ time: new Date(Date.parse("2026-09-07T03:45:00+00:00") + i * 300000).toISOString(), peak: [6425, 2100, 400, 20][i] })),
+      },
+      {
+        instance: "BFO", file: "QueSize_BFO.csv", samples: 0, latest: null, peak: null,
+        episodes: 0, max_depth: null, median_depth: null, longest_episode_seconds: null, rows_per_second: null,
+        state: "No matching rows", freshness: "No data received", identical_content_to: null,
+        last_observed: null, bucket_seconds: 60, trend: [],
+      },
     ],
   },
   "/api/files/hops": {
