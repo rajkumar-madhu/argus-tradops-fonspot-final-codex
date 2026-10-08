@@ -7,7 +7,6 @@ import { canSee } from "@/lib/auth";
 import { authHeaders, clearToken, decodeSession, getToken, isExpired, type SessionUser } from "@/lib/session";
 import { safeReturnTo } from "@/lib/auth-routing";
 import { logout } from "@/lib/oidc";
-import MarketTicker from "@/components/MarketTicker";
 import LiveStatusStrip from "@/components/LiveStatusStrip";
 import { apiUrl } from "@/lib/runtime";
 import CommandPalette from "@/components/CommandPalette";
@@ -250,7 +249,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <main className="main" id="main-content" tabIndex={-1}>
         <header className="marketbar">
           <button type="button" className="nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="app-navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20}/></button><div className="env-pill">Read only</div>
-          <MarketTicker variant="bar"/>
           <div className="market-right">
             <Clock/>
             {checked && <TenantSwitcher/>}
