@@ -7,7 +7,6 @@ import MissionControlTable from "@/components/MissionControlTable";
 import { AreaChart, Donut, HBarList } from "@/components/Charts";
 import { ApiErrorState, EmptyState, KpiCard } from "@/components/UI";
 import { apiError } from "@/lib/api-result";
-import { platformHealth } from "@/lib/command-center";
 import { orderTrendFromRows, statusDonutSlices } from "@/lib/dashboard-data";
 import { sourceBadgeText, sourceBadgeTone, sourceDisplayName } from "@/lib/data-source";
 import { fmt, journalWindowLabel } from "@/lib/format";
@@ -19,7 +18,6 @@ export type DashboardPayload = {
   overview: any;
   orders: any;
   rejections: any;
-  exchanges: any;
   yel: any;
   fileSources?: unknown;
   sessions?: any;
@@ -33,35 +31,18 @@ export type DashboardPayload = {
 const pct = (n: number, total: number) => (total ? `${((n / total) * 100).toFixed(1)}%` : "0.0%");
 const REASON_BARS = ["bar-red", "bar-amber", "bar-blue", "bar-purple", "bar-teal"];
 
-/** Latest order event per exchange, for the Exchange Health "Last update" column. */
-function lastEventByExchange(orders: any[]) {
-  const latest = new Map<string, string>();
-  for (const o of orders) {
-    const x = String(o.exchange || "");
-    if (!x || !o.time) continue;
-    const prev = latest.get(x);
-    if (!prev || Date.parse(o.time) > Date.parse(prev)) latest.set(x, o.time);
-  }
-  return latest;
-}
-
 export default function DashboardView({
   lookback,
   overview: ov,
   orders: od,
   rejections: rj,
-  exchanges: ex,
-  yel,
   fileSources,
   sessions,
-  infra,
-  ready,
   yelRecords,
   detail,
 }: DashboardPayload) {
   const orders: any[] = od.items || [];
   const groups: any[] = rj.groups || [];
-  const exchangeItems: any[] = ex.items || [];
 
   const source = String(ov.source || od.source || "");
   const isJournal = source === "journal snapshot";
@@ -82,8 +63,6 @@ export default function DashboardView({
   const orderTrend = useRealCharts ? orderTrendFromRows(orders) : null;
   const donutSlices = statusDonutSlices({ total, complete, rejected, open, pending });
   const maxReason = Math.max(1, ...groups.map((g) => Number(g.count || 0)));
-  const lastByExchange = lastEventByExchange(orders);
-  const health = apiError(infra) ? null : platformHealth(infra, ready);
   const sessionRows: any[] = (sessions?.items || []).filter((s: any) => s.event === "login").slice(0, 5);
   const yelRows: any[] = (yelRecords?.items || []).slice(0, 5);
 
@@ -128,7 +107,7 @@ export default function DashboardView({
             <h1>Trading Operations Dashboard</h1>
             <span className={`source-badge ${isJournal ? "file-based" : sourceBadgeTone(source, !ovErr)}`}>{sourceBadgeText(source, !ovErr)}</span>
           </div>
-          <p>Monitoring for Noren Trader / OMS / RMS / Exchange / Infrastructure · {metaLine}</p>
+          <p>Monitoring for Noren Trader / OMS / RMS · {metaLine}</p>
         </div>
         <div className="ref-controls">
           {!isJournal && !isDemo && <QueryWindow value={lookback} source={source} label="Dashboard window" />}
@@ -183,28 +162,6 @@ export default function DashboardView({
                 </div>
               )}
             </div>
-            <div className="panel">
-              <div className="panel-head"><b>Exchange Health</b><Link href="/exchange">Exchange ›</Link></div>
-              {apiError(ex) ? (
-                <EmptyState title="Exchanges unavailable" body={String(apiError(ex))} />
-              ) : exchangeItems.length === 0 ? (
-                <EmptyState title="No exchanges" body="Exchange breakdown is empty for this source." />
-              ) : (
-                <table className="compact ref-table">
-                  <thead><tr><th>Exchange</th><th>Status</th><th className="num">Reject %</th><th>Last Update</th></tr></thead>
-                  <tbody>
-                    {exchangeItems.slice(0, 6).map((x: any) => (
-                      <tr key={x.name}>
-                        <td><b>{x.name}</b></td>
-                        <td><span className={`ref-pill ${x.status === "Connected" || x.status === "Healthy" ? "ok" : isJournal ? "info" : "warn"}`}>{isJournal ? "Observed" : x.status || "—"}</span></td>
-                        <td className="num">{x.reject_rate == null ? "—" : `${Number(x.reject_rate).toFixed(1)}%`}</td>
-                        <td className="mono">{lastByExchange.get(x.name) ? istTime(lastByExchange.get(x.name)) : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
           </section>
 
           {apiError(od) ? (
@@ -214,10 +171,6 @@ export default function DashboardView({
           )}
 
           <section className="ref-grid four">
-            <div className="panel">
-              <div className="panel-head"><b>Network Bandwidth (WAN)</b></div>
-              <EmptyState title="No bandwidth source" body="Set PROMETHEUS_URL with node-exporter to chart interface throughput." />
-            </div>
             <div className="panel">
               <div className="panel-head"><b>Recent Exchange Messages</b><Link href="/logs?msg_type=yel_connected">View all ›</Link></div>
               {yelRows.length ? (
@@ -261,18 +214,6 @@ export default function DashboardView({
                 </table>
               ) : (
                 <EmptyState title="No sessions" body="No login events are available to this role or source." />
-              )}
-            </div>
-            <div className="panel">
-              <div className="panel-head"><b>System Health</b><Link href="/infra">Infrastructure ›</Link></div>
-              {health ? (
-                <ul className="ref-health">
-                  {health.map((h) => (
-                    <li key={h.name}><span>{h.name}</span><span className={`cc-pill cc-${h.tone}`}>{h.state}</span></li>
-                  ))}
-                </ul>
-              ) : (
-                <EmptyState title="Health not available" body="Dependency status needs infrastructure access." />
               )}
             </div>
           </section>

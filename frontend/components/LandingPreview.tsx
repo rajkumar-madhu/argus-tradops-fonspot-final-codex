@@ -1,4 +1,4 @@
-const NAV = ["Dashboard", "Live Orders", "Order Book", "Positions", "Rejections", "RCA & Analysis", "Exchange Health", "Users & Sessions", "Infrastructure", "Alerts & Incidents"];
+const NAV = ["Dashboard", "Live Orders", "Order Book", "Positions", "Rejections", "RCA & Analysis", "Users & Sessions", "Alerts & Incidents"];
 const KPIS = ["Total Orders", "Complete", "Rejected", "Open / Pending", "Reject Rate"];
 const PANELS = ["Order flow", "Orders by exchange", "Platform health"];
 const COLUMNS = ["Time", "Symbol", "Side", "Qty", "Price", "Status"];

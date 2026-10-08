@@ -422,7 +422,6 @@ export default function CommandCenter({ overview: ov, orders: od, rejections: rj
         <div className="panel">
           <div className="panel-head">
             <div><b>Platform health</b><p className="sub">As reported by the API</p></div>
-            <Link href="/infra">Infrastructure ›</Link>
           </div>
           {/* A 403 from /api/infra is a permission boundary, not an outage: show
               only the readiness row the user can see. */}

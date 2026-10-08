@@ -1,7 +1,12 @@
 FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Optional corporate CA bundle: --secret id=build_ca,src=/path/to/ca.pem.
+# BuildKit keeps the certificate bundle out of image layers; TLS stays enabled.
+RUN --mount=type=secret,id=build_ca \
+    if [ -s /run/secrets/build_ca ]; then \
+      NODE_EXTRA_CA_CERTS=/run/secrets/build_ca npm ci; \
+    else npm ci; fi
 
 FROM node:24-alpine AS build
 WORKDIR /app

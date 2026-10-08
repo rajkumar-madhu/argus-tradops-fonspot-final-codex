@@ -35,8 +35,8 @@ export function deskBriefing(input: DeskBriefingInput) {
     items.push({
       tone: "critical",
       title: "YEL connectivity is disconnected",
-      detail: "The latest yel_connected observation is disconnected; inspect venue and infrastructure evidence.",
-      href: "/exchange",
+      detail: "The latest yel_connected observation is disconnected; inspect the journal events.",
+      href: "/logs?msg_type=yel_connected",
     });
   }
   if (items.length === 0) {

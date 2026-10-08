@@ -14,9 +14,7 @@ const MODULES: [React.ComponentType<any>, string, string, string][] = [
   [Activity, "Trading Operations", "Orders, trades, positions, holdings and P&L", "Monitor and analyse your trading activity in real time."],
   [BellRing, "Alerts & Incidents", "Real-time monitoring and intelligent alerting", "Detect anomalies early and get notified across channels."],
   [BrainCircuit, "RCA & Analysis", "AI-driven root cause analysis", "Correlate logs, metrics and traces to find root causes with evidence."],
-  [Landmark, "Exchange Health", "Monitor all exchanges and market data", "Track connectivity, latency and data quality across exchanges."],
   [Users, "Users & Sessions", "Track user activity from journal logs", "Monitor logins, sessions, access patterns and anomalies."],
-  [Server, "Infrastructure", "Kubernetes, servers, network and services", "Monitor your entire infrastructure stack in one place."],
 ];
 
 const INTEGRATIONS = ["Elasticsearch", "Kibana", "Prometheus", "Grafana", "Kubernetes", "Vault", "Jenkins", "Keycloak", "DataDog"];
@@ -442,7 +440,7 @@ export default function Landing() {
               <a href="#footer" aria-label="YouTube"><Youtube size={15} /></a>
             </div>
           </div>
-          <div><b>Platform</b><a href="#suite">Console</a><a href="#suite">RCA Studio</a><a href="#suite">Journal</a><a href="#platform">Exchange Health</a><a href="#platform">Infrastructure</a></div>
+          <div><b>Platform</b><a href="#suite">Console</a><a href="#suite">RCA Studio</a><a href="#suite">Journal</a></div>
           <div><b>Modules</b><a href="#platform">Trading Operations</a><a href="#platform">Alerts &amp; Incidents</a><a href="#platform">Users &amp; Sessions</a><a href="#deployment">Deployment</a></div>
           <div><b>Developers</b><a href="#apis">Streaming events</a><a href="#apis">Metrics</a><a href="#apis">Incidents &amp; RCA</a><a href="#apis">Journal search</a></div>
           <div><b>Resources</b><a href="#resources">Guides</a><a href="#faq">FAQ</a><a href="#why">Why Argus TradeOps</a><a href="#customers">Customers</a></div>

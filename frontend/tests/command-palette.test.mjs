@@ -29,7 +29,7 @@ test('empty query lists recents first, then every other visible route once', () 
 });
 
 test('keywords find routes whose label does not contain the word', () => {
-  assert.equal(paletteCommands({ query: 'yel', routes })[0].href, '/exchange');
+  assert.equal(paletteCommands({ query: 'yel', routes })[0].href, '/logs');
   assert.equal(paletteCommands({ query: 'latency', routes })[0].href, '/order-latency');
   // A label hit outranks a keyword hit of the same strength.
   assert.equal(paletteCommands({ query: 'risk', routes })[0].href, '/risk');
@@ -42,10 +42,10 @@ test('an order number offers RCA and Live Orders lookups before routes', () => {
 });
 
 test('commands respect the role allowlist, lookups included', () => {
-  const visible = (h) => h === '/logs' || h === '/infra';
+  const visible = (h) => h === '/logs' || h === '/sessions';
   const cmds = paletteCommands({ query: '26063000012345', routes, visible });
   assert.deepEqual(hrefs(cmds), ['/logs?q=26063000012345']);
-  assert.deepEqual(hrefs(paletteCommands({ query: '', routes, visible, recent: ['/rca'] })), ['/infra', '/logs']);
+  assert.deepEqual(hrefs(paletteCommands({ query: '', routes, visible, recent: ['/rca'] })), ['/sessions', '/logs']);
 });
 
 test('free text ends with an encoded journal search', () => {

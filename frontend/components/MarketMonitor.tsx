@@ -66,6 +66,6 @@ export default function MarketMonitor({ symbols, selectedKey, onSelect, connecte
       ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
       <p className="monitor-caption">Fresh means an explicit quote timestamp within 30 seconds. An open event connection alone does not establish a fresh market feed.</p></aside>
     </div>
-    <nav className="monitor-links" aria-label="Investigate operational signals"><Link href="/order-latency">OMS latency graphs</Link><Link href="/exchange">Exchange health</Link><Link href="/infra">Infrastructure metrics</Link><Link href="/incidents">Alerts & incidents</Link><Link href="/data-quality">Data verification</Link></nav>
+    <nav className="monitor-links" aria-label="Investigate operational signals"><Link href="/order-latency">OMS latency graphs</Link><Link href="/incidents">Alerts & incidents</Link><Link href="/data-quality">Data verification</Link></nav>
   </section>;
 }

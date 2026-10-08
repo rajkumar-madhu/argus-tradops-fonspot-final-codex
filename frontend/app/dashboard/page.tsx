@@ -22,7 +22,6 @@ export default async function DashboardPage({
     overview,
     orders,
     rejections,
-    exchanges,
     yel,
     latency,
     queues,
@@ -35,7 +34,6 @@ export default async function DashboardPage({
     getJSON(`/api/overview?lookback=${lookback}`),
     getJSON(`/api/orders?size=${orderSize}&evidence=false&lookback=${lookback}`),
     getJSON(`/api/rejections?lookback=${lookback}`),
-    getJSON('/api/exchanges'),
     getJSON('/api/exchanges/yel'),
     getJSON('/api/files/latency?limit=1'),
     getJSON('/api/files/queues?limit=1'),
@@ -54,7 +52,6 @@ export default async function DashboardPage({
         overview={overview}
         orders={orders}
         rejections={rejections}
-        exchanges={exchanges}
         yel={yel}
         fileSources={fileSources}
         sessions={sessions}

@@ -37,7 +37,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Coverage",
     items: [
       { href: "/market-data", label: "Market Data", icon: "Gauge" },
-      { href: "/exchange", label: "Exchange Health", icon: "Network" },
       { href: "/sessions", label: "Users & Sessions", icon: "Users" },
       { href: "/risk", label: "Risk & Limits", icon: "Layers3" },
     ],
@@ -45,7 +44,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Platform",
     items: [
-      { href: "/infra", label: "Infrastructure", icon: "Server" },
       { href: "/logs", label: "Logs Explorer", icon: "Search" },
       { href: "/incidents", label: "Alerts & Incidents", icon: "AlertTriangle" },
       { href: "/reports", label: "Reports", icon: "FileText" },

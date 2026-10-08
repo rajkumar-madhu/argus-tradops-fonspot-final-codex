@@ -6,7 +6,7 @@ test('desk briefing ranks rejection evidence before queue and connectivity obser
   const items = deskBriefing({ total: 10, rejected: 2, open: 1, pending: 0, yelConnected: false, hasYelObservation: true });
   assert.equal(items[0].href, '/rejections');
   assert.equal(items[0].tone, 'critical');
-  assert.equal(items[2].href, '/exchange');
+  assert.equal(items[2].href, '/logs?msg_type=yel_connected');
 });
 
 test('desk briefing does not claim health when the source has no exception signal', () => {
