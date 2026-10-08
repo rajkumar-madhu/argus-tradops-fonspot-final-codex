@@ -17,6 +17,7 @@ export type PaletteCommand = {
 
 /** Words an operator types that are not in a route's label. */
 export const ROUTE_KEYWORDS: Record<string, string[]> = {
+  "/calendar": ["calendar", "daily", "date", "activity"],
   "/dashboard": ["home", "mission control", "summary", "kpi"],
   "/orders": ["ordupd", "order flow", "oms"],
   "/order-book": ["book", "open orders"],

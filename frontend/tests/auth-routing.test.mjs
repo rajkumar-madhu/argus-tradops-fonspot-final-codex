@@ -20,6 +20,12 @@ test('unauthenticated direct dashboard request redirects to signin before render
   assert.equal(new URL(r.headers.get('location')).pathname, '/signin');
   assert.equal(new URL(r.headers.get('location')).searchParams.get('returnTo'), '/dashboard');
 });
+test('calendar requires authentication and preserves its date in the return path', async () => {
+  const f = fixture(401);
+  const r = await f.middleware(request('/calendar?date=2026-10-08'));
+  assert.equal(r.status, 307);
+  assert.equal(new URL(r.headers.get('location')).searchParams.get('returnTo'), '/calendar?date=2026-10-08');
+});
 test('a restored session is verified with the API and permits dashboard refresh', async () => {
   const f = fixture();
   const r = await f.middleware(request('/dashboard', 'synthetic-token'));

@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Activity, ShieldCheck, BarChart3 } from 'lucide-react';
-import { SkeletonBars } from '@/components/Charts';
+import { Activity, Bell, SearchCheck, Timer } from 'lucide-react';
+import { APP_NAME, APP_TAGLINE, LOGIN_FEATURES } from '@/lib/brand';
 
 function BrandMark() {
   return (
@@ -11,15 +11,15 @@ function BrandMark() {
         <i />
       </div>
       <span>
-        <b>Argus TradeOps</b>
-        <small>Trading Observability Platform</small>
+        <b>{APP_NAME}</b>
+        <small>{APP_TAGLINE}</small>
       </span>
     </Link>
   );
 }
 
 /**
- * Split layout shared by /signin, /signup, /verify and /forgot-password.
+ * Split layout for /signin.
  * Public: a static strip only — never the live market feed, which would call protected APIs.
  */
 export default function AuthShell({
@@ -43,45 +43,22 @@ export default function AuthShell({
           <BrandMark />
           <div className="auth-copy">
             <h1>{title}</h1>
-            <p>{subtitle}</p>
+            {subtitle && <p>{subtitle}</p>}
             <ul>
-              <li>
-                <Activity aria-hidden="true" />
-                Real-time order, rejection and exchange visibility
-              </li>
-              <li>
-                <ShieldCheck aria-hidden="true" />
-                Keycloak SSO, role-based access and audit trail
-              </li>
-              <li>
-                <BarChart3 aria-hidden="true" />
-                ELK-powered root cause analysis with evidence
-              </li>
+              {LOGIN_FEATURES.map((feature, index) => {
+                const Icon = [Activity, SearchCheck, Timer, Bell][index] ?? Activity;
+                return (
+                  <li key={feature.title}>
+                    <Icon aria-hidden="true" />
+                    <span>
+                      <b>{feature.title}</b>
+                      {feature.body}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
-          <div className="auth-preview" aria-hidden="true">
-            <div className="auth-preview-head">
-              <span>Trading Operations</span>
-              <b>Preview</b>
-            </div>
-            <div className="auth-preview-kpis">
-              {['Orders', 'Executed', 'Rejected'].map((k) => (
-                <div key={k}>
-                  <span>{k}</span>
-                  <i className="preview-skel preview-skel-value" />
-                  <i className="preview-skel preview-skel-line" />
-                </div>
-              ))}
-            </div>
-            <div className="auth-preview-chart">
-              <SkeletonBars count={16} />
-            </div>
-            <p className="auth-preview-note">Live counts appear after you sign in</p>
-          </div>
-          <p className="auth-legal">
-            © {new Date().getFullYear()} Argus TradeOps · Read-only observability. No orders are
-            ever placed from this platform.
-          </p>
         </section>
         <section className="auth-form-wrap">
           <div className="auth-mobile-brand">

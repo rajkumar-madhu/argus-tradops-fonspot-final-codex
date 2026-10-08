@@ -196,3 +196,14 @@ additional `/api` suffix. See `docs/LOGIN_INVESTIGATION_2026-09-13.md` for the
 investigation, isolated fixture commands, validation limits and external UAT
 GitOps ownership. `scripts/auth-fixture.py` is a loopback-only synthetic OIDC
 fixture with in-memory signing keys and must never be deployed.
+
+## Operational calendar
+
+`/calendar` uses the existing tenant-scoped, permission-checked order and incident
+APIs; no new backend endpoint or poller is introduced. `lib/calendar.ts` groups
+up to 10,000 loaded orders by their latest observation in IST and up to 500
+persisted incidents by first-seen date. It is not a full order-event history.
+Keep partial coverage and unavailable permissions visible; do not turn missing
+feeds into zero activity. The page is protected with the dashboard role allowlist;
+each underlying API still enforces its own permission. Date ranges are bounded
+to 31 days. The public root redirects to the compact SSO sign-in page.

@@ -12684,3 +12684,20 @@ table tbody tr:hover {
     max-width: 110px;
   }
 }
+
+/* Reference SSO entry: clear product story beside one sign-in action. */
+.auth-copy h1 { white-space: pre-line; }
+.auth-copy li span { display: grid; gap: 3px; font-size: 13px; line-height: 1.5; }
+.auth-copy li b { font-size: 14px; }
+.auth-brand { justify-content: flex-start; }
+.auth-copy { max-width: 36em; }
+.auth-mobile-brand .brand { display: flex; align-items: center; gap: 12px; }
+.auth-mobile-brand .brand > span { display: grid; gap: 3px; min-width: 0; }
+.auth-mobile-brand .brand small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+@media (max-width: 600px) {
+  .app-shell .marketbar { height: auto; align-items: flex-start; }
+  .app-shell .market-right { flex-wrap: wrap; gap: 6px; }
+  .app-shell .market-right .topsearch { order: 2; flex-basis: 100%; min-width: 0; }
+  .app-shell .market-right .tn-switch { max-width: calc(100% - 85px); }
+  .app-shell .market-right .tn-switch select { min-width: 0; max-width: 100%; }
+}

@@ -40,7 +40,7 @@ test('a collapsed group hides its rows but reports how many', () => {
   const r = buildNav({ closed: { Desk: true } });
   const desk = r.groups.find(g => g.label === 'Desk');
   assert.deepEqual(desk.items, []);
-  assert.equal(desk.hiddenCount, 6);
+  assert.equal(desk.hiddenCount, 7);
   assert.equal(desk.open, false);
 });
 
@@ -51,7 +51,7 @@ test('pinned leads the rail and marks its rows in place', () => {
   // Pinned follows NAV_GROUPS order, not the order routes were pinned in.
   assert.deepEqual(r.groups[0].items.map(i => i.label), ['Overview', 'Rejections']);
   assert.equal(labels(r, 'Desk').includes('Overview'), true);
-  assert.equal(r.groups.find(g => g.label === 'Desk').items[0].pinned, true);
+  assert.equal(r.groups.find(g => g.label === 'Desk').items.find(item => item.href === '/dashboard').pinned, true);
 });
 
 test('pinned never duplicates a route the role cannot see', () => {

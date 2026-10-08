@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { ArrowRight, KeyRound, LayoutDashboard, Shield } from 'lucide-react';
 import AuthModeTabs from '@/components/AuthModeTabs';
 import AuthShell from '@/components/AuthShell';
+import { APP_DESCRIPTION, LOGIN_HEADLINE } from '@/lib/brand';
 import { fetchAuthConfig, login } from '@/lib/oidc';
 import { safeReturnTo } from '@/lib/auth-routing';
 
@@ -13,7 +14,6 @@ export default function SignIn() {
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
-  const [email, setEmail] = useState('');
   const [expired, setExpired] = useState(false);
 
   const checkConfig = useCallback(async () => {
@@ -48,7 +48,7 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      await login(safeReturnTo(new URLSearchParams(window.location.search).get('returnTo')), email);
+      await login(safeReturnTo(new URLSearchParams(window.location.search).get('returnTo')));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed');
       setBusy(false);
@@ -71,8 +71,8 @@ export default function SignIn() {
 
   return (
     <AuthShell
-      title="Sign in to Argus TradeOps"
-      subtitle="One secure entry point for orders, rejections, sessions, and RCA — no passwords stored in this app."
+      title={LOGIN_HEADLINE}
+      subtitle={APP_DESCRIPTION}
     >
       <div className="auth-card auth-card-v2 compact">
         <AuthModeTabs active="signin" />
@@ -83,7 +83,7 @@ export default function SignIn() {
           </span>
           <div>
             <h2>Welcome back</h2>
-            <p>Use your organisation SSO. Argus TradeOps never stores your password.</p>
+            <p>Sign in to your account to continue</p>
           </div>
         </div>
 
@@ -94,28 +94,7 @@ export default function SignIn() {
           </div>
         )}
 
-        {authDisabled === false && !checking && (
-          <div className="auth-chip sso">
-            <Shield size={14} />
-            SSO is ready · access is managed by your organisation
-          </div>
-        )}
-
         <form onSubmit={onSubmit}>
-          <label className="auth-field">
-            Work email
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="name@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <span className="auth-hint">
-              Used only to pre-fill your identity provider when supported
-            </span>
-          </label>
-
           {expired && <p role="status">Your session has expired. Sign in again to continue.</p>}
           {error && (
             <p className="form-error" role="alert">
@@ -148,11 +127,7 @@ export default function SignIn() {
           <Link href="/">Back to home</Link>
         </div>
 
-        <ul className="auth-bullets compact">
-          <li>Authorization Code + PKCE</li>
-          <li>Role-based access for ops, risk, SRE, audit</li>
-          <li>Sessions follow your identity provider policy</li>
-        </ul>
+
       </div>
     </AuthShell>
   );

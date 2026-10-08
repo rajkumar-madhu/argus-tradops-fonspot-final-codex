@@ -18,6 +18,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Desk",
     items: [
+      { href: "/calendar", label: "Calendar", icon: "CalendarDays" },
       { href: "/dashboard", label: "Overview", icon: "BarChart3" },
       { href: "/orders", label: "Live Orders", icon: "ClipboardList" },
       { href: "/order-book", label: "Order Book", icon: "BookOpenCheck" },

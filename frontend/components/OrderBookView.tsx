@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DataTable, KPI, OrderDetailPanel, PageHead, StatusBadge } from "@/components/UI";
+import { DataTable, KPI, OrderDetailPanel, StatusBadge } from "@/components/UI";
 import { orderPriceText, timeShort } from "@/lib/format";
-import { sourceDisplayName } from "@/lib/data-source";
 
 export default function OrderBookView({ initial }: { initial: any }) {
   const rows = initial?.items || [];
@@ -18,12 +17,6 @@ export default function OrderBookView({ initial }: { initial: any }) {
 
   return (
     <>
-      <PageHead
-        title="Order Book"
-        subtitle="Open and pending Noren orders with full correlation context"
-        badge={`${initial?.count || rows.length} open · ${sourceDisplayName(initial?.source)}`}
-        badgeTone="ok"
-      />
       <section className="kpi-grid four">
         <KPI label="Open Orders" value={rows.length} sub="Status 48 / pending" />
         <KPI label="Buy Side" value={totals.buy} sub="Bid interest" tone="up" />
